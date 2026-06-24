@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useLang } from '../LangContext'
 import { t } from '../i18n'
+import { REGULATORY_STATUS, ISSUE_TYPES, ENDPOINT_STATUS, REGULATORY_STRENGTH, REPAIR_EP_TYPES, label } from '../enumLabels'
 
 const STATUS_COLORS = {
   ACCEPTABLE_PRIMARY_WITH_CONDITIONS: 'bg-green-100 text-green-800',
@@ -115,7 +116,7 @@ function CaseDetail({ data, lang }) {
             <p className="text-gray-500 text-sm mt-1">{data.device_context?.name} &mdash; {data.device_context?.domain}</p>
           </div>
           <span className={`px-4 py-2 rounded-xl text-sm font-semibold ${STATUS_COLORS[data.final_regulatory_status] || 'bg-gray-100'}`}>
-            {data.final_regulatory_status?.replace(/_/g, ' ')}
+            {label(REGULATORY_STATUS, data.final_regulatory_status, lang)}
           </span>
         </div>
       </div>
@@ -149,7 +150,7 @@ function CaseDetail({ data, lang }) {
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <h3 className="text-lg font-semibold text-gray-800 mb-3">{t('gold_issue', lang)}</h3>
           <div className="bg-surface rounded-xl p-4 border border-gray-100">
-            <div className="text-sm font-medium text-gray-800">{data.issue_detection?.primary_issue_type?.replace(/_/g, ' ')}</div>
+            <div className="text-sm font-medium text-gray-800">{label(ISSUE_TYPES, data.issue_detection?.primary_issue_type, lang)}</div>
             <div className="mt-2">
               <span className="text-xs text-gray-500">{t('gold_severity', lang)}</span>
               <div className="w-full h-3 bg-gray-200 rounded-full mt-1 overflow-hidden">
@@ -172,7 +173,7 @@ function CaseDetail({ data, lang }) {
                   <span className="font-medium text-gray-800">{ea.original_endpoint?.name}</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${
                     ea.original_endpoint?.status === 'ACCEPTABLE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                  }`}>{ea.original_endpoint?.status?.replace(/_/g, ' ')}</span>
+                  }`}>{label(ENDPOINT_STATUS, ea.original_endpoint?.status, lang)}</span>
                 </div>
                 <p className="text-xs text-gray-500 mb-3">{ea.original_endpoint?.failure_mode}</p>
                 {ea.repair_endpoints?.length > 0 && (
@@ -183,7 +184,7 @@ function CaseDetail({ data, lang }) {
                         <div key={j} className="bg-white rounded-lg p-2 border border-gray-100 text-sm">
                           <div className="font-medium text-gray-700">{r.endpoint_name}</div>
                           <div className="flex justify-between text-xs text-gray-500 mt-1">
-                            <span>{r.type}</span><span>{r.regulatory_strength?.replace(/_/g, ' ')}</span>
+                            <span>{label(REPAIR_EP_TYPES, r.type, lang)}</span><span>{label(REGULATORY_STRENGTH, r.regulatory_strength, lang)}</span>
                           </div>
                           <div className="w-full h-1.5 bg-gray-200 rounded-full mt-1 overflow-hidden">
                             <div className="h-full bg-green-500 rounded-full" style={{ width: `${r.robustness_score * 100}%` }} />

@@ -28,7 +28,7 @@ from design_mode import run_design_mode, run_design_mode_json
 # REVIEW MODE
 # ===================================================================
 
-def analyze(claim: ClinicalClaim) -> EngineOutput:
+def analyze(claim: ClinicalClaim, lang: str = "fr") -> EngineOutput:
     """REVIEW mode: analyze existing evidence."""
     claim = parse_claim(claim)
     endpoint_analyses = classify_endpoints(claim)
@@ -47,6 +47,7 @@ def analyze(claim: ClinicalClaim) -> EngineOutput:
     regulatory_readout = _build_regulatory_readout(
         claim, structure, bias_flags, design,
         repair_plan is not None, repair_plan_v2,
+        lang=lang,
     )
 
     manifold_position = compute_review_position(
@@ -121,36 +122,62 @@ def process(text: str, claim: ClinicalClaim | None = None,
 
 def _build_regulatory_readout(
     claim, structure, bias_flags, design, needs_repair, repair_v2,
+    lang="fr",
 ) -> str:
     parts = []
 
-    parts.append(
-        f"Claim level: {claim.level.value}. "
-        f"Causal structure: {structure.value}."
-    )
-
-    if bias_flags:
-        flag_names = ", ".join(f.value for f in bias_flags)
-        parts.append(f"Bias risks identified: {flag_names}.")
-
-    parts.append(f"Recommended design: {design.primary_design.value}.")
-
-    if repair_v2 and repair_v2.status == "NON_REPAIRABLE":
+    if lang == "fr":
         parts.append(
-            "NON-REPAIRABLE — all endpoints are structurally dependent on "
-            "the intervention mechanism. No valid causal inference is possible "
-            "under the current endpoint space. Fundamental redesign of the "
-            "evaluation framework is required before regulatory submission."
+            f"Niveau de revendication : {claim.level.value}. "
+            f"Structure causale : {structure.value}."
         )
-    elif needs_repair:
-        parts.append(
-            "REPAIR REQUIRED — the current study design has structural issues "
-            "that must be addressed before regulatory submission. "
-            "See repair_engine output for actionable modifications."
-        )
+        if bias_flags:
+            flag_names = ", ".join(f.value for f in bias_flags)
+            parts.append(f"Risques de biais identifiés : {flag_names}.")
+        parts.append(f"Design recommandé : {design.primary_design.value}.")
+        if repair_v2 and repair_v2.status == "NON_REPAIRABLE":
+            parts.append(
+                "NON RÉPARABLE — tous les critères de jugement dépendent "
+                "structurellement du mécanisme d'action de l'intervention. "
+                "Aucune inférence causale valide n'est possible avec les "
+                "critères actuels. Une refonte fondamentale du cadre "
+                "d'évaluation est nécessaire avant la soumission réglementaire."
+            )
+        elif needs_repair:
+            parts.append(
+                "RÉPARATION NÉCESSAIRE — le design d'étude actuel présente des "
+                "problèmes structurels qui doivent être corrigés avant la "
+                "soumission réglementaire."
+            )
+        else:
+            parts.append(
+                "Le design d'étude est structurellement solide pour la "
+                "soumission réglementaire."
+            )
     else:
         parts.append(
-            "Study design is structurally sound for regulatory submission."
+            f"Claim level: {claim.level.value}. "
+            f"Causal structure: {structure.value}."
         )
+        if bias_flags:
+            flag_names = ", ".join(f.value for f in bias_flags)
+            parts.append(f"Bias risks identified: {flag_names}.")
+        parts.append(f"Recommended design: {design.primary_design.value}.")
+        if repair_v2 and repair_v2.status == "NON_REPAIRABLE":
+            parts.append(
+                "NON-REPAIRABLE — all endpoints are structurally dependent on "
+                "the intervention mechanism. No valid causal inference is possible "
+                "under the current endpoint space. Fundamental redesign of the "
+                "evaluation framework is required before regulatory submission."
+            )
+        elif needs_repair:
+            parts.append(
+                "REPAIR REQUIRED — the current study design has structural issues "
+                "that must be addressed before regulatory submission."
+            )
+        else:
+            parts.append(
+                "Study design is structurally sound for regulatory submission."
+            )
 
     return " ".join(parts)

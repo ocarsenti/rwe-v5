@@ -23,6 +23,7 @@ from models import (
 from engine import analyze, design
 from gold_dataset import process_all_cases, generate_gold_dataset, ALL_CASES
 from llm_claim_parser import parse_claim_smart
+from translations import translate_engine_output
 
 app = FastAPI(title="RWE-v5 Epistemic Engine", version="1.0.0")
 
@@ -134,7 +135,7 @@ def smart_review_endpoint(req: SmartReviewRequest):
     if req.domain and not parsed.domain:
         parsed.domain = req.domain
 
-    result = analyze(parsed)
+    result = analyze(parsed, lang=req.lang)
 
     parse_info = {
         "intervention": parsed.intervention,
@@ -153,6 +154,7 @@ def smart_review_endpoint(req: SmartReviewRequest):
     }
 
     output = result.to_dict()
+    output = translate_engine_output(output, lang=req.lang)
     output["_parse_info"] = parse_info
     return output
 

@@ -29,89 +29,92 @@ from regulatory_labeler import label_case, build_gold_dataset_rows
 
 def _case_odysight() -> tuple[str, ClinicalClaim]:
     return "CASE_ODYSIGHT", ClinicalClaim(
-        text="OdySight enables earlier detection of visual acuity degradation "
-             "through remote monitoring, reducing time-to-detection of macular "
-             "degeneration progression.",
-        intervention="OdySight remote visual acuity monitoring device",
+        text="OdySight permet une détection plus précoce de la dégradation "
+             "de l'acuité visuelle grâce au monitoring à distance, réduisant "
+             "le délai de détection de la progression de la dégénérescence maculaire.",
+        intervention="OdySight, dispositif de monitoring visuel à distance",
         endpoints=[
             Endpoint(
-                name="time-to-detection of progression",
+                name="délai de détection de la progression",
                 nature=EndpointNature.INSTRUMENTED,
                 causal_role=CausalRole.CIRCULAR,
                 is_primary=True,
-                description="Time from baseline to device-detected visual acuity change",
+                description="Temps entre l'inclusion et la détection par le dispositif d'un changement d'acuité visuelle",
             ),
         ],
-        domain="ophthalmology",
+        domain="ophtalmologie",
     )
 
 
 def _case_moovcare() -> tuple[str, ClinicalClaim]:
     return "CASE_MOOVCARE", ClinicalClaim(
-        text="Moovcare improves overall survival in lung cancer patients "
-             "through web-based symptom monitoring and early alert to physicians.",
-        intervention="Moovcare web-based symptom monitoring application",
+        text="Moovcare améliore la survie globale des patients atteints de "
+             "cancer du poumon grâce au suivi des symptômes par application web "
+             "et à l'alerte précoce des médecins.",
+        intervention="Moovcare, application web de suivi des symptômes",
         endpoints=[
             Endpoint(
-                name="overall survival",
+                name="survie globale",
                 nature=EndpointNature.OBJECTIVE,
                 causal_role=CausalRole.MEDIATED,
                 is_primary=True,
-                description="Time from randomization to death from any cause",
+                description="Temps entre la randomisation et le décès, toutes causes confondues",
             ),
             Endpoint(
-                name="time-to-treatment modification",
+                name="délai de modification du traitement",
                 nature=EndpointNature.OBJECTIVE,
                 causal_role=CausalRole.MEDIATED,
                 is_primary=False,
-                description="Time from symptom alert to treatment change",
+                description="Temps entre l'alerte symptomatique et le changement de traitement",
             ),
         ],
-        domain="oncology",
+        domain="oncologie",
     )
 
 
 def _case_remedee() -> tuple[str, ClinicalClaim]:
     return "CASE_REMEDEE", ClinicalClaim(
-        text="Remedee wristband uses millimeter-wave neurostimulation to trigger "
-             "endorphin release, reducing chronic pain.",
-        intervention="Remedee millimeter-wave neurostimulation wristband",
+        text="Le bracelet Remedee utilise la neurostimulation par ondes "
+             "millimétriques pour déclencher la libération d'endorphines, "
+             "réduisant la douleur chronique.",
+        intervention="Remedee, bracelet de neurostimulation par ondes millimétriques",
         endpoints=[
             Endpoint(
-                name="pain VAS score",
+                name="score EVA de douleur",
                 nature=EndpointNature.SUBJECTIVE,
                 causal_role=CausalRole.INDEPENDENT,
                 is_primary=True,
-                description="Visual analog scale for pain intensity",
+                description="Échelle visuelle analogique de l'intensité de la douleur",
             ),
             Endpoint(
-                name="patient quality of life",
+                name="qualité de vie du patient",
                 nature=EndpointNature.SUBJECTIVE,
                 causal_role=CausalRole.INDEPENDENT,
                 is_primary=False,
-                description="SF-36 quality of life questionnaire",
+                description="Questionnaire de qualité de vie SF-36",
             ),
         ],
-        domain="pain management",
+        domain="prise en charge de la douleur",
     )
 
 
 def _case_ai_triage() -> tuple[str, ClinicalClaim]:
     return "CASE_AI_TRIAGE_AVC", ClinicalClaim(
-        text="AI triage system reduces time-to-treatment for stroke patients "
-             "by automated detection and prioritization of brain CT scans.",
-        intervention="AI-powered CT scan triage and prioritization system",
+        text="Le système de triage par IA réduit le délai de prise en charge "
+             "des patients victimes d'AVC grâce à la détection automatisée et "
+             "la priorisation des scanners cérébraux.",
+        intervention="Système de triage et priorisation des scanners cérébraux par IA",
         endpoints=[
             Endpoint(
-                name="time-to-treatment",
+                name="délai de prise en charge",
                 nature=EndpointNature.INSTRUMENTED,
                 causal_role=CausalRole.CIRCULAR,
                 is_primary=True,
-                description="Time from scan acquisition to treatment initiation, "
-                            "triggered by AI alert",
+                description="Temps entre l'acquisition du scanner et l'initiation du traitement, "
+                            "déclenché par l'alerte IA",
             ),
         ],
-        domain="emergency neurology",
+        domain="neurologie d'urgence",
     )
 
 

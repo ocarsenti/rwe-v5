@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useLang } from '../LangContext'
 import { t } from '../i18n'
+import { CLAIM_LEVELS, CAUSAL_STRUCTURES, STUDY_DESIGNS, ENDPOINT_NATURES, CAUSAL_ROLES, BIAS_FLAGS, MANIFOLD_REGIONS, REPAIR_STATUS, label } from '../enumLabels'
 import RadarChart from '../components/RadarChart'
 import BiasDisplay from '../components/BiasDisplay'
 
@@ -163,7 +164,7 @@ export default function ReviewPage() {
           <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs text-blue-700">
             <div><span className="font-medium block text-blue-500">{t('parse_intervention', lang)}</span>{parseInfo.intervention || '—'}</div>
             <div><span className="font-medium block text-blue-500">{t('parse_domain', lang)}</span>{parseInfo.domain || '—'}</div>
-            <div><span className="font-medium block text-blue-500">{t('parse_level', lang)}</span>{parseInfo.claim_level || '—'}</div>
+            <div><span className="font-medium block text-blue-500">{t('parse_level', lang)}</span>{label(CLAIM_LEVELS, parseInfo.claim_level, lang)}</div>
             <div><span className="font-medium block text-blue-500">{t('parse_endpoints_count', lang)}</span>{parseInfo.endpoints?.length || 0}</div>
           </div>
           {parseInfo.endpoints?.length > 0 && (
@@ -185,9 +186,9 @@ function ReviewResults({ data, lang }) {
   return (
     <div className="space-y-6">
       <div className="grid md:grid-cols-3 gap-4">
-        <SummaryCard label={t('res_claim_level', lang)} value={data.claim_level} />
-        <SummaryCard label={t('res_causal_structure', lang)} value={data.causal_structure} />
-        <SummaryCard label={t('res_design_rec', lang)} value={data.design_recommendation?.primary_design} />
+        <SummaryCard label={t('res_claim_level', lang)} value={label(CLAIM_LEVELS, data.claim_level, lang)} />
+        <SummaryCard label={t('res_causal_structure', lang)} value={label(CAUSAL_STRUCTURES, data.causal_structure, lang)} />
+        <SummaryCard label={t('res_design_rec', lang)} value={label(STUDY_DESIGNS, data.design_recommendation?.primary_design, lang)} />
       </div>
 
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -207,12 +208,12 @@ function ReviewResults({ data, lang }) {
               <div key={i} className="bg-surface rounded-xl p-3 border border-gray-100">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-sm text-gray-800">{ea.name}</span>
-                  <span className="text-xs text-gray-500">{ea.nature} / {ea.causal_role}</span>
+                  <span className="text-xs text-gray-500">{label(ENDPOINT_NATURES, ea.nature, lang)} / {label(CAUSAL_ROLES, ea.causal_role, lang)}</span>
                 </div>
                 {ea.flags?.length > 0 && (
                   <div className="flex gap-1 mt-2">
                     {ea.flags.map((f, j) => (
-                      <span key={j} className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{f}</span>
+                      <span key={j} className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{label(BIAS_FLAGS, f, lang)}</span>
                     ))}
                   </div>
                 )}
@@ -228,7 +229,7 @@ function ReviewResults({ data, lang }) {
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('res_position', lang)}</h3>
             <div className="space-y-3">
-              <InfoRow label={t('res_region', lang)} value={data.epistemic_manifold.region} />
+              <InfoRow label={t('res_region', lang)} value={label(MANIFOLD_REGIONS, data.epistemic_manifold.region, lang)} />
               <InfoRow label={t('res_agg_score', lang)} value={data.epistemic_manifold.aggregate_score?.toFixed(3)} />
               <InfoRow label={t('res_bias_mag', lang)} value={data.epistemic_manifold.bias_magnitude?.toFixed(3)} />
               <InfoRow label={t('res_reg_status', lang)} value={data.epistemic_manifold.regulatory_status} />
@@ -253,7 +254,7 @@ function ReviewResults({ data, lang }) {
             {t('res_repair_engine', lang)}
             <span className={`ml-3 text-sm px-3 py-1 rounded-full ${
               data.repair_engine.status === 'REPAIRABLE' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
-            }`}>{data.repair_engine.status}</span>
+            }`}>{label(REPAIR_STATUS, data.repair_engine.status, lang)}</span>
           </h3>
           <p className="text-gray-600 text-sm mb-4">{data.repair_engine.problem_summary}</p>
           {data.repair_engine.endpoint_repairs?.map((er, i) => (
@@ -275,7 +276,7 @@ function ReviewResults({ data, lang }) {
       {data.repair_manifold_delta && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <h3 className="text-lg font-semibold text-gray-800 mb-3">
-            {t('res_repair_delta', lang)}: {data.repair_manifold_delta.region_before} &rarr; {data.repair_manifold_delta.region_after}
+            {t('res_repair_delta', lang)}: {label(MANIFOLD_REGIONS, data.repair_manifold_delta.region_before, lang)} &rarr; {label(MANIFOLD_REGIONS, data.repair_manifold_delta.region_after, lang)}
           </h3>
           <div className="grid md:grid-cols-2 gap-4">
             <RadarChart coordinates={data.repair_manifold_delta.before} title={t('res_before', lang)} />

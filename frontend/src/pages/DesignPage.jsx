@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useLang } from '../LangContext'
 import { t } from '../i18n'
+import { CLAIM_LEVELS, MANIFOLD_REGIONS, label } from '../enumLabels'
 import RadarChart from '../components/RadarChart'
 import DesignTable from '../components/DesignTable'
 
@@ -137,7 +138,7 @@ export default function DesignPage() {
           <div className="grid sm:grid-cols-3 gap-3 text-xs text-orange-700">
             <div><span className="font-medium block text-orange-500">{t('parse_intervention', lang)}</span>{parseInfo.intervention || '—'}</div>
             <div><span className="font-medium block text-orange-500">{t('parse_domain', lang)}</span>{parseInfo.domain || '—'}</div>
-            <div><span className="font-medium block text-orange-500">{t('parse_level', lang)}</span>{parseInfo.claim_level || '—'}</div>
+            <div><span className="font-medium block text-orange-500">{t('parse_level', lang)}</span>{label(CLAIM_LEVELS, parseInfo.claim_level, lang)}</div>
           </div>
         </div>
       )}
