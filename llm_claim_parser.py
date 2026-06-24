@@ -81,10 +81,12 @@ def parse_claim_with_llm(claim_text: str, lang: str = "fr") -> ClinicalClaim:
     """Parse a free-text clinical claim using Claude and return a structured ClinicalClaim."""
     client = _get_client()
 
+    lang_label = "French" if lang == "fr" else "English"
     lang_instruction = (
-        "\n\nIMPORTANT: The input may be in French or English. "
-        "Always return endpoint names and descriptions in the SAME language as the input. "
-        "The JSON field names and enum values (MECHANISM, OBJECTIVE, CIRCULAR, etc.) must stay in English."
+        f"\n\nIMPORTANT: The input may be in any language. "
+        f"Always return the 'intervention', 'domain', endpoint 'name' and 'description' fields in {lang_label}, "
+        f"regardless of the input language. Translate if needed. "
+        f"The JSON field names and enum values (MECHANISM, OBJECTIVE, CIRCULAR, etc.) must stay in English."
     )
 
     response = client.messages.create(
