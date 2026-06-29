@@ -1,7 +1,14 @@
 import { Link } from 'react-router-dom'
 import { useLang } from '../LangContext'
 
-// ── Engine pillars ───────────────────────────────────────────────────────────
+// ── FIBROREM pre-fill URL ─────────────────────────────────────────────────────
+
+const FIBROREM_CLAIM_FR = 'FIBROREM soulage les symptômes de patients adultes atteints de fibromyalgie modérée à sévère (score FIQ ≥ 39) par rapport à la prise en charge thérapeutique classique individualisée et pluridisciplinaire.'
+const FIBROREM_CLAIM_EN = 'FIBROREM relieves symptoms in adult patients with moderate-to-severe fibromyalgia (FIQ ≥ 39) compared to standard individualised and multidisciplinary therapeutic management.'
+
+const FIBROREM_REPAIR_URL = `/remedee/repair?intervention=FIBROREM&domain=Fibromyalgie&claim=${encodeURIComponent(FIBROREM_CLAIM_FR)}`
+
+// ── Engine pillars ─────────────────────────────────────────────────────────────
 
 const ENGINE_PILLARS_FR = [
   {
@@ -41,41 +48,41 @@ const ENGINE_PILLARS_EN = [
   },
 ]
 
-// ── Illustrative example gaps ─────────────────────────────────────────────────
+// ── FIBROREM-specific example gaps ────────────────────────────────────────────
 
 const EXAMPLE_GAPS_FR = [
   {
-    label: 'Indépendance de la mesure',
-    desc: 'Le critère principal est influencé par le dispositif lui-même, ce qui limite l\'interprétation causale. La fréquence des événements détectés dépend de la sensibilité du dispositif, non de l\'évolution clinique réelle.',
+    label: 'Biais de perception',
+    desc: 'Tous les endpoints (FIQ, EVA, PSQI, HAD) sont des auto-questionnaires subjectifs. En l\'absence d\'insu, les patients du bras interventionnel savent qu\'ils utilisent le bracelet et bénéficient d\'un accompagnement coach — ce qui génère un biais de réponse systématique indissociable de l\'effet du dispositif.',
   },
   {
-    label: 'Design',
-    desc: 'Absence de comparateur. Sans contrefactuel observé, l\'amélioration ne peut être attribuée au dispositif plutôt qu\'à l\'histoire naturelle de la pathologie ou à des co-interventions.',
+    label: 'Co-intervention active',
+    desc: 'Le groupe intervention reçoit à la fois le bracelet FIBROREM et un accompagnement personnalisé via l\'application myRemedee avec un coach. Il est impossible d\'isoler l\'effet propre du dispositif de l\'effet de l\'accompagnement psychologique et du suivi renforcé.',
   },
   {
-    label: 'Niveau de preuve',
-    desc: 'Le design exploratoire génère des hypothèses — il ne les confirme pas. Il ne soutient pas une revendication d\'efficacité clinique.',
+    label: 'Analyse non-ITT',
+    desc: 'Seuls 165/170 patients sont inclus dans l\'analyse principale (modified-ITT, non ITT strict). Les perdus de vue non inclus peuvent introduire un biais d\'attrition qui surestime l\'efficacité observée.',
   },
 ]
 
 const EXAMPLE_GAPS_EN = [
   {
-    label: 'Independence of measurement',
-    desc: 'The primary endpoint is influenced by the device itself, limiting causal interpretation. The frequency of detected events depends on the device\'s sensitivity, not on actual clinical evolution.',
+    label: 'Perception bias',
+    desc: 'All endpoints (FIQ, EVA, PSQI, HAD) are subjective self-reported questionnaires. Without blinding, patients in the intervention arm know they are using the bracelet and receive personalised coaching — generating systematic response bias inseparable from any device effect.',
   },
   {
-    label: 'Design',
-    desc: 'No comparator. Without an observed counterfactual, improvement cannot be attributed to the device rather than to the natural history of the disease or co-interventions.',
+    label: 'Active co-intervention',
+    desc: 'The intervention group receives both the FIBROREM bracelet and personalised coaching via the myRemedee app. It is impossible to isolate the device-specific effect from the effect of psychological support and enhanced follow-up.',
   },
   {
-    label: 'Level of evidence',
-    desc: 'An exploratory design generates hypotheses — it does not confirm them. It does not support a clinical efficacy claim.',
+    label: 'Non-ITT analysis',
+    desc: 'Only 165/170 patients were included in the primary analysis (modified-ITT, not strict ITT). Excluded dropouts may introduce attrition bias that overestimates observed efficacy.',
   },
 ]
 
-// ── Component ────────────────────────────────────────────────────────────────
+// ── Component ─────────────────────────────────────────────────────────────────
 
-export default function Landing() {
+export default function LandingRemedee() {
   const { lang } = useLang()
   const fr = lang === 'fr'
 
@@ -85,6 +92,15 @@ export default function Landing() {
   return (
     <div>
 
+      {/* ── DEMO BANNER ──────────────────────────────────────────────────────── */}
+      <div className="bg-accent/10 border-b border-accent/20 px-6 py-3 text-center">
+        <p className="text-sm text-accent font-medium">
+          {fr
+            ? 'Accès démo personnalisé — Remedee Labs / FIBROREM · Accès complet, sans restriction, pour votre évaluation'
+            : 'Personalised demo access — Remedee Labs / FIBROREM · Full access, no restrictions, for your evaluation'}
+        </p>
+      </div>
+
       {/* ── HERO ─────────────────────────────────────────────────────────────── */}
       <section className="bg-gradient-to-br from-primary to-primary-light text-white py-24 px-6 relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.05)_0%,transparent_50%)]" />
@@ -92,14 +108,14 @@ export default function Landing() {
 
           <div className="inline-block bg-white/10 rounded-full px-4 py-1.5 text-sm font-medium mb-10 backdrop-blur-sm">
             {fr
-              ? 'Dispositifs médicaux · Méthodologie clinique · Accès au marché'
-              : 'Medical devices · Clinical methodology · Market access'}
+              ? 'Dispositifs médicaux · Douleur chronique · Fibromyalgie · Accès au marché'
+              : 'Medical devices · Chronic pain · Fibromyalgia · Market access'}
           </div>
 
           <h1 className="text-4xl md:text-5xl font-bold mb-5 leading-tight max-w-3xl mx-auto">
             {fr
-              ? 'Évitez les dossiers rejetés pour des problèmes de méthodologie évitables.'
-              : 'Avoid dossier rejections caused by preventable methodological gaps.'}
+              ? 'Détectez et corrigez les fragilités méthodologiques de vos études RCT et RWE avant soumission.'
+              : 'Detect and correct the methodological weaknesses in your RCT and RWE studies before submission.'}
           </h1>
 
           <p className="text-lg text-white/85 mb-6 max-w-2xl mx-auto leading-relaxed">
@@ -118,7 +134,7 @@ export default function Landing() {
 
           <div className="flex gap-4 justify-center flex-wrap">
             <Link
-              to="/review"
+              to="/remedee/review"
               className="bg-white/15 hover:bg-white/25 text-white px-8 py-3.5 rounded-xl font-semibold text-lg transition-colors backdrop-blur-sm border border-white/20 text-left"
             >
               <span className="block">→ {fr ? 'Analyse rapide' : 'Quick analysis'}</span>
@@ -127,13 +143,10 @@ export default function Landing() {
               </span>
             </Link>
             <Link
-              to="/repair"
+              to={FIBROREM_REPAIR_URL}
               className="bg-accent hover:bg-accent/90 text-white px-8 py-3.5 rounded-xl font-semibold text-lg transition-colors shadow-lg shadow-accent/30 text-left"
             >
-              <span className="block">
-                → {fr ? 'Analyse complète' : 'Full analysis'}
-                <span className="ml-2 bg-white/20 text-xs font-bold px-2 py-0.5 rounded-full align-middle">Premium</span>
-              </span>
+              <span className="block">→ {fr ? 'Analyse complète' : 'Full analysis'}</span>
               <span className="block text-xs text-white/60 font-normal mt-0.5">
                 {fr ? 'Revendication + données cliniques' : 'Claim + clinical data'}
               </span>
@@ -250,7 +263,7 @@ export default function Landing() {
           <div className="mb-8 rounded-2xl border-2 border-primary/20 overflow-hidden shadow-sm">
             <div className="bg-primary/5 border-b border-primary/10 px-8 py-5 flex items-center gap-4">
               <span className="bg-primary text-white text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wide">
-                {fr ? 'Analyse rapide — Gratuit' : 'Quick analysis — Free'}
+                {fr ? 'Analyse rapide — Accès libre' : 'Quick analysis — Open access'}
               </span>
               <h3 className="text-xl font-bold text-primary">
                 {fr
@@ -270,8 +283,8 @@ export default function Landing() {
                 </p>
                 <div className="bg-gray-50 rounded-lg border border-gray-200 p-3 font-mono text-xs text-gray-400 italic">
                   {fr
-                    ? '"Notre dispositif améliore la détection précoce des complications chez les patients atteints de…"'
-                    : '"Our device improves early detection of complications in patients with…"'}
+                    ? '"FIBROREM réduit le score FIQ de patients atteints de fibromyalgie modérée à sévère à 3 mois."'
+                    : '"FIBROREM reduces the FIQ score in patients with moderate-to-severe fibromyalgia at 3 months."'}
                 </div>
               </div>
               <div className="p-6">
@@ -301,7 +314,7 @@ export default function Landing() {
                   </p>
                 </div>
                 <Link
-                  to="/review"
+                  to="/remedee/review"
                   className="mt-6 inline-block bg-primary hover:bg-primary-light text-white px-6 py-2.5 rounded-xl font-medium transition-colors text-center text-sm"
                 >
                   {fr ? 'Tester ma revendication →' : 'Test my claim →'}
@@ -314,7 +327,7 @@ export default function Landing() {
           <div className="rounded-2xl border-2 border-accent/30 overflow-hidden shadow-sm">
             <div className="bg-accent/5 border-b border-accent/20 px-8 py-5 flex items-center gap-4">
               <span className="bg-accent text-white text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wide">
-                {fr ? 'Analyse complète — Premium' : 'Full analysis — Premium'}
+                {fr ? 'Analyse complète — Accès démo' : 'Full analysis — Demo access'}
               </span>
               <h3 className="text-xl font-bold text-accent">
                 {fr
@@ -341,11 +354,6 @@ export default function Landing() {
                       <span className="text-accent font-bold">·</span> {item}
                     </div>
                   ))}
-                  <p className="mt-3 text-xs text-gray-400 italic leading-relaxed">
-                    {fr
-                      ? 'Essai randomisé, étude observationnelle, registre, ou données en vie réelle — EpiStrat analyse la structure méthodologique, pas le type de publication.'
-                      : 'Randomised trial, observational study, registry, or real-world data — EpiStrat analyses the methodological structure, not the publication type.'}
-                  </p>
                 </div>
               </div>
               <div className="p-6">
@@ -364,7 +372,7 @@ export default function Landing() {
                         'Gap analysis by dimension: device · population · design · endpoints · causality',
                         'Identification of structural incoherences',
                         'Prioritised correction plan: immediate · amendment · new study',
-                        'PDF export of the report',
+                        'Full report PDF export',
                       ]
                   ).map((item, i) => (
                     <div key={i} className="flex gap-2 text-sm text-gray-600">
@@ -380,12 +388,12 @@ export default function Landing() {
                   </p>
                   <p className="text-sm text-accent font-medium leading-relaxed">
                     {fr
-                      ? 'Savoir si un design ou une source de données est suffisant pour une revendication donnée — ou identifier les ajustements méthodologiques nécessaires avant de commanditer ou de modifier une source de données.'
-                      : 'Know whether a design or data source is sufficient for a given claim — or identify the methodological adjustments needed before commissioning or modifying a data source.'}
+                      ? 'Savoir si un design ou une source de données est suffisant pour une revendication donnée — ou identifier les ajustements méthodologiques nécessaires avant de décider.'
+                      : 'Know whether a design or data source is sufficient for a given claim — or identify the methodological adjustments needed before deciding.'}
                   </p>
                 </div>
                 <Link
-                  to="/repair"
+                  to={FIBROREM_REPAIR_URL}
                   className="mt-6 inline-block bg-accent hover:bg-accent/90 text-white px-6 py-2.5 rounded-xl font-medium transition-colors text-center shadow-md shadow-accent/20 text-sm"
                 >
                   {fr ? 'Analyser mes données →' : 'Analyse my evidence →'}
@@ -431,11 +439,11 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── EXEMPLE ──────────────────────────────────────────────────────────── */}
+      {/* ── EXEMPLE FIBROREM ─────────────────────────────────────────────────── */}
       <section className="py-20 px-6 bg-white">
         <div className="max-w-5xl mx-auto">
           <p className="text-center text-accent font-semibold text-sm uppercase tracking-widest mb-4">
-            {fr ? 'Exemple concret' : 'Concrete example'}
+            {fr ? 'Exemple — FIBROREM' : 'Example — FIBROREM'}
           </p>
           <h2 className="text-3xl font-bold text-primary text-center mb-4">
             {fr ? 'Décalage revendication ↔ preuve' : 'Claim ↔ evidence misalignment'}
@@ -444,12 +452,12 @@ export default function Landing() {
           <div className="text-center mb-10">
             <div className="inline-block bg-gray-50 border border-gray-200 rounded-xl px-6 py-4 max-w-xl text-left">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
-                {fr ? 'Revendication' : 'Claim'}
+                {fr ? 'Revendication analysée' : 'Claim analysed'}
               </p>
               <p className="text-sm text-gray-700 italic">
                 {fr
-                  ? '"Le dispositif permet une détection précoce des événements critiques et améliore la prise en charge."'
-                  : '"The device enables early detection of critical events and improves patient management."'}
+                  ? `"${FIBROREM_CLAIM_FR}"`
+                  : `"${FIBROREM_CLAIM_EN}"`}
               </p>
             </div>
           </div>
@@ -487,14 +495,44 @@ export default function Landing() {
               <div className="px-5 py-5 flex-1 space-y-4">
                 {(fr
                   ? [
-                      { effort: '✅ Immédiat', cls: 'bg-green-50 border-green-200 text-green-700', action: 'Ajuster le type de revendication vers une performance mesurable', hint: 'La circularité disparaît si la revendication devient "sensibilité X% vs. méthode de référence". Le design existant devient cohérent.' },
-                      { effort: '🔧 Amendement', cls: 'bg-orange-50 border-orange-200 text-orange-700', action: 'Introduire un comparateur pour établir un contrefactuel', hint: 'Un groupe contrôle concurrent permet d\'isoler l\'effet du dispositif de l\'histoire naturelle.' },
-                      { effort: '🏗 Nouvelle étude', cls: 'bg-red-50 border-red-200 text-red-700', action: 'Reformuler les endpoints pour les rendre indépendants du dispositif', hint: 'Remplacer le critère généré par le dispositif par un outcome adjugé indépendamment.' },
+                      {
+                        effort: '✅ Immédiat',
+                        cls: 'bg-green-50 border-green-200 text-green-700',
+                        action: 'Distinguer la composante bracelet de la composante coaching dans la revendication',
+                        hint: 'La revendication actuelle fusionne le dispositif et son programme d\'accompagnement. Clarifier si FIBROREM désigne le bracelet seul ou le programme complet permet de cadrer correctement le niveau de preuve attendu.',
+                      },
+                      {
+                        effort: '🔧 Amendement',
+                        cls: 'bg-orange-50 border-orange-200 text-orange-700',
+                        action: 'Ajouter un bras "accompagnement sans bracelet actif" pour isoler l\'effet du dispositif',
+                        hint: 'Un bras sham (bracelet placebo inactif) ou un bras "application myRemedee seule sans émission d\'ondes" permettrait d\'isoler l\'effet neuromodulateur de l\'effet de l\'accompagnement et du suivi renforcé.',
+                      },
+                      {
+                        effort: '🏗 Nouvelle étude',
+                        cls: 'bg-red-50 border-red-200 text-red-700',
+                        action: 'RCT en aveugle avec bracelet sham et évaluation indépendante des endpoints',
+                        hint: 'Un bracelet émettant des fréquences identiques mais non thérapeutiques permettrait un essai en simple aveugle. L\'adjudication indépendante des scores auto-rapportés (saisie avant consultation) élimine le biais de perception systématique.',
+                      },
                     ]
                   : [
-                      { effort: '✅ Immediate', cls: 'bg-green-50 border-green-200 text-green-700', action: 'Adjust claim type to a measurable performance claim', hint: 'Circularity disappears if the claim becomes "sensitivity X% vs. reference method". The existing design becomes coherent.' },
-                      { effort: '🔧 Amendment', cls: 'bg-orange-50 border-orange-200 text-orange-700', action: 'Add a comparator to establish a counterfactual', hint: 'A concurrent control group allows isolating the device effect from the natural history.' },
-                      { effort: '🏗 New study', cls: 'bg-red-50 border-red-200 text-red-700', action: 'Reformulate endpoints to make them independent of the device', hint: 'Replace the device-generated endpoint with an independently adjudicated outcome.' },
+                      {
+                        effort: '✅ Immediate',
+                        cls: 'bg-green-50 border-green-200 text-green-700',
+                        action: 'Distinguish the bracelet component from the coaching component in the claim',
+                        hint: 'The current claim merges the device and its coaching programme. Clarifying whether FIBROREM refers to the bracelet alone or the full programme (bracelet + app + coach) would correctly frame the expected level of evidence.',
+                      },
+                      {
+                        effort: '🔧 Amendment',
+                        cls: 'bg-orange-50 border-orange-200 text-orange-700',
+                        action: 'Add a "coaching without active bracelet" arm to isolate the device effect',
+                        hint: 'A sham arm (inactive placebo bracelet) or "myRemedee app alone without wave emission" arm would isolate the neuromodulatory effect from the coaching and enhanced follow-up effect.',
+                      },
+                      {
+                        effort: '🏗 New study',
+                        cls: 'bg-red-50 border-red-200 text-red-700',
+                        action: 'Blinded RCT with sham bracelet and independent endpoint evaluation',
+                        hint: 'A bracelet emitting identical but non-therapeutic frequencies would enable a single-blind trial. Independent adjudication of self-reported scores (captured before consultation) eliminates systematic perception bias.',
+                      },
                     ]
                 ).map((a, i) => (
                   <div key={i}>
@@ -507,6 +545,20 @@ export default function Landing() {
                 ))}
               </div>
             </div>
+          </div>
+
+          <div className="mt-8 text-center">
+            <Link
+              to={FIBROREM_REPAIR_URL}
+              className="inline-block bg-accent hover:bg-accent/90 text-white px-8 py-3.5 rounded-xl font-semibold transition-colors shadow-md shadow-accent/20"
+            >
+              {fr ? 'Lancer l\'analyse complète →' : 'Start full analysis →'}
+            </Link>
+            <p className="mt-3 text-xs text-gray-400">
+              {fr
+                ? 'La revendication est pré-chargée. Vous pouvez l\'ajuster et ajouter votre propre abstract ou PDF.'
+                : 'The claim is pre-loaded. You can adjust it and add your own abstract or PDF.'}
+            </p>
           </div>
         </div>
       </section>
@@ -598,127 +650,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── TARIFICATION ─────────────────────────────────────────────────────── */}
-      <section className="py-20 px-6 bg-white">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl font-bold text-primary text-center mb-4">
-            {fr ? 'Tarifs' : 'Pricing'}
-          </h2>
-          <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto text-sm">
-            {fr
-              ? 'L\'analyse de revendication est gratuite. L\'analyse complète revendication × données cliniques est en accès Premium.'
-              : 'Claim analysis is free. Full claim × clinical evidence analysis requires Premium access.'}
-          </p>
-
-          <div className="grid md:grid-cols-3 gap-6">
-
-            {/* Free */}
-            <div className="bg-white rounded-2xl border-2 border-gray-100 p-7 shadow-sm">
-              <div className="mb-6">
-                <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
-                  {fr ? 'Analyse de revendication' : 'Claim analysis'}
-                </div>
-                <div className="text-4xl font-bold text-gray-900 mb-1">€0</div>
-                <div className="text-gray-500 text-sm">{fr ? 'Sans inscription' : 'No sign-up required'}</div>
-              </div>
-              <div className="bg-primary/5 rounded-xl p-4 mb-6">
-                <p className="text-sm text-primary font-medium">
-                  {fr
-                    ? 'Savoir en quelques secondes si une revendication est cohérente avec un cadre de preuve — avant de concevoir ou de sélectionner une source de données.'
-                    : 'Know in seconds whether a claim is consistent with an evidence framework — before designing or selecting a data source.'}
-                </p>
-              </div>
-              <ul className="space-y-2.5 mb-8">
-                {(fr
-                  ? ['Classification du niveau de revendication (A → D)', 'Analyse de la structure causale', 'Premiers points de fragilité']
-                  : ['Classification of claim level (A → D)', 'Causal structure analysis', 'Initial fragility points']
-                ).map((item, i) => (
-                  <li key={i} className="flex gap-2.5 text-sm text-gray-700">
-                    <span className="text-primary font-bold mt-0.5 flex-shrink-0">✓</span> {item}
-                  </li>
-                ))}
-              </ul>
-              <Link to="/review" className="block text-center bg-primary hover:bg-primary-light text-white px-6 py-3 rounded-xl font-semibold transition-colors">
-                {fr ? 'Tester ma revendication →' : 'Test my claim →'}
-              </Link>
-            </div>
-
-            {/* 399 */}
-            <div className="bg-white rounded-2xl border-2 border-accent/30 p-7 shadow-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 bg-accent/10 text-accent text-xs font-bold px-3 py-1.5 rounded-bl-xl">
-                {fr ? 'À la carte' : 'Pay-per-use'}
-              </div>
-              <div className="mb-6">
-                <div className="text-xs font-bold text-accent uppercase tracking-widest mb-2">
-                  {fr ? 'Analyse complète' : 'Full analysis'}
-                </div>
-                <div className="flex items-baseline gap-1 mb-1">
-                  <span className="text-4xl font-bold text-gray-900">€399</span>
-                  <span className="text-gray-500 text-sm">{fr ? '/ 3 rapports' : '/ 3 reports'}</span>
-                </div>
-                <div className="text-gray-400 text-xs">{fr ? '≈ 133 € par rapport' : '≈ €133 per report'}</div>
-              </div>
-              <div className="bg-accent/5 rounded-xl p-4 mb-6">
-                <p className="text-sm text-accent font-medium">
-                  {fr
-                    ? 'Savoir si un dossier de données est suffisant pour une revendication donnée — ou identifier les ajustements nécessaires avant de décider.'
-                    : 'Know whether a data dossier is sufficient for a given claim — or identify the adjustments needed before deciding.'}
-                </p>
-              </div>
-              <ul className="space-y-2.5 mb-8">
-                {(fr
-                  ? ['Analyse revendication + données cliniques (essai, cohorte, registre, RWE)', 'Détection des écarts méthodologiques par dimension', 'Plan de correction structuré et priorisé', 'Export PDF du rapport complet']
-                  : ['Claim + clinical data analysis (trial, cohort, registry, RWE)', 'Methodological gap detection by dimension', 'Structured and prioritised correction plan', 'Full report PDF export']
-                ).map((item, i) => (
-                  <li key={i} className="flex gap-2.5 text-sm text-gray-700">
-                    <span className="text-accent font-bold mt-0.5 flex-shrink-0">✓</span> {item}
-                  </li>
-                ))}
-              </ul>
-              <Link to="/repair" className="block text-center bg-accent hover:bg-accent/90 text-white px-6 py-3 rounded-xl font-semibold transition-colors shadow-md shadow-accent/20">
-                {fr ? 'Analyser mes données →' : 'Analyse my evidence →'}
-              </Link>
-            </div>
-
-            {/* 799 */}
-            <div className="bg-gradient-to-br from-primary to-primary-light rounded-2xl border-2 border-primary p-7 shadow-lg text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-bl-xl">
-                {fr ? 'Meilleure valeur' : 'Best value'}
-              </div>
-              <div className="mb-6">
-                <div className="text-xs font-bold text-white/60 uppercase tracking-widest mb-2">Pro</div>
-                <div className="flex items-baseline gap-1 mb-1">
-                  <span className="text-4xl font-bold">€799</span>
-                  <span className="text-white/70 text-sm">{fr ? '/ mois' : '/ month'}</span>
-                </div>
-                <div className="text-white/50 text-xs">{fr ? 'Analyses illimitées' : 'Unlimited analyses'}</div>
-              </div>
-              <div className="bg-white/10 rounded-xl p-4 mb-6">
-                <p className="text-sm text-white font-medium">
-                  {fr
-                    ? 'Travailler plusieurs dossiers en parallèle, avec historique des analyses et support méthodologique avancé.'
-                    : 'Work on multiple dossiers in parallel, with analysis history and advanced methodological support.'}
-                </p>
-              </div>
-              <ul className="space-y-2.5 mb-8">
-                {(fr
-                  ? ['Tout l\'Analyse complète inclus', 'Analyses illimitées', 'Suivi multi-dossiers en parallèle', 'Historique des analyses', 'Support méthodologique avancé']
-                  : ['Everything in Full Analysis included', 'Unlimited analyses', 'Multi-dossier parallel tracking', 'Analysis history', 'Advanced methodological support']
-                ).map((item, i) => (
-                  <li key={i} className="flex gap-2.5 text-sm text-white/90">
-                    <span className="text-accent font-bold mt-0.5 flex-shrink-0">✓</span> {item}
-                  </li>
-                ))}
-              </ul>
-              <a href="mailto:contact@epistrat.io" className="block text-center bg-white text-primary hover:bg-gray-50 px-6 py-3 rounded-xl font-semibold transition-colors">
-                {fr ? 'Contacter →' : 'Contact us →'}
-              </a>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
       {/* ── CLOSING ──────────────────────────────────────────────────────────── */}
       <section className="py-20 px-6 bg-gradient-to-br from-primary to-primary-light text-white">
         <div className="max-w-3xl mx-auto text-center">
@@ -739,7 +670,7 @@ export default function Landing() {
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
             <Link
-              to="/review"
+              to="/remedee/review"
               className="bg-white/15 hover:bg-white/25 text-white border border-white/20 px-8 py-3.5 rounded-xl font-semibold transition-colors backdrop-blur-sm text-left"
             >
               <span className="block">{fr ? 'Analyse rapide' : 'Quick analysis'}</span>
@@ -748,7 +679,7 @@ export default function Landing() {
               </span>
             </Link>
             <Link
-              to="/repair"
+              to={FIBROREM_REPAIR_URL}
               className="bg-accent hover:bg-accent/90 text-white px-8 py-3.5 rounded-xl font-semibold transition-colors shadow-lg shadow-accent/30 text-left"
             >
               <span className="block">{fr ? 'Analyse complète' : 'Full analysis'}</span>

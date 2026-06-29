@@ -91,7 +91,7 @@ def parse_claim_with_llm(claim_text: str, lang: str = "fr") -> ClinicalClaim:
 
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=1024,
+        max_tokens=2048,
         system=SYSTEM_PROMPT + lang_instruction,
         messages=[
             {"role": "user", "content": USER_TEMPLATE.format(claim_text=claim_text)},
@@ -102,7 +102,11 @@ def parse_claim_with_llm(claim_text: str, lang: str = "fr") -> ClinicalClaim:
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        from llm_evidence_parser import _repair_truncated_json
+        data = _repair_truncated_json(raw)
 
     level_map = {
         "MECHANISM": ClaimLevel.A,

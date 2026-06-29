@@ -12,6 +12,26 @@ from models import (
 )
 
 
+HARD_CLINICAL_MARKERS = [
+    # English
+    "mortality", "survival", "death", "hospitalization", "readmission",
+    "stroke", "myocardial infarction", "heart failure", "amputation",
+    "fracture", "complication", "adverse event", "infection", "recurrence",
+    "treatment escalation", "major adverse", "all-cause",
+    # French
+    "mortalité", "survie", "décès", "hospitalisation", "réhospitalisation",
+    "avc", "infarctus", "insuffisance cardiaque", "amputation",
+    "fracture", "complication", "événement indésirable", "infection",
+    "récidive", "récurrence", "escalade thérapeutique",
+]
+
+# Seuls endpoints dont l'adjudication est triviale (mort = binaire, pas d'interprétation).
+# Toute autre issue objective (hospitalisation, AVC, complication, PFS...) requiert jugement.
+ALL_CAUSE_DEATH_MARKERS = [
+    "all-cause mortality", "all-cause death", "overall mortality",
+    "mortalité toutes causes", "décès toutes causes", "toutes causes de décès",
+]
+
 INSTRUMENTED_MARKERS = [
     "time-to-detection", "alert", "device-generated", "monitoring",
     "sensor", "automated", "ai-generated", "algorithm", "app-reported",
@@ -87,6 +107,27 @@ def _detect_endpoint_flags(
     ]
     if any(m in text for m in detection_markers):
         flags.append(BiasFlag.DETECTION_BIAS)
+
+    name_text = endpoint.name.lower()
+    is_hard_clinical = any(m in name_text for m in HARD_CLINICAL_MARKERS)
+    if (
+        role == CausalRole.MEDIATED
+        and endpoint.is_primary
+        and not endpoint.is_validated_surrogate
+        and not is_hard_clinical
+        and nature != EndpointNature.SUBJECTIVE  # PROs are not surrogates — bias = PERCEPTION_BIAS
+    ):
+        flags.append(BiasFlag.SURROGATE_RISK)
+
+    is_all_cause_death = any(m in text for m in ALL_CAUSE_DEATH_MARKERS)
+    if (
+        nature == EndpointNature.OBJECTIVE
+        and role == CausalRole.INDEPENDENT
+        and endpoint.is_primary
+        and not endpoint.is_independently_adjudicated
+        and not is_all_cause_death
+    ):
+        flags.append(BiasFlag.ADJUDICATION_RISK)
 
     return flags
 

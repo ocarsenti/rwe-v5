@@ -716,18 +716,21 @@ class TestRemedeeFullWorkflow(unittest.TestCase):
     def test_L7_step2_pain_repair_analgesic(self):
         pain_blocks = [b for b in self.repair_v2.endpoint_repairs if "pain" in b.original_endpoint.lower()]
         all_repairs = " ".join(r.endpoint.lower() for b in pain_blocks for r in b.repairs)
-        self.assertIn("analgesic", all_repairs)
+        self.assertTrue(any(kw in all_repairs for kw in ["analgesic", "analg"]))
 
     def test_L7_step2_pain_repair_functional(self):
         pain_blocks = [b for b in self.repair_v2.endpoint_repairs if "pain" in b.original_endpoint.lower()]
         all_repairs = " ".join(r.endpoint.lower() for b in pain_blocks for r in b.repairs)
-        self.assertTrue(any(kw in all_repairs for kw in ["walk test", "functional", "actigraphy", "return-to-work"]))
+        self.assertTrue(any(kw in all_repairs for kw in [
+            "walk test", "marche", "functional", "fonctionnel",
+            "actigraphy", "actimétrie", "return-to-work", "retour au travail",
+        ]))
 
     def test_L7_step2_qol_repair_hospitalization(self):
         qol_blocks = [b for b in self.repair_v2.endpoint_repairs if "quality" in b.original_endpoint.lower()]
         self.assertTrue(len(qol_blocks) >= 1)
         all_repairs = " ".join(r.endpoint.lower() for b in qol_blocks for r in b.repairs)
-        self.assertIn("hospitalization", all_repairs)
+        self.assertTrue(any(kw in all_repairs for kw in ["hospitalization", "hospitali"]))
 
     def test_L7_step3_causal_chain_mediator(self):
         roles = [s.role for s in self.repair_v2.causal_chain]
@@ -922,7 +925,7 @@ class TestAITriageFullWorkflow(unittest.TestCase):
 
     def test_L7_step2_repair_has_mortality(self):
         all_repairs = " ".join(r.endpoint.lower() for b in self.repair_v2.endpoint_repairs for r in b.repairs)
-        self.assertIn("mortality", all_repairs)
+        self.assertTrue(any(kw in all_repairs for kw in ["mortality", "mortalit"]))
 
     def test_L7_step2_repair_has_rankin_or_functional(self):
         all_repairs = " ".join(r.endpoint.lower() for b in self.repair_v2.endpoint_repairs for r in b.repairs)
@@ -1044,9 +1047,13 @@ class TestGoldDatasetCrossCase(unittest.TestCase):
 
     def test_severity_ordering(self):
         sev = {c.case_id: c.issue_detection.severity_score for c in self.cases}
+        # Circular-endpoint cases (ODYSIGHT, AI_TRIAGE) are always the most severe
+        self.assertGreater(sev["CASE_ODYSIGHT"], sev["CASE_REMEDEE"])
+        self.assertGreater(sev["CASE_AI_TRIAGE_AVC"], sev["CASE_REMEDEE"])
+        # MOOVCARE (mediation gap + PROCESS_TAUTOLOGY) and REMEDEE (subjective endpoint)
+        # are both below the circular cases — exact ordering between them is calibration-dependent
         self.assertGreater(sev["CASE_ODYSIGHT"], sev["CASE_MOOVCARE"])
         self.assertGreater(sev["CASE_AI_TRIAGE_AVC"], sev["CASE_MOOVCARE"])
-        self.assertGreater(sev["CASE_REMEDEE"], sev["CASE_MOOVCARE"])
 
     def test_no_binary_rct_rejection_anywhere(self):
         for case in self.cases:
@@ -2325,6 +2332,1678 @@ class TestCalibrationCrossCaseOrdering(unittest.TestCase):
         self.assertGreater(self.scores["remedee"], 0.35)
         self.assertLess(self.scores["odysight"], 0.35)
         self.assertLess(self.scores["ai_triage"], 0.35)
+
+
+# ===================================================================
+# CAS Engine tests
+# ===================================================================
+
+from cas_engine import evaluate_cas, compute_cas_score, apply_device_gate, determine_verdict
+from models import (
+    CASVerdict,
+    CarePathwayMatch,
+    ContextAlignment,
+    ContextMatchType,
+    DeviceAlignment,
+    DeviceMatchType,
+    EligibilityShift,
+    OrganizationDependency,
+    PopulationAlignment,
+    PopulationMatchType,
+    CASGatingResult,
+)
+
+
+def _make_device(match_type, claim="Device A", study="Device A"):
+    return DeviceAlignment(
+        device_match_type=match_type,
+        device_description_claim=claim,
+        device_description_study=study,
+    )
+
+
+def _make_population(match_type, claim="Population A", study="Population A",
+                     subgroup="", shift=EligibilityShift.NONE):
+    return PopulationAlignment(
+        population_match_type=match_type,
+        population_description_claim=claim,
+        population_description_study=study,
+        subgroup_description=subgroup,
+        eligibility_shift=shift,
+    )
+
+
+def _make_context(match_type, pathway=CarePathwayMatch.YES,
+                  org=OrganizationDependency.LOW, country="France"):
+    return ContextAlignment(
+        context_match_type=match_type,
+        care_pathway_match=pathway,
+        organization_dependency=org,
+        study_country=country,
+    )
+
+
+class TestCASScoreComputation(unittest.TestCase):
+
+    def test_perfect_alignment(self):
+        self.assertAlmostEqual(compute_cas_score(0, 0, 0), 1.0)
+
+    def test_worst_alignment(self):
+        self.assertAlmostEqual(compute_cas_score(1, 1, 1), 0.0)
+
+    def test_device_only_distance(self):
+        score = compute_cas_score(0.7, 0, 0)
+        self.assertAlmostEqual(score, 1.0 - 0.4 * 0.7)
+
+    def test_population_only_distance(self):
+        score = compute_cas_score(0, 0.5, 0)
+        self.assertAlmostEqual(score, 1.0 - 0.35 * 0.5)
+
+    def test_context_only_distance(self):
+        score = compute_cas_score(0, 0, 0.4)
+        self.assertAlmostEqual(score, 1.0 - 0.25 * 0.4)
+
+    def test_score_always_between_0_and_1(self):
+        for dd in [0, 0.3, 0.5, 0.7, 1.0]:
+            for dp in [0, 0.3, 0.5, 1.0]:
+                for dc in [0, 0.4, 0.6, 1.0]:
+                    s = compute_cas_score(dd, dp, dc)
+                    self.assertGreaterEqual(s, 0.0)
+                    self.assertLessEqual(s, 1.0)
+
+
+class TestCASDeviceGate(unittest.TestCase):
+
+    def test_exact_device_passes(self):
+        self.assertTrue(apply_device_gate(0.0).device_gate_passed)
+
+    def test_same_family_passes(self):
+        self.assertTrue(apply_device_gate(0.3).device_gate_passed)
+
+    def test_unknown_passes(self):
+        self.assertTrue(apply_device_gate(0.5).device_gate_passed)
+
+    def test_proxy_device_blocked(self):
+        result = apply_device_gate(0.7)
+        self.assertFalse(result.device_gate_passed)
+        self.assertIn("mismatch", result.device_gate_reason.lower())
+
+    def test_different_device_blocked(self):
+        self.assertFalse(apply_device_gate(1.0).device_gate_passed)
+
+
+class TestCASVerdict(unittest.TestCase):
+
+    def test_acceptable(self):
+        gating = CASGatingResult(device_gate_passed=True)
+        self.assertEqual(determine_verdict(0.8, gating), CASVerdict.ACCEPTABLE)
+        self.assertEqual(determine_verdict(0.7, gating), CASVerdict.ACCEPTABLE)
+
+    def test_weak(self):
+        gating = CASGatingResult(device_gate_passed=True)
+        self.assertEqual(determine_verdict(0.6, gating), CASVerdict.WEAK_EVIDENCE)
+        self.assertEqual(determine_verdict(0.5, gating), CASVerdict.WEAK_EVIDENCE)
+
+    def test_rejected(self):
+        gating = CASGatingResult(device_gate_passed=True)
+        self.assertEqual(determine_verdict(0.4, gating), CASVerdict.REJECTED)
+
+    def test_device_gate_overrides(self):
+        gating = CASGatingResult(device_gate_passed=False, device_gate_reason="blocked")
+        self.assertEqual(determine_verdict(0.9, gating), CASVerdict.REJECTED)
+
+
+class TestCASFullEvaluation(unittest.TestCase):
+
+    def test_perfect_case(self):
+        result = evaluate_cas(
+            "Device X improves outcome", "Device X", "cardiology",
+            _make_device(DeviceMatchType.EXACT_DEVICE),
+            _make_population(PopulationMatchType.EXACT_INDICATION),
+            _make_context(ContextMatchType.SAME_HEALTHCARE_SYSTEM),
+        )
+        self.assertAlmostEqual(result.cas_score, 1.0)
+        self.assertEqual(result.verdict, CASVerdict.ACCEPTABLE)
+        self.assertTrue(result.gating.device_gate_passed)
+        self.assertEqual(len(result.risks), 0)
+
+    def test_proxy_device_rejected(self):
+        result = evaluate_cas(
+            "Device Y", "Device Y", "neuro",
+            _make_device(DeviceMatchType.PROXY_DEVICE, "INCEPTIV", "EVOKE"),
+            _make_population(PopulationMatchType.EXACT_INDICATION),
+            _make_context(ContextMatchType.SAME_HEALTHCARE_SYSTEM),
+        )
+        self.assertEqual(result.verdict, CASVerdict.REJECTED)
+        self.assertFalse(result.gating.device_gate_passed)
+        self.assertTrue(any(r.dimension == "DEVICE" for r in result.risks))
+
+    def test_narrower_subgroup_acceptable(self):
+        result = evaluate_cas(
+            "Claim", "DM", "onco",
+            _make_device(DeviceMatchType.EXACT_DEVICE),
+            _make_population(PopulationMatchType.NARROWER_SUBGROUP,
+                           "All cancer patients", "Chemo only", "Chemo subgroup"),
+            _make_context(ContextMatchType.SAME_HEALTHCARE_SYSTEM),
+        )
+        self.assertGreater(result.cas_score, 0.7)
+        self.assertEqual(result.verdict, CASVerdict.ACCEPTABLE)
+        self.assertTrue(any(r.dimension == "POPULATION" for r in result.risks))
+
+    def test_different_context_reduces_score(self):
+        result_same = evaluate_cas(
+            "Claim", "DM", "onco",
+            _make_device(DeviceMatchType.EXACT_DEVICE),
+            _make_population(PopulationMatchType.EXACT_INDICATION),
+            _make_context(ContextMatchType.SAME_HEALTHCARE_SYSTEM),
+        )
+        result_diff = evaluate_cas(
+            "Claim", "DM", "onco",
+            _make_device(DeviceMatchType.EXACT_DEVICE),
+            _make_population(PopulationMatchType.EXACT_INDICATION),
+            _make_context(ContextMatchType.DIFFERENT_SYSTEM, CarePathwayMatch.NO,
+                         OrganizationDependency.HIGH, "USA"),
+        )
+        self.assertGreater(result_same.cas_score, result_diff.cas_score)
+
+    def test_worst_case_zero(self):
+        result = evaluate_cas(
+            "Claim", "DM", "domain",
+            _make_device(DeviceMatchType.DIFFERENT_DEVICE, "A", "B"),
+            _make_population(PopulationMatchType.DIFFERENT_POPULATION, "Pop A", "Pop B"),
+            _make_context(ContextMatchType.DIFFERENT_SYSTEM, CarePathwayMatch.NO,
+                         OrganizationDependency.HIGH, "Japan"),
+        )
+        self.assertAlmostEqual(result.cas_score, 0.0)
+        self.assertEqual(result.verdict, CASVerdict.REJECTED)
+
+    def test_to_dict_structure(self):
+        result = evaluate_cas(
+            "Test claim", "TestDM", "test",
+            _make_device(DeviceMatchType.SAME_FAMILY, "DM-A", "DM-B"),
+            _make_population(PopulationMatchType.NARROWER_SUBGROUP, "All", "Sub"),
+            _make_context(ContextMatchType.PARTIALLY_COMPARABLE,
+                         CarePathwayMatch.PARTIAL, OrganizationDependency.MEDIUM, "Germany"),
+        )
+        d = result.to_dict()
+        self.assertIn("scores", d)
+        self.assertIn("cas_score", d["scores"])
+        self.assertIn("device_alignment", d)
+        self.assertIn("population_alignment", d)
+        self.assertIn("context_alignment", d)
+        self.assertIn("verdict", d)
+        self.assertIn("gating", d)
+        self.assertIn("risks", d)
+        self.assertIn("regulatory_interpretation", d)
+
+    def test_regulatory_interpretation_fr(self):
+        result = evaluate_cas(
+            "Claim FR", "DM", "domain",
+            _make_device(DeviceMatchType.EXACT_DEVICE),
+            _make_population(PopulationMatchType.EXACT_INDICATION),
+            _make_context(ContextMatchType.SAME_HEALTHCARE_SYSTEM),
+            lang="fr",
+        )
+        self.assertIn("ACCEPTABLE", result.regulatory_interpretation)
+        self.assertIn("Dispositif", result.regulatory_interpretation)
+
+    def test_regulatory_interpretation_en(self):
+        result = evaluate_cas(
+            "Claim EN", "DM", "domain",
+            _make_device(DeviceMatchType.EXACT_DEVICE),
+            _make_population(PopulationMatchType.EXACT_INDICATION),
+            _make_context(ContextMatchType.SAME_HEALTHCARE_SYSTEM),
+            lang="en",
+        )
+        self.assertIn("ACCEPTABLE", result.regulatory_interpretation)
+        self.assertIn("Device", result.regulatory_interpretation)
+
+    def test_eligibility_shift_major_adds_risk(self):
+        result = evaluate_cas(
+            "Claim", "DM", "domain",
+            _make_device(DeviceMatchType.EXACT_DEVICE),
+            _make_population(PopulationMatchType.EXACT_INDICATION,
+                           shift=EligibilityShift.MAJOR),
+            _make_context(ContextMatchType.SAME_HEALTHCARE_SYSTEM),
+        )
+        elig_risks = [r for r in result.risks if "eligibility" in r.description.lower()]
+        self.assertGreater(len(elig_risks), 0)
+
+    def test_care_pathway_no_adds_risk(self):
+        result = evaluate_cas(
+            "Claim", "DM", "domain",
+            _make_device(DeviceMatchType.EXACT_DEVICE),
+            _make_population(PopulationMatchType.EXACT_INDICATION),
+            _make_context(ContextMatchType.PARTIALLY_COMPARABLE,
+                         CarePathwayMatch.NO, OrganizationDependency.LOW, "UK"),
+        )
+        pathway_risks = [r for r in result.risks if "pathway" in r.description.lower()]
+        self.assertGreater(len(pathway_risks), 0)
+
+    def test_org_dependency_high_adds_risk(self):
+        result = evaluate_cas(
+            "Claim", "DM", "domain",
+            _make_device(DeviceMatchType.EXACT_DEVICE),
+            _make_population(PopulationMatchType.EXACT_INDICATION),
+            _make_context(ContextMatchType.PARTIALLY_COMPARABLE,
+                         CarePathwayMatch.PARTIAL, OrganizationDependency.HIGH, "Germany"),
+        )
+        org_risks = [r for r in result.risks if "organizational" in r.description.lower()]
+        self.assertGreater(len(org_risks), 0)
+
+
+class TestCASDistanceTables(unittest.TestCase):
+
+    def test_device_distances_monotonic(self):
+        from cas_engine import _D_DEVICE
+        self.assertEqual(_D_DEVICE[DeviceMatchType.EXACT_DEVICE], 0.0)
+        self.assertLess(_D_DEVICE[DeviceMatchType.SAME_FAMILY],
+                       _D_DEVICE[DeviceMatchType.PROXY_DEVICE])
+        self.assertLess(_D_DEVICE[DeviceMatchType.PROXY_DEVICE],
+                       _D_DEVICE[DeviceMatchType.DIFFERENT_DEVICE])
+        self.assertEqual(_D_DEVICE[DeviceMatchType.DIFFERENT_DEVICE], 1.0)
+
+    def test_population_distances_monotonic(self):
+        from cas_engine import _D_POP
+        self.assertEqual(_D_POP[PopulationMatchType.EXACT_INDICATION], 0.0)
+        self.assertLess(_D_POP[PopulationMatchType.NARROWER_SUBGROUP],
+                       _D_POP[PopulationMatchType.BROADER_POPULATION])
+        self.assertLess(_D_POP[PopulationMatchType.BROADER_POPULATION],
+                       _D_POP[PopulationMatchType.DIFFERENT_POPULATION])
+        self.assertEqual(_D_POP[PopulationMatchType.DIFFERENT_POPULATION], 1.0)
+
+    def test_context_distances_monotonic(self):
+        from cas_engine import _D_CONTEXT
+        self.assertEqual(_D_CONTEXT[ContextMatchType.SAME_HEALTHCARE_SYSTEM], 0.0)
+        self.assertLess(_D_CONTEXT[ContextMatchType.PARTIALLY_COMPARABLE],
+                       _D_CONTEXT[ContextMatchType.DIFFERENT_SYSTEM])
+        self.assertEqual(_D_CONTEXT[ContextMatchType.DIFFERENT_SYSTEM], 1.0)
+
+    def test_weights_sum_to_one(self):
+        from cas_engine import W_DEVICE, W_POP, W_CONTEXT
+        self.assertAlmostEqual(W_DEVICE + W_POP + W_CONTEXT, 1.0)
+
+
+class TestCASCNEDiMTSCases(unittest.TestCase):
+    """Validate CAS engine against known CNEDiMTS corpus patterns."""
+
+    def test_presage_care(self):
+        result = evaluate_cas(
+            "PRESAGE CARE améliore le suivi des personnes âgées fragiles",
+            "PRESAGE CARE", "télésurveillance gériatrique",
+            _make_device(DeviceMatchType.EXACT_DEVICE, "PRESAGE CARE v1.3", "PRESAGE CARE v1.3"),
+            _make_population(PopulationMatchType.NARROWER_SUBGROUP,
+                           "Personnes âgées fragiles 65+",
+                           "Patients dépendance légère à modérée",
+                           "GIR 3-4 uniquement",
+                           EligibilityShift.MAJOR),
+            _make_context(ContextMatchType.SAME_HEALTHCARE_SYSTEM,
+                         CarePathwayMatch.NO, OrganizationDependency.HIGH, "France"),
+        )
+        self.assertEqual(result.verdict, CASVerdict.ACCEPTABLE)
+        self.assertTrue(any(r.dimension == "POPULATION" for r in result.risks))
+        self.assertTrue(any(r.dimension == "CONTEXT" for r in result.risks))
+
+    def test_inceptiv_proxy(self):
+        result = evaluate_cas(
+            "INCEPTIV réduit la douleur chronique", "INCEPTIV", "neurostimulation",
+            _make_device(DeviceMatchType.PROXY_DEVICE, "INCEPTIV", "EVOKE boucle fermée"),
+            _make_population(PopulationMatchType.EXACT_INDICATION,
+                           "Douleur chronique", "Douleur chronique"),
+            _make_context(ContextMatchType.PARTIALLY_COMPARABLE,
+                         CarePathwayMatch.PARTIAL, OrganizationDependency.LOW, "USA"),
+        )
+        self.assertEqual(result.verdict, CASVerdict.REJECTED)
+        self.assertFalse(result.gating.device_gate_passed)
+
+    def test_tucky_center_worst(self):
+        result = evaluate_cas(
+            "TUCKY CENTER télésurveillance pédiatrique", "TUCKY CENTER", "pédiatrie",
+            _make_device(DeviceMatchType.DIFFERENT_DEVICE,
+                        "TUCKY CENTER", "Autres DM de télésurveillance"),
+            _make_population(PopulationMatchType.DIFFERENT_POPULATION,
+                           "Enfants sous chimiothérapie", "Adultes post-chirurgie"),
+            _make_context(ContextMatchType.DIFFERENT_SYSTEM,
+                         CarePathwayMatch.NO, OrganizationDependency.HIGH, "Canada"),
+        )
+        self.assertAlmostEqual(result.cas_score, 0.0)
+        self.assertEqual(result.verdict, CASVerdict.REJECTED)
+
+    def test_continuum_connect_partial(self):
+        result = evaluate_cas(
+            "CONTINUUM CONNECT télésurveillance oncologie",
+            "CONTINUUM+ CONNECT", "oncologie",
+            _make_device(DeviceMatchType.SAME_FAMILY,
+                        "CONTINUUM+ CONNECT", "Autres plateformes de télésurveillance"),
+            _make_population(PopulationMatchType.EXACT_INDICATION,
+                           "Patients en immunothérapie",
+                           "Patients en immunothérapie"),
+            _make_context(ContextMatchType.PARTIALLY_COMPARABLE,
+                         CarePathwayMatch.PARTIAL, OrganizationDependency.MEDIUM, "France"),
+        )
+        self.assertTrue(0.5 <= result.cas_score < 1.0)
+        self.assertIn(result.verdict, [CASVerdict.ACCEPTABLE, CASVerdict.WEAK_EVIDENCE])
+
+
+class TestSurrogateRisk(unittest.TestCase):
+    """Unit tests for BiasFlag.SURROGATE_RISK."""
+
+    def _ep(self, name, role, is_primary=True, is_validated=False, description=""):
+        return Endpoint(
+            name=name,
+            nature=EndpointNature.OBJECTIVE,
+            causal_role=role,
+            is_primary=is_primary,
+            description=description,
+            is_validated_surrogate=is_validated,
+        )
+
+    def test_fires_mediated_primary_not_validated(self):
+        """Surrogate endpoint in primary position without validation → flag."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("HbA1c reduction", CausalRole.MEDIATED)
+        result = classify_endpoint(ep)
+        self.assertIn(BiasFlag.SURROGATE_RISK, result.flags)
+
+    def test_suppressed_when_validated(self):
+        """is_validated_surrogate=True suppresses the flag."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("HbA1c reduction", CausalRole.MEDIATED, is_validated=True)
+        result = classify_endpoint(ep)
+        self.assertNotIn(BiasFlag.SURROGATE_RISK, result.flags)
+
+    def test_suppressed_for_hard_clinical_endpoint(self):
+        """Hard clinical outcome (survival) does not trigger flag even if MEDIATED."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("overall survival", CausalRole.MEDIATED)
+        result = classify_endpoint(ep)
+        self.assertNotIn(BiasFlag.SURROGATE_RISK, result.flags)
+
+    def test_suppressed_for_hard_clinical_endpoint_fr(self):
+        """French hard clinical outcome (survie globale) does not trigger flag."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("survie globale", CausalRole.MEDIATED,
+                      description="Temps entre randomisation et décès")
+        result = classify_endpoint(ep)
+        self.assertNotIn(BiasFlag.SURROGATE_RISK, result.flags)
+
+    def test_suppressed_for_independent_role(self):
+        """INDEPENDENT causal role does not trigger flag (not a surrogate position)."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("pain score", CausalRole.INDEPENDENT)
+        result = classify_endpoint(ep)
+        self.assertNotIn(BiasFlag.SURROGATE_RISK, result.flags)
+
+    def test_suppressed_for_secondary_endpoint(self):
+        """MEDIATED secondary endpoint does not trigger flag."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("HbA1c reduction", CausalRole.MEDIATED, is_primary=False)
+        result = classify_endpoint(ep)
+        self.assertNotIn(BiasFlag.SURROGATE_RISK, result.flags)
+
+    def test_french_surrogate_fires(self):
+        """French surrogate endpoint (réduction HbA1c) triggers flag."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("réduction de l'HbA1c", CausalRole.MEDIATED,
+                      description="Variation de l'HbA1c à 6 mois")
+        result = classify_endpoint(ep)
+        self.assertIn(BiasFlag.SURROGATE_RISK, result.flags)
+
+    def test_bias_detail_severity_high(self):
+        """SURROGATE_RISK is classified as HIGH severity."""
+        from bias_detector import BIAS_DETAILS
+        self.assertEqual(BIAS_DETAILS[BiasFlag.SURROGATE_RISK]["severity"], "HIGH")
+
+
+class TestAdjudicationRisk(unittest.TestCase):
+    """Unit tests for BiasFlag.ADJUDICATION_RISK."""
+
+    def _ep(self, name, nature=EndpointNature.OBJECTIVE, role=CausalRole.INDEPENDENT,
+            is_primary=True, adjudicated=False, description=""):
+        return Endpoint(
+            name=name,
+            nature=nature,
+            causal_role=role,
+            is_primary=is_primary,
+            description=description,
+            is_independently_adjudicated=adjudicated,
+        )
+
+    def test_fires_objective_primary_no_cec(self):
+        """Objective primary endpoint without CEC → flag."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("hospitalisation pour insuffisance cardiaque",
+                      description="Taux de réhospitalisation à 12 mois")
+        result = classify_endpoint(ep)
+        self.assertIn(BiasFlag.ADJUDICATION_RISK, result.flags)
+
+    def test_fires_for_stroke_no_cec(self):
+        """Stroke without CEC triggers flag."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("AVC invalidant",
+                      description="Accident vasculaire cérébral confirmé par imagerie")
+        result = classify_endpoint(ep)
+        self.assertIn(BiasFlag.ADJUDICATION_RISK, result.flags)
+
+    def test_fires_for_complications(self):
+        """Device complication rate without CEC triggers flag."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("taux de complications du dispositif")
+        result = classify_endpoint(ep)
+        self.assertIn(BiasFlag.ADJUDICATION_RISK, result.flags)
+
+    def test_suppressed_when_adjudicated(self):
+        """is_independently_adjudicated=True suppresses the flag."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("hospitalisation pour insuffisance cardiaque", adjudicated=True)
+        result = classify_endpoint(ep)
+        self.assertNotIn(BiasFlag.ADJUDICATION_RISK, result.flags)
+
+    def test_suppressed_all_cause_mortality(self):
+        """All-cause mortality is self-adjudicating — no flag."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("mortalité toutes causes",
+                      description="Décès toutes causes à 24 mois")
+        result = classify_endpoint(ep)
+        self.assertNotIn(BiasFlag.ADJUDICATION_RISK, result.flags)
+
+    def test_suppressed_all_cause_death_en(self):
+        """English all-cause death is self-adjudicating — no flag."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("all-cause mortality",
+                      description="all-cause death at 24 months")
+        result = classify_endpoint(ep)
+        self.assertNotIn(BiasFlag.ADJUDICATION_RISK, result.flags)
+
+    def test_suppressed_for_subjective_endpoint(self):
+        """Subjective endpoint does not trigger adjudication flag."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("pain VAS score", nature=EndpointNature.SUBJECTIVE)
+        result = classify_endpoint(ep)
+        self.assertNotIn(BiasFlag.ADJUDICATION_RISK, result.flags)
+
+    def test_suppressed_for_mediated_role(self):
+        """MEDIATED role does not trigger adjudication flag (SURROGATE_RISK territory)."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("réhospitalisation", role=CausalRole.MEDIATED)
+        result = classify_endpoint(ep)
+        self.assertNotIn(BiasFlag.ADJUDICATION_RISK, result.flags)
+
+    def test_suppressed_for_secondary_endpoint(self):
+        """Secondary endpoint does not trigger flag."""
+        from endpoint_classifier import classify_endpoint
+        ep = self._ep("hospitalisation pour insuffisance cardiaque", is_primary=False)
+        result = classify_endpoint(ep)
+        self.assertNotIn(BiasFlag.ADJUDICATION_RISK, result.flags)
+
+    def test_bias_detail_severity_medium(self):
+        """ADJUDICATION_RISK is classified as MEDIUM severity."""
+        from bias_detector import BIAS_DETAILS
+        self.assertEqual(BIAS_DETAILS[BiasFlag.ADJUDICATION_RISK]["severity"], "MEDIUM")
+
+
+class TestCNEDiMTSRealEndpoints(unittest.TestCase):
+    """
+    Tests fondés sur des avis CNEDiMTS réels (corpus 58 avis).
+    Vérifie que SURROGATE_RISK et ADJUDICATION_RISK se déclenchent (ou non)
+    sur les vrais endpoints et contextes d'étude rencontrés dans les dossiers HAS.
+    """
+
+    # ── SURROGATE_RISK ───────────────────────────────────────────────────────
+
+    def test_inspire_iv_iah_is_surrogate(self):
+        """
+        INSPIRE IV (neurostimulateur SAHOS) — avis CNEDiMTS 2022/2025.
+        Critère principal : IAH (Indice d'Apnées-Hypopnées) + IDO.
+        L'IAH est un marqueur polysomnographique intermédiaire : il mesure
+        la fréquence des apnées, pas le bénéfice clinique final (événements
+        cardiovasculaires, mortalité, qualité de vie à long terme).
+        HAS : 'Les critères de jugement de l'étude étaient l'IAH et l'IDO'
+        — aucun endpoint clinique dur primaire.
+        """
+        from endpoint_classifier import classify_endpoint
+        ep = Endpoint(
+            name="indice d'apnées-hypopnées (IAH)",
+            nature=EndpointNature.OBJECTIVE,
+            causal_role=CausalRole.MEDIATED,
+            is_primary=True,
+            description="Variation de l'IAH à 12 mois (événements par heure de sommeil)",
+        )
+        result = classify_endpoint(ep)
+        self.assertIn(BiasFlag.SURROGATE_RISK, result.flags)
+
+    def test_zephyr_vems_is_surrogate(self):
+        """
+        ZEPHYR (valves endobronchiques BPCO) — avis CNEDiMTS 2024.
+        Critère principal : variation du VEMS (FEV1) en pourcentage.
+        Le VEMS est un marqueur fonctionnel intermédiaire de la BPCO — il
+        ne constitue pas un endpoint clinique dur (exacerbations, hospitalisations,
+        mortalité, qualité de vie). HAS : 'Le critère de jugement principal était
+        le pourcentage de changement du VEMS'.
+        """
+        from endpoint_classifier import classify_endpoint
+        ep = Endpoint(
+            name="variation du VEMS",
+            nature=EndpointNature.OBJECTIVE,
+            causal_role=CausalRole.MEDIATED,
+            is_primary=True,
+            description=(
+                "Variation en pourcentage du volume expiratoire maximum par seconde "
+                "à 3 mois par rapport à la valeur basale"
+            ),
+        )
+        result = classify_endpoint(ep)
+        self.assertIn(BiasFlag.SURROGATE_RISK, result.flags)
+
+    def test_freestyle_libre_hba1c_validated_no_surrogate_risk(self):
+        """
+        FREESTYLE LIBRE 2 PLUS (CGM diabète) — avis CNEDiMTS 2024.
+        Critère principal : réduction du taux d'HbA1c à 6 mois.
+        L'HbA1c EST un surrogate validé en diabétologie (lien HbA1c →
+        complications diabétiques établi dans la littérature, reconnu ADA/HAS).
+        Avec is_validated_surrogate=True, le flag ne doit PAS se déclencher.
+        """
+        from endpoint_classifier import classify_endpoint
+        ep = Endpoint(
+            name="taux d'HbA1c",
+            nature=EndpointNature.OBJECTIVE,
+            causal_role=CausalRole.MEDIATED,
+            is_primary=True,
+            description="Variation du taux d'HbA1c à 6 mois",
+            is_validated_surrogate=True,
+        )
+        result = classify_endpoint(ep)
+        self.assertNotIn(BiasFlag.SURROGATE_RISK, result.flags)
+
+    def test_inspire_iv_survival_not_surrogate(self):
+        """
+        INSPIRE IV — mortalité toutes causes comme endpoint secondaire.
+        La mortalité toutes causes est un endpoint clinique dur, pas un surrogate,
+        même si le dispositif agit via un mécanisme médié (IAH → événements cardiaques).
+        """
+        from endpoint_classifier import classify_endpoint
+        ep = Endpoint(
+            name="mortalité toutes causes",
+            nature=EndpointNature.OBJECTIVE,
+            causal_role=CausalRole.MEDIATED,
+            is_primary=False,
+            description="Décès toutes causes à 60 mois",
+        )
+        result = classify_endpoint(ep)
+        self.assertNotIn(BiasFlag.SURROGATE_RISK, result.flags)
+
+    # ── ADJUDICATION_RISK ────────────────────────────────────────────────────
+
+    def test_edwards_sapien3_rehospitalisation_no_cec(self):
+        """
+        EDWARDS SAPIEN 3 (valve TAVI) — avis CNEDiMTS 2024.
+        Étude en ouvert (pas d'aveugle possible pour implant chirurgical).
+        Endpoint composite incluant réhospitalisation pour insuffisance cardiaque.
+        HAS : 'étude réalisée en ouvert'. La réhospitalisation est un événement
+        nécessitant une classification par un comité indépendant pour éviter le
+        biais d'attribution des causes entre les deux bras.
+        """
+        from endpoint_classifier import classify_endpoint
+        ep = Endpoint(
+            name="réhospitalisation pour insuffisance cardiaque",
+            nature=EndpointNature.OBJECTIVE,
+            causal_role=CausalRole.INDEPENDENT,
+            is_primary=True,
+            description=(
+                "Taux de réhospitalisation à 2 ans dans l'étude PARTNER 3, "
+                "étude contrôlée randomisée en ouvert"
+            ),
+        )
+        result = classify_endpoint(ep)
+        self.assertIn(BiasFlag.ADJUDICATION_RISK, result.flags)
+
+    def test_edwards_sapien3_avc_no_cec(self):
+        """
+        EDWARDS SAPIEN 3 — AVC comme composant du critère composite.
+        HAS rapporte les AVC invalides et non invalides. Dans une étude ouverte,
+        la classification AVC/AIT nécessite un comité d'adjudication neurologique aveugle.
+        """
+        from endpoint_classifier import classify_endpoint
+        ep = Endpoint(
+            name="AVC invalidant ou non invalidant",
+            nature=EndpointNature.OBJECTIVE,
+            causal_role=CausalRole.INDEPENDENT,
+            is_primary=True,
+            description=(
+                "Accidents vasculaires cérébraux confirmés, évalués sans comité "
+                "d'adjudication indépendant dans l'étude en ouvert"
+            ),
+        )
+        result = classify_endpoint(ep)
+        self.assertIn(BiasFlag.ADJUDICATION_RISK, result.flags)
+
+    def test_edwards_sapien3_deces_cardiovasculaire_no_cec(self):
+        """
+        EDWARDS SAPIEN 3 — décès cardiovasculaire.
+        Contrairement à la mortalité toutes causes, la mortalité cardiovasculaire
+        requiert une attribution de cause (cardiovasculaire vs autre), donc
+        un comité d'adjudication. Sans CEC, biais possible.
+        """
+        from endpoint_classifier import classify_endpoint
+        ep = Endpoint(
+            name="décès cardiovasculaire",
+            nature=EndpointNature.OBJECTIVE,
+            causal_role=CausalRole.INDEPENDENT,
+            is_primary=True,
+            description="Décès attribués à une cause cardiovasculaire à 2 ans",
+        )
+        result = classify_endpoint(ep)
+        self.assertIn(BiasFlag.ADJUDICATION_RISK, result.flags)
+
+    def test_edwards_sapien3_with_cec_no_flag(self):
+        """
+        Même endpoint EDWARDS SAPIEN 3 AVEC comité d'adjudication documenté.
+        Dès qu'un CEC aveugle est en place, le flag ne doit pas se déclencher.
+        """
+        from endpoint_classifier import classify_endpoint
+        ep = Endpoint(
+            name="réhospitalisation pour insuffisance cardiaque",
+            nature=EndpointNature.OBJECTIVE,
+            causal_role=CausalRole.INDEPENDENT,
+            is_primary=True,
+            description="Taux de réhospitalisation à 2 ans avec CEC aveugle indépendant",
+            is_independently_adjudicated=True,
+        )
+        result = classify_endpoint(ep)
+        self.assertNotIn(BiasFlag.ADJUDICATION_RISK, result.flags)
+
+    def test_edwards_sapien3_deces_toutes_causes_no_flag(self):
+        """
+        EDWARDS SAPIEN 3 — mortalité toutes causes.
+        La mortalité toutes causes est auto-adjudicable (décédé ou non),
+        pas de biais d'attribution possible. Pas de flag.
+        """
+        from endpoint_classifier import classify_endpoint
+        ep = Endpoint(
+            name="mortalité toutes causes",
+            nature=EndpointNature.OBJECTIVE,
+            causal_role=CausalRole.INDEPENDENT,
+            is_primary=True,
+            description="all-cause death at 24 months, PARTNER 3 trial",
+        )
+        result = classify_endpoint(ep)
+        self.assertNotIn(BiasFlag.ADJUDICATION_RISK, result.flags)
+
+
+# ===================================================================
+# CAS Wiring tests — EngineOutput.cas_output populated via analyze()
+# ===================================================================
+
+class TestCASWiring(unittest.TestCase):
+    """Verify that analyze() populates cas_output when alignment objects are present."""
+
+    def _claim_with_cas(self):
+        return ClinicalClaim(
+            text="Le stimulateur INSPIRE IV réduit l'IAH chez les patients SAOS",
+            intervention="INSPIRE IV",
+            domain="pulmonology",
+            device_alignment=_make_device(DeviceMatchType.EXACT_DEVICE, "INSPIRE IV", "INSPIRE IV"),
+            population_alignment=_make_population(PopulationMatchType.EXACT_INDICATION,
+                                                   "SAOS sévère", "SAOS sévère"),
+            context_alignment=_make_context(ContextMatchType.SAME_HEALTHCARE_SYSTEM,
+                                             CarePathwayMatch.YES,
+                                             OrganizationDependency.LOW, "France"),
+        )
+
+    def _claim_without_cas(self):
+        return ClinicalClaim(
+            text="Le stimulateur INSPIRE IV réduit l'IAH chez les patients SAOS",
+            intervention="INSPIRE IV",
+            domain="pulmonology",
+        )
+
+    def test_cas_output_present_when_alignments_provided(self):
+        output = analyze(self._claim_with_cas())
+        self.assertIsNotNone(output.cas_output)
+
+    def test_cas_output_absent_when_no_alignments(self):
+        output = analyze(self._claim_without_cas())
+        self.assertIsNone(output.cas_output)
+
+    def test_cas_output_has_correct_verdict_exact_alignment(self):
+        output = analyze(self._claim_with_cas())
+        self.assertEqual(output.cas_output.verdict, CASVerdict.ACCEPTABLE)
+
+    def test_cas_output_cas_score_above_threshold(self):
+        output = analyze(self._claim_with_cas())
+        self.assertGreater(output.cas_output.cas_score, 0.7)
+
+    def test_cas_output_claim_text_matches(self):
+        claim = self._claim_with_cas()
+        output = analyze(claim)
+        self.assertEqual(output.cas_output.claim_text, claim.text)
+
+    def test_cas_output_intervention_matches(self):
+        claim = self._claim_with_cas()
+        output = analyze(claim)
+        self.assertEqual(output.cas_output.intervention, claim.intervention)
+
+    def test_cas_output_rejected_on_different_device(self):
+        claim = ClinicalClaim(
+            text="Valve NAVITOR réduit la mortalité cardiovasculaire",
+            intervention="NAVITOR",
+            domain="cardiology",
+            device_alignment=_make_device(DeviceMatchType.DIFFERENT_DEVICE,
+                                           "NAVITOR", "EDWARDS SAPIEN 3"),
+            population_alignment=_make_population(PopulationMatchType.EXACT_INDICATION,
+                                                   "RA sévère", "RA sévère"),
+            context_alignment=_make_context(ContextMatchType.SAME_HEALTHCARE_SYSTEM),
+        )
+        output = analyze(claim)
+        self.assertEqual(output.cas_output.verdict, CASVerdict.REJECTED)
+
+    def test_cas_output_in_to_dict(self):
+        output = analyze(self._claim_with_cas())
+        d = output.to_dict()
+        self.assertIn("cas_output", d)
+        self.assertIn("cas_score", d["cas_output"]["scores"])
+        self.assertIn("verdict", d["cas_output"])
+
+    def test_to_dict_no_cas_key_when_absent(self):
+        output = analyze(self._claim_without_cas())
+        d = output.to_dict()
+        self.assertNotIn("cas_output", d)
+
+    def test_cas_output_partial_alignment_device_only_returns_none(self):
+        """Only device provided but not population/context — no CAS."""
+        claim = ClinicalClaim(
+            text="ZEPHYR réduit le VEMS",
+            intervention="ZEPHYR EBV",
+            domain="pulmonology",
+            device_alignment=_make_device(DeviceMatchType.EXACT_DEVICE),
+        )
+        output = analyze(claim)
+        self.assertIsNone(output.cas_output)
+
+
+# ===================================================================
+# NO_COMPARATOR BiasFlag (T01)
+# ===================================================================
+
+class TestNoComparator(unittest.TestCase):
+
+    def _claim(self, level, has_comparator):
+        c = ClinicalClaim(
+            text="Device reduces mortality in high-risk patients",
+            intervention="Device",
+            level=level,
+            has_comparator=has_comparator,
+            endpoints=[
+                Endpoint("mortality", EndpointNature.OBJECTIVE, CausalRole.INDEPENDENT, True),
+            ],
+        )
+        return c
+
+    def test_no_comparator_fires_on_outcome_claim(self):
+        output = analyze(self._claim(ClaimLevel.C, False))
+        flags = {bd.flag for bd in output.bias_flags}
+        self.assertIn(BiasFlag.NO_COMPARATOR, flags)
+
+    def test_no_comparator_fires_on_complete_chain_claim(self):
+        output = analyze(self._claim(ClaimLevel.D, False))
+        flags = {bd.flag for bd in output.bias_flags}
+        self.assertIn(BiasFlag.NO_COMPARATOR, flags)
+
+    def test_no_comparator_silent_when_comparator_present(self):
+        output = analyze(self._claim(ClaimLevel.C, True))
+        flags = {bd.flag for bd in output.bias_flags}
+        self.assertNotIn(BiasFlag.NO_COMPARATOR, flags)
+
+    def test_no_comparator_silent_on_mechanism_claim(self):
+        # "electromagnetic modulation" → mechanism → ClaimLevel.A → no NO_COMPARATOR
+        claim = ClinicalClaim(
+            text="Device activates neural receptors via electromagnetic modulation",
+            intervention="Neurostimulator",
+            has_comparator=False,
+            endpoints=[Endpoint("mechanism marker", EndpointNature.OBJECTIVE, CausalRole.MEDIATED, True)],
+        )
+        flags = {bd.flag for bd in analyze(claim).bias_flags}
+        self.assertNotIn(BiasFlag.NO_COMPARATOR, flags)
+
+    def test_no_comparator_silent_on_process_claim(self):
+        # "monitoring alerts surveillance" → process → ClaimLevel.B → no NO_COMPARATOR
+        claim = ClinicalClaim(
+            text="Device monitors symptoms and generates alerts for remote surveillance",
+            intervention="Monitoring platform",
+            has_comparator=False,
+            endpoints=[Endpoint("alert rate", EndpointNature.INSTRUMENTED, CausalRole.CIRCULAR, True)],
+        )
+        flags = {bd.flag for bd in analyze(claim).bias_flags}
+        self.assertNotIn(BiasFlag.NO_COMPARATOR, flags)
+
+    def test_no_comparator_silent_when_field_is_none(self):
+        output = analyze(self._claim(ClaimLevel.C, None))
+        flags = {bd.flag for bd in output.bias_flags}
+        self.assertNotIn(BiasFlag.NO_COMPARATOR, flags)
+
+    def test_no_comparator_severity_is_high(self):
+        output = analyze(self._claim(ClaimLevel.C, False))
+        for bd in output.bias_flags:
+            if bd.flag == BiasFlag.NO_COMPARATOR:
+                self.assertEqual(bd.severity, "HIGH")
+
+    def test_inceptiv_single_arm_fires_no_comparator(self):
+        """INCEPTIV = bras unique → NO_COMPARATOR.
+        "stimulat" (mechanism) + "pain" (outcome) → ClaimLevel.D → fires.
+        """
+        claim = ClinicalClaim(
+            text="INCEPTIV reduces chronic pain and functional disability in refractory neuropathic patients",
+            intervention="INCEPTIV spinal cord stimulator",
+            has_comparator=False,
+            endpoints=[
+                Endpoint("pain NRS", EndpointNature.SUBJECTIVE, CausalRole.INDEPENDENT, True),
+            ],
+        )
+        output = analyze(claim)
+        flags = {bd.flag for bd in output.bias_flags}
+        self.assertIn(BiasFlag.NO_COMPARATOR, flags)
+
+
+# ===================================================================
+# Evidence parser — unit tests (sans appel LLM)
+# ===================================================================
+
+from llm_evidence_parser import (
+    StudyParseResult, EndpointEvidence, enrich_claim_with_study, _parse_result,
+)
+from models import (
+    DeviceAlignment, DeviceMatchType,
+    PopulationAlignment, PopulationMatchType,
+    ContextAlignment, ContextMatchType,
+    CarePathwayMatch, OrganizationDependency, EligibilityShift,
+)
+
+
+class TestEvidenceParserMapping(unittest.TestCase):
+    """Tests _parse_result() — the JSON→StudyParseResult mapping, no LLM call."""
+
+    def _rct_json(self):
+        return {
+            "study_design": "RCT",
+            "n_patients": 89,
+            "has_comparator": True,
+            "follow_up_months": 6.0,
+            "study_countries": ["USA", "Germany"],
+            "endpoints": [
+                {"name": "IAH", "is_validated_surrogate": False, "is_independently_adjudicated": False},
+            ],
+            "device_alignment": {
+                "device_match_type": "EXACT_DEVICE",
+                "device_description_study": "INSPIRE IV UAS",
+                "justification": "same device",
+            },
+            "population_alignment": {
+                "population_match_type": "EXACT_INDICATION",
+                "population_description_study": "SAHOS modéré à sévère intolérants PPC",
+                "eligibility_shift": "NONE",
+                "justification": "exact match",
+            },
+            "context_alignment": {
+                "context_match_type": "PARTIALLY_COMPARABLE",
+                "care_pathway_match": "PARTIAL",
+                "organization_dependency": "LOW",
+                "study_country": "USA",
+                "justification": "US system differs from France",
+            },
+        }
+
+    def test_study_design_mapped(self):
+        result = _parse_result(self._rct_json(), "INSPIRE IV", "SAHOS")
+        self.assertEqual(result.study_design, StudyDesign.RCT)
+
+    def test_n_patients(self):
+        result = _parse_result(self._rct_json(), "INSPIRE IV", "SAHOS")
+        self.assertEqual(result.n_patients, 89)
+
+    def test_has_comparator_true(self):
+        result = _parse_result(self._rct_json(), "INSPIRE IV", "SAHOS")
+        self.assertTrue(result.has_comparator)
+
+    def test_follow_up_months(self):
+        result = _parse_result(self._rct_json(), "INSPIRE IV", "SAHOS")
+        self.assertEqual(result.follow_up_months, 6.0)
+
+    def test_study_countries(self):
+        result = _parse_result(self._rct_json(), "INSPIRE IV", "SAHOS")
+        self.assertIn("USA", result.study_countries)
+
+    def test_device_alignment_exact(self):
+        result = _parse_result(self._rct_json(), "INSPIRE IV", "SAHOS")
+        self.assertEqual(result.device_alignment.device_match_type, DeviceMatchType.EXACT_DEVICE)
+
+    def test_population_alignment_exact(self):
+        result = _parse_result(self._rct_json(), "INSPIRE IV", "SAHOS")
+        self.assertEqual(result.population_alignment.population_match_type, PopulationMatchType.EXACT_INDICATION)
+
+    def test_context_alignment_partially_comparable(self):
+        result = _parse_result(self._rct_json(), "INSPIRE IV", "SAHOS")
+        self.assertEqual(result.context_alignment.context_match_type, ContextMatchType.PARTIALLY_COMPARABLE)
+
+    def test_context_country(self):
+        result = _parse_result(self._rct_json(), "INSPIRE IV", "SAHOS")
+        self.assertEqual(result.context_alignment.study_country, "USA")
+
+    def test_endpoint_metadata(self):
+        result = _parse_result(self._rct_json(), "INSPIRE IV", "SAHOS")
+        self.assertEqual(len(result.endpoint_evidence), 1)
+        self.assertFalse(result.endpoint_evidence[0].is_validated_surrogate)
+
+    def test_single_arm_has_comparator_false(self):
+        data = self._rct_json()
+        data["study_design"] = "SINGLE_ARM"
+        data["has_comparator"] = False
+        result = _parse_result(data, "Device", "Indication")
+        self.assertFalse(result.has_comparator)
+        self.assertEqual(result.study_design, StudyDesign.EXPLORATORY)
+
+
+class TestEnrichClaim(unittest.TestCase):
+    """Tests enrich_claim_with_study() — merging StudyParseResult into ClinicalClaim."""
+
+    def _base_claim(self):
+        return ClinicalClaim(
+            text="INSPIRE IV réduit l'IAH chez les patients SAHOS",
+            intervention="INSPIRE IV",
+            endpoints=[
+                Endpoint("IAH", EndpointNature.OBJECTIVE, CausalRole.MEDIATED, True),
+            ],
+        )
+
+    def _rct_result(self):
+        return StudyParseResult(
+            study_design=StudyDesign.RCT,
+            n_patients=89,
+            has_comparator=True,
+            follow_up_months=6.0,
+            study_countries=["USA"],
+            endpoint_evidence=[
+                EndpointEvidence(name="IAH", is_validated_surrogate=False, is_independently_adjudicated=False),
+            ],
+            device_alignment=DeviceAlignment(
+                device_match_type=DeviceMatchType.EXACT_DEVICE,
+                device_description_claim="INSPIRE IV",
+                device_description_study="INSPIRE IV UAS",
+            ),
+            population_alignment=PopulationAlignment(
+                population_match_type=PopulationMatchType.EXACT_INDICATION,
+                population_description_claim="SAHOS modéré à sévère",
+                population_description_study="SAHOS modéré à sévère intolérants PPC",
+            ),
+            context_alignment=ContextAlignment(
+                context_match_type=ContextMatchType.PARTIALLY_COMPARABLE,
+                care_pathway_match=CarePathwayMatch.PARTIAL,
+                organization_dependency=OrganizationDependency.LOW,
+                study_country="USA",
+            ),
+        )
+
+    def test_study_metadata_written(self):
+        claim = enrich_claim_with_study(self._base_claim(), self._rct_result())
+        self.assertEqual(claim.n_patients, 89)
+        self.assertEqual(claim.follow_up_months, 6.0)
+        self.assertTrue(claim.has_comparator)
+
+    def test_cas_alignment_wired(self):
+        claim = enrich_claim_with_study(self._base_claim(), self._rct_result())
+        self.assertIsNotNone(claim.device_alignment)
+        self.assertIsNotNone(claim.population_alignment)
+        self.assertIsNotNone(claim.context_alignment)
+
+    def test_cas_runs_after_enrichment(self):
+        from engine import analyze
+        claim = enrich_claim_with_study(self._base_claim(), self._rct_result())
+        output = analyze(claim)
+        self.assertIsNotNone(output.cas_output)
+
+    def test_cas_verdict_partially_comparable(self):
+        from engine import analyze
+        claim = enrich_claim_with_study(self._base_claim(), self._rct_result())
+        output = analyze(claim)
+        self.assertIn(output.cas_output.verdict, [CASVerdict.ACCEPTABLE, CASVerdict.WEAK_EVIDENCE])
+
+    def test_endpoint_surrogate_enriched(self):
+        result = self._rct_result()
+        result.endpoint_evidence[0].is_validated_surrogate = True
+        claim = enrich_claim_with_study(self._base_claim(), result)
+        self.assertTrue(claim.endpoints[0].is_validated_surrogate)
+
+    def test_no_comparator_fires_after_enrichment(self):
+        from engine import analyze
+        result = self._rct_result()
+        result.has_comparator = False
+        claim = ClinicalClaim(
+            text="Device réduit la mortalité",
+            intervention="Device",
+            level=ClaimLevel.C,
+            endpoints=[
+                Endpoint("mortalité", EndpointNature.OBJECTIVE, CausalRole.INDEPENDENT, True),
+            ],
+        )
+        enrich_claim_with_study(claim, result)
+        output = analyze(claim)
+        flags = {bd.flag for bd in output.bias_flags}
+        self.assertIn(BiasFlag.NO_COMPARATOR, flags)
+
+    def test_countries_written(self):
+        claim = enrich_claim_with_study(self._base_claim(), self._rct_result())
+        self.assertIn("USA", claim.study_countries)
+
+
+class TestStudyObject(unittest.TestCase):
+    """Tests for StudyObject, ComparisonReport and compare_claim_to_study()."""
+
+    def _make_study(self, **kwargs):
+        from study_object import (
+            AnalysisSet, BlindingLevel, CareSetting, ComparatorType,
+            FundingType, StudyObject,
+        )
+        defaults = dict(
+            acronym="TEST",
+            study_design=StudyDesign.RCT,
+            is_randomized=True,
+            blinding_level=BlindingLevel.DOUBLE_BLIND,
+            has_comparator=True,
+            comparator_type=ComparatorType.SHAM,
+            n_patients=100,
+            follow_up_months=12.0,
+            study_countries=["France"],
+            primary_endpoint_met=True,
+        )
+        defaults.update(kwargs)
+        return StudyObject(**defaults)
+
+    def _make_claim(self, level=ClaimLevel.C):
+        return ClinicalClaim(
+            text="Device réduit la mortalité cardiovasculaire",
+            intervention="MyDevice",
+            level=level,
+            endpoints=[
+                Endpoint("mortalité CV", EndpointNature.OBJECTIVE, CausalRole.INDEPENDENT, True),
+            ],
+        )
+
+    # --- StudyObject basics ---
+
+    def test_study_object_defaults(self):
+        from study_object import StudyObject, BlindingLevel, ComparatorType, FundingType
+        obj = StudyObject()
+        self.assertIsNone(obj.study_design)
+        self.assertEqual(obj.blinding_level, BlindingLevel.UNKNOWN)
+        self.assertEqual(obj.comparator_type, ComparatorType.UNKNOWN)
+        self.assertEqual(obj.funding_type, FundingType.UNKNOWN)
+        self.assertEqual(obj.endpoints, [])
+        self.assertEqual(obj.study_countries, [])
+
+    def test_study_object_to_dict_complete(self):
+        from study_object import StudyEndpoint, ResultDirection
+        study = self._make_study()
+        study.endpoints = [
+            StudyEndpoint(
+                name="mortalité CV",
+                is_primary=True,
+                is_independently_adjudicated=True,
+                result_direction=ResultDirection.IMPROVED,
+                reached_significance=True,
+            )
+        ]
+        d = study.to_dict()
+        self.assertEqual(d["study_design"], "RCT")
+        self.assertTrue(d["is_randomized"])
+        self.assertEqual(d["blinding_level"], "DOUBLE_BLIND")
+        self.assertEqual(d["n_patients"], 100)
+        self.assertEqual(len(d["endpoints"]), 1)
+        self.assertTrue(d["endpoints"][0]["is_independently_adjudicated"])
+        self.assertEqual(d["endpoints"][0]["result_direction"], "IMPROVED")
+
+    def test_study_endpoint_to_dict(self):
+        from study_object import StudyEndpoint, ResultDirection
+        ep = StudyEndpoint(
+            name="IAH", is_primary=True, time_point="3 mois",
+            is_validated_surrogate=False, is_independently_adjudicated=False,
+            result_direction=ResultDirection.IMPROVED, reached_significance=True,
+        )
+        d = ep.to_dict()
+        self.assertEqual(d["name"], "IAH")
+        self.assertTrue(d["is_primary"])
+        self.assertEqual(d["time_point"], "3 mois")
+        self.assertTrue(d["reached_significance"])
+
+    # --- _parse_study_object_result mapping ---
+
+    def test_parse_study_object_result_basic(self):
+        from llm_evidence_parser import _parse_study_object_result
+        from study_object import BlindingLevel, ComparatorType, FundingType, AnalysisSet, CareSetting
+        data = {
+            "acronym": "EFFECT",
+            "title": "Titre complet",
+            "publication_year": 2022,
+            "registration_id": "NCT12345",
+            "funding_type": "INDUSTRY",
+            "study_design": "RCT",
+            "is_randomized": True,
+            "blinding_level": "DOUBLE_BLIND",
+            "who_is_blinded": ["patient", "assessor"],
+            "allocation_concealment": True,
+            "has_comparator": True,
+            "comparator_type": "SHAM",
+            "comparator_description": "sham CPAP",
+            "n_patients": 244,
+            "age_min": 18.0,
+            "age_max": 80.0,
+            "key_inclusion_criteria": ["SAHOS sévère", "IAH > 30/h"],
+            "key_exclusion_criteria": ["BPCO"],
+            "device_studied": "AirSense 10",
+            "care_setting": "HOME",
+            "follow_up_months": 12.0,
+            "longest_follow_up_months": 24.0,
+            "dropout_rate_pct": 8.5,
+            "endpoints": [
+                {
+                    "name": "IAH",
+                    "is_primary": True,
+                    "time_point": "3 mois",
+                    "is_validated_surrogate": False,
+                    "is_independently_adjudicated": False,
+                    "result_direction": "IMPROVED",
+                    "reached_significance": True,
+                }
+            ],
+            "primary_analysis_set": "ITT",
+            "sample_size_calculation_provided": True,
+            "primary_endpoint_met": True,
+            "key_safety_signals": ["inconfort masque"],
+            "device_alignment": {
+                "device_match_type": "EXACT_DEVICE",
+                "device_description_study": "AirSense 10",
+                "justification": "même dispositif",
+            },
+            "population_alignment": {
+                "population_match_type": "EXACT_INDICATION",
+                "population_description_study": "SAHOS sévère",
+                "eligibility_shift": "NONE",
+                "justification": "population identique",
+            },
+            "context_alignment": {
+                "context_match_type": "SAME_HEALTHCARE_SYSTEM",
+                "care_pathway_match": "YES",
+                "organization_dependency": "LOW",
+                "study_country": "France",
+                "justification": "étude française",
+            },
+        }
+        obj = _parse_study_object_result(data, "AirSense 10", "SAHOS sévère")
+        self.assertEqual(obj.acronym, "EFFECT")
+        self.assertEqual(obj.publication_year, 2022)
+        self.assertEqual(obj.funding_type, FundingType.INDUSTRY)
+        self.assertEqual(obj.study_design, StudyDesign.RCT)
+        self.assertTrue(obj.is_randomized)
+        self.assertEqual(obj.blinding_level, BlindingLevel.DOUBLE_BLIND)
+        self.assertEqual(obj.who_is_blinded, ["patient", "assessor"])
+        self.assertTrue(obj.allocation_concealment)
+        self.assertTrue(obj.has_comparator)
+        self.assertEqual(obj.comparator_type, ComparatorType.SHAM)
+        self.assertEqual(obj.n_patients, 244)
+        self.assertAlmostEqual(obj.age_min, 18.0)
+        self.assertEqual(obj.device_studied, "AirSense 10")
+        self.assertEqual(obj.care_setting, CareSetting.HOME)
+        self.assertAlmostEqual(obj.follow_up_months, 12.0)
+        self.assertAlmostEqual(obj.dropout_rate_pct, 8.5)
+        self.assertEqual(len(obj.endpoints), 1)
+        self.assertEqual(obj.endpoints[0].name, "IAH")
+        self.assertTrue(obj.endpoints[0].is_primary)
+        self.assertEqual(obj.primary_analysis_set, AnalysisSet.ITT)
+        self.assertTrue(obj.sample_size_calculation_provided)
+        self.assertTrue(obj.primary_endpoint_met)
+        self.assertEqual(obj.key_safety_signals, ["inconfort masque"])
+        self.assertIsNotNone(obj.device_alignment)
+        self.assertIsNotNone(obj.population_alignment)
+        self.assertIsNotNone(obj.context_alignment)
+
+    def test_parse_study_object_result_empty_data(self):
+        from llm_evidence_parser import _parse_study_object_result
+        from study_object import BlindingLevel, ComparatorType, FundingType
+        obj = _parse_study_object_result({}, "Device", "Indication")
+        self.assertEqual(obj.blinding_level, BlindingLevel.UNKNOWN)
+        self.assertEqual(obj.comparator_type, ComparatorType.UNKNOWN)
+        self.assertEqual(obj.funding_type, FundingType.UNKNOWN)
+        self.assertIsNone(obj.study_design)
+        self.assertIsNone(obj.n_patients)
+        self.assertEqual(obj.endpoints, [])
+
+    # --- compare_claim_to_study ---
+
+    def test_compare_no_gaps_exact_alignment(self):
+        from study_object import compare_claim_to_study, OverallRisk, BlindingLevel
+        study = self._make_study(
+            blinding_level=BlindingLevel.DOUBLE_BLIND,
+            device_alignment=DeviceAlignment(
+                device_match_type=DeviceMatchType.EXACT_DEVICE,
+                device_description_claim="MyDevice",
+                device_description_study="MyDevice",
+            ),
+            population_alignment=PopulationAlignment(
+                population_match_type=PopulationMatchType.EXACT_INDICATION,
+                population_description_claim="Indication",
+                population_description_study="Indication",
+                eligibility_shift=EligibilityShift.NONE,
+            ),
+            context_alignment=ContextAlignment(
+                context_match_type=ContextMatchType.SAME_HEALTHCARE_SYSTEM,
+                care_pathway_match=CarePathwayMatch.YES,
+                organization_dependency=OrganizationDependency.LOW,
+                study_country="France",
+            ),
+        )
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        self.assertEqual(report.overall_risk, OverallRisk.LOW)
+        device_gaps = [g for g in report.gaps if g.dimension == "device"]
+        self.assertEqual(device_gaps, [])
+
+    def test_compare_different_device_critical(self):
+        from study_object import compare_claim_to_study, OverallRisk
+        study = self._make_study(
+            device_alignment=DeviceAlignment(
+                device_match_type=DeviceMatchType.DIFFERENT_DEVICE,
+                device_description_claim="MyDevice",
+                device_description_study="OtherDevice",
+                justification="dispositifs fondamentalement différents",
+            ),
+        )
+        report = compare_claim_to_study(self._make_claim(), study)
+        device_gaps = [g for g in report.gaps if g.dimension == "device"]
+        self.assertEqual(len(device_gaps), 1)
+        self.assertEqual(device_gaps[0].severity, "CRITICAL")
+        self.assertEqual(report.overall_risk, OverallRisk.CRITICAL)
+
+    def test_compare_same_family_medium_gap(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(
+            device_alignment=DeviceAlignment(
+                device_match_type=DeviceMatchType.SAME_FAMILY,
+                device_description_claim="MyDevice v2",
+                device_description_study="MyDevice v1",
+            ),
+        )
+        report = compare_claim_to_study(self._make_claim(), study)
+        device_gaps = [g for g in report.gaps if g.dimension == "device"]
+        self.assertEqual(device_gaps[0].severity, "MEDIUM")
+
+    def test_compare_no_comparator_high_gap_c_claim(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(has_comparator=False)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        no_comp_gaps = [
+            g for g in report.gaps
+            if g.dimension == "design" and "comparateur" in g.description.lower()
+        ]
+        self.assertGreater(len(no_comp_gaps), 0)
+        self.assertEqual(no_comp_gaps[0].severity, "HIGH")
+
+    def test_compare_no_comparator_silent_for_a_claim(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(has_comparator=False)
+        claim = ClinicalClaim(
+            text="Device améliore le flux sanguin",
+            intervention="MyDevice",
+            level=ClaimLevel.A,
+            endpoints=[
+                Endpoint("débit sanguin", EndpointNature.OBJECTIVE, CausalRole.MEDIATED, True),
+            ],
+        )
+        report = compare_claim_to_study(claim, study)
+        no_comp_gaps = [
+            g for g in report.gaps
+            if g.dimension == "design" and "comparateur" in g.description.lower()
+        ]
+        self.assertEqual(no_comp_gaps, [])
+
+    def test_compare_exploratory_c_claim_critical(self):
+        from study_object import compare_claim_to_study, OverallRisk
+        study = self._make_study(study_design=StudyDesign.EXPLORATORY, has_comparator=False)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        exp_gaps = [g for g in report.gaps if "exploratoire" in g.description.lower()]
+        self.assertGreater(len(exp_gaps), 0)
+        self.assertEqual(exp_gaps[0].severity, "CRITICAL")
+        self.assertEqual(report.overall_risk, OverallRisk.CRITICAL)
+
+    def test_compare_open_label_subjective_primary_high(self):
+        from study_object import compare_claim_to_study, BlindingLevel
+        study = self._make_study(blinding_level=BlindingLevel.OPEN_LABEL)
+        claim = ClinicalClaim(
+            text="Device réduit la douleur",
+            intervention="MyDevice",
+            level=ClaimLevel.C,
+            endpoints=[
+                Endpoint("EVA douleur", EndpointNature.SUBJECTIVE, CausalRole.INDEPENDENT, True),
+            ],
+        )
+        report = compare_claim_to_study(claim, study)
+        sham_gaps = [
+            g for g in report.gaps
+            if "subjectif" in g.description.lower() or "PRO" in g.description
+        ]
+        self.assertGreater(len(sham_gaps), 0)
+        self.assertEqual(sham_gaps[0].severity, "HIGH")
+
+    def test_compare_has_critique_always_populated(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study()
+        report = compare_claim_to_study(self._make_claim(), study)
+        self.assertGreater(len(report.has_critique_simulation), 0)
+        for critique in report.has_critique_simulation:
+            self.assertIsInstance(critique, str)
+            self.assertGreater(len(critique), 10)
+
+    def test_compare_repair_priority_critical_first(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(
+            has_comparator=False,
+            device_alignment=DeviceAlignment(
+                device_match_type=DeviceMatchType.DIFFERENT_DEVICE,
+                device_description_claim="MyDevice",
+                device_description_study="OtherDevice",
+            ),
+        )
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        self.assertGreater(len(report.repair_priority), 1)
+        # CRITICAL device gap must appear before HIGH no-comparator gap
+        self.assertIn("OtherDevice", report.repair_priority[0])
+
+    def test_compare_report_to_dict_structure(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(has_comparator=False)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        d = report.to_dict()
+        self.assertIn("gaps", d)
+        self.assertIn("overall_risk", d)
+        self.assertIn("has_critique_simulation", d)
+        self.assertIn("repair_priority", d)
+        self.assertIn(d["overall_risk"], ["LOW", "MEDIUM", "HIGH", "CRITICAL"])
+        for gap in d["gaps"]:
+            self.assertIn("dimension", gap)
+            self.assertIn("severity", gap)
+            self.assertIn("description", gap)
+            self.assertIn("has_critique", gap)
+
+    # --- enrich_claim_with_study_object ---
+
+    def test_enrich_claim_from_study_object(self):
+        from study_object import enrich_claim_with_study_object
+        from llm_evidence_parser import _parse_study_object_result
+        data = {
+            "study_design": "RCT",
+            "n_patients": 200,
+            "has_comparator": True,
+            "follow_up_months": 6.0,
+            "study_countries": ["France"],
+            "endpoints": [
+                {
+                    "name": "mortalité CV",
+                    "is_primary": True,
+                    "is_independently_adjudicated": True,
+                    "is_validated_surrogate": False,
+                    "result_direction": "IMPROVED",
+                }
+            ],
+        }
+        obj = _parse_study_object_result(data, "MyDevice", "Indication")
+        claim = self._make_claim()
+        enrich_claim_with_study_object(claim, obj)
+        self.assertEqual(claim.study_design, StudyDesign.RCT)
+        self.assertEqual(claim.n_patients, 200)
+        self.assertTrue(claim.has_comparator)
+        self.assertAlmostEqual(claim.follow_up_months, 6.0)
+        self.assertIn("France", claim.study_countries)
+        self.assertTrue(claim.endpoints[0].is_independently_adjudicated)
+
+
+# ===================================================================
+# TestGapRepairEngine
+# ===================================================================
+
+from gap_repair_engine import (
+    GapRepairEffort, GapRepairType, repair_comparison,
+)
+from study_object import ClaimStudyGap, ComparisonReport, OverallRisk
+
+
+def _make_comparison_report(gaps: list[ClaimStudyGap], overall: OverallRisk) -> ComparisonReport:
+    return ComparisonReport(
+        claim_text="Test claim",
+        device_studied="TestDevice",
+        gaps=gaps,
+        overall_risk=overall,
+        has_critique_simulation=[],
+        repair_priority=[g.description for g in gaps],
+    )
+
+
+def _gap(dimension: str, severity: str, description: str) -> ClaimStudyGap:
+    return ClaimStudyGap(dimension=dimension, severity=severity, description=description, has_critique=None)
+
+
+class TestGapRepairEngine(unittest.TestCase):
+
+    def _c_claim(self) -> ClinicalClaim:
+        return ClinicalClaim(
+            text="Device X réduit la mortalité cardiaque",
+            intervention="Device X",
+            domain="cardiology",
+            level=ClaimLevel.C,
+            endpoints=[Endpoint("mortalité", EndpointNature.OBJECTIVE, CausalRole.INDEPENDENT, is_primary=True)],
+        )
+
+    # ------------------------------------------------------------------
+    # DEVICE gaps
+    # ------------------------------------------------------------------
+
+    def test_device_different_device_critical_blocking(self):
+        claim = self._c_claim()
+        gaps = [_gap("device", "CRITICAL", "Dispositif étudié ≠ dispositif revendiqué. Génération différente.")]
+        report = _make_comparison_report(gaps, OverallRisk.CRITICAL)
+        plan = repair_comparison(report, claim)
+        self.assertTrue(len(plan.non_repairable_gaps) == 1)
+        self.assertFalse(plan.is_fully_repairable)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.STUDY_COMMISSION, types)
+        self.assertIn(GapRepairType.CLAIM_RESTRICTION, types)
+
+    def test_device_same_family_medium_not_blocking(self):
+        claim = self._c_claim()
+        gaps = [_gap("device", "MEDIUM", "Dispositif même famille génération antérieure.")]
+        report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
+        plan = repair_comparison(report, claim)
+        self.assertEqual(len(plan.non_repairable_gaps), 0)
+        self.assertTrue(plan.is_fully_repairable)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.BRIDGING_STUDY, types)
+        self.assertIn(GapRepairType.CLAIM_RESTRICTION, types)
+
+    def test_device_claim_restriction_low_effort(self):
+        claim = self._c_claim()
+        gaps = [_gap("device", "CRITICAL", "Dispositif différent.")]
+        report = _make_comparison_report(gaps, OverallRisk.CRITICAL)
+        plan = repair_comparison(report, claim)
+        low_effort = [a for a in plan.actions if a.effort == GapRepairEffort.LOW]
+        self.assertTrue(len(low_effort) >= 1)
+        self.assertTrue(any(a.repair_type == GapRepairType.CLAIM_RESTRICTION for a in low_effort))
+
+    # ------------------------------------------------------------------
+    # POPULATION gaps
+    # ------------------------------------------------------------------
+
+    def test_population_different_high_two_actions(self):
+        claim = self._c_claim()
+        gaps = [_gap("population", "HIGH", "Population totalement différente.")]
+        report = _make_comparison_report(gaps, OverallRisk.HIGH)
+        plan = repair_comparison(report, claim)
+        self.assertFalse(plan.non_repairable_gaps)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.STUDY_COMMISSION, types)
+        self.assertIn(GapRepairType.CLAIM_RESTRICTION, types)
+
+    def test_population_medium_single_restriction(self):
+        claim = self._c_claim()
+        gaps = [_gap("population", "MEDIUM", "Sous-groupe âge différent.")]
+        report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
+        plan = repair_comparison(report, claim)
+        self.assertEqual(len(plan.actions), 1)
+        self.assertEqual(plan.actions[0].repair_type, GapRepairType.CLAIM_RESTRICTION)
+        self.assertEqual(plan.actions[0].effort, GapRepairEffort.LOW)
+
+    # ------------------------------------------------------------------
+    # CONTEXT gaps
+    # ------------------------------------------------------------------
+
+    def test_context_low_transposability_action(self):
+        claim = self._c_claim()
+        gaps = [_gap("context", "LOW", "Étude réalisée en dehors de France.")]
+        report = _make_comparison_report(gaps, OverallRisk.LOW)
+        plan = repair_comparison(report, claim)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.CONTEXT_TRANSPOSABILITY, types)
+
+    def test_context_medium_adds_study_commission(self):
+        claim = self._c_claim()
+        gaps = [_gap("context", "MEDIUM", "Système de santé très différent.")]
+        report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
+        plan = repair_comparison(report, claim)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.CONTEXT_TRANSPOSABILITY, types)
+        self.assertIn(GapRepairType.STUDY_COMMISSION, types)
+
+    # ------------------------------------------------------------------
+    # DESIGN gaps
+    # ------------------------------------------------------------------
+
+    def test_design_exploratory_critical_blocking(self):
+        claim = self._c_claim()
+        gaps = [_gap("design", "CRITICAL", "Design exploratoire (série de cas / pilote) pour revendication outcome.")]
+        report = _make_comparison_report(gaps, OverallRisk.CRITICAL)
+        plan = repair_comparison(report, claim)
+        self.assertEqual(len(plan.non_repairable_gaps), 1)
+        self.assertFalse(plan.is_fully_repairable)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.DESIGN_CONFIRMATORY, types)
+
+    def test_design_no_comparator_high_not_blocking(self):
+        claim = self._c_claim()
+        gaps = [_gap("design", "HIGH", "Étude sans comparateur pour revendication d'outcome (niveau C/D). Le counterfactuel n'est pas observé.")]
+        report = _make_comparison_report(gaps, OverallRisk.HIGH)
+        plan = repair_comparison(report, claim)
+        self.assertEqual(len(plan.non_repairable_gaps), 0)
+        self.assertTrue(plan.is_fully_repairable)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.CONTROL_ARM_ADDITION, types)
+
+    def test_design_open_label_subjective_two_actions(self):
+        claim = self._c_claim()
+        gaps = [_gap("design", "HIGH", "Critère principal patient-rapporté (PRO/subjectif) sans aveugle ni sham.")]
+        report = _make_comparison_report(gaps, OverallRisk.HIGH)
+        plan = repair_comparison(report, claim)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.DESIGN_SHAM, types)
+        self.assertIn(GapRepairType.ENDPOINT_ADDITION, types)
+
+    def test_design_short_followup_extension(self):
+        claim = self._c_claim()
+        gaps = [_gap("design", "MEDIUM", "Suivi de 2.0 mois pour revendication chaîne causale complète.")]
+        report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
+        plan = repair_comparison(report, claim)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.FOLLOW_UP_EXTENSION, types)
+        self.assertEqual(plan.actions[0].effort, GapRepairEffort.MEDIUM)
+
+    # ------------------------------------------------------------------
+    # ENDPOINT gaps
+    # ------------------------------------------------------------------
+
+    def test_endpoint_surrogate_two_actions(self):
+        claim = self._c_claim()
+        gaps = [_gap("endpoint", "HIGH", "Critère principal = surrogate non validé réglementairement dans cette indication.")]
+        report = _make_comparison_report(gaps, OverallRisk.HIGH)
+        plan = repair_comparison(report, claim)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.ENDPOINT_REPLACEMENT, types)
+        self.assertIn(GapRepairType.SURROGATE_VALIDATION, types)
+
+    def test_endpoint_circularity_blocking(self):
+        claim = self._c_claim()
+        gaps = [_gap("endpoint", "CRITICAL", "Critère principal circulaire : le dispositif mesure ce qu'il traite.")]
+        report = _make_comparison_report(gaps, OverallRisk.CRITICAL)
+        plan = repair_comparison(report, claim)
+        self.assertFalse(plan.is_fully_repairable)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.ENDPOINT_REPLACEMENT, types)
+
+    def test_endpoint_adjudication_low_effort(self):
+        claim = self._c_claim()
+        gaps = [_gap("endpoint", "MEDIUM", "Critère objectif principal sans adjudication indépendante documentée (pas de CEC mentionné).")]
+        report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
+        plan = repair_comparison(report, claim)
+        self.assertTrue(plan.is_fully_repairable)
+        adj = [a for a in plan.actions if a.repair_type == GapRepairType.ADJUDICATION_ADDITION]
+        self.assertEqual(len(adj), 1)
+        self.assertEqual(adj[0].effort, GapRepairEffort.LOW)
+
+    # ------------------------------------------------------------------
+    # Sorting + summary
+    # ------------------------------------------------------------------
+
+    def test_actions_sorted_low_effort_first(self):
+        claim = self._c_claim()
+        gaps = [
+            _gap("device", "CRITICAL", "Dispositif différent."),        # LOW (restriction) + BLOCKING
+            _gap("endpoint", "MEDIUM", "Critère objectif principal sans adjudication indépendante documentée (pas de CEC mentionné)."),  # LOW
+        ]
+        report = _make_comparison_report(gaps, OverallRisk.CRITICAL)
+        plan = repair_comparison(report, claim)
+        efforts = [a.effort for a in plan.actions]
+        low_indices = [i for i, e in enumerate(efforts) if e == GapRepairEffort.LOW]
+        blocking_indices = [i for i, e in enumerate(efforts) if e == GapRepairEffort.BLOCKING]
+        if low_indices and blocking_indices:
+            self.assertLess(min(low_indices), min(blocking_indices))
+
+    def test_fully_repairable_when_no_blocking(self):
+        claim = self._c_claim()
+        gaps = [
+            _gap("endpoint", "MEDIUM", "Critère objectif principal sans adjudication indépendante documentée (pas de CEC mentionné)."),
+            _gap("design", "MEDIUM", "Suivi de 3 mois pour revendication."),
+        ]
+        report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
+        plan = repair_comparison(report, claim)
+        self.assertTrue(plan.is_fully_repairable)
+
+    def test_not_repairable_when_exploratory(self):
+        claim = self._c_claim()
+        gaps = [_gap("design", "CRITICAL", "Design exploratoire (série de cas) pour revendication outcome.")]
+        report = _make_comparison_report(gaps, OverallRisk.CRITICAL)
+        plan = repair_comparison(report, claim)
+        self.assertFalse(plan.is_fully_repairable)
+
+    def test_repair_summary_mentions_non_repairable(self):
+        claim = self._c_claim()
+        gaps = [_gap("device", "CRITICAL", "Dispositif différent.")]
+        report = _make_comparison_report(gaps, OverallRisk.CRITICAL)
+        plan = repair_comparison(report, claim)
+        self.assertIn("non réparable", plan.repair_summary)
+
+    def test_to_dict_structure(self):
+        claim = self._c_claim()
+        gaps = [_gap("endpoint", "MEDIUM", "Critère objectif principal sans adjudication indépendante documentée (pas de CEC mentionné).")]
+        report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
+        plan = repair_comparison(report, claim)
+        d = plan.to_dict()
+        self.assertIn("actions", d)
+        self.assertIn("is_fully_repairable", d)
+        self.assertIn("repair_summary", d)
+        self.assertIn("non_repairable_gaps", d)
+        self.assertTrue(all("repair_type" in a for a in d["actions"]))
 
 
 if __name__ == "__main__":

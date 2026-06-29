@@ -74,27 +74,42 @@ def _case_moovcare() -> tuple[str, ClinicalClaim]:
 
 def _case_remedee() -> tuple[str, ClinicalClaim]:
     return "CASE_REMEDEE", ClinicalClaim(
-        text="Le bracelet Remedee utilise la neurostimulation par ondes "
-             "millimétriques pour déclencher la libération d'endorphines, "
-             "réduisant la douleur chronique.",
-        intervention="Remedee, bracelet de neurostimulation par ondes millimétriques",
+        text="FIBROREM soulage les symptômes de patients adultes atteints de "
+             "fibromyalgie modérée à sévère (score FIQ ≥ 39) par rapport à la "
+             "prise en charge thérapeutique classique individualisée et "
+             "pluridisciplinaire.",
+        intervention="FIBROREM, bracelet de neuromodulation par émission d'ondes millimétriques associé à l'application mobile myRemedee (Remedee Labs)",
         endpoints=[
             Endpoint(
-                name="score EVA de douleur",
+                name="score FIQ (Fibromyalgia Impact Questionnaire) à 3 mois",
                 nature=EndpointNature.SUBJECTIVE,
                 causal_role=CausalRole.INDEPENDENT,
                 is_primary=True,
-                description="Échelle visuelle analogique de l'intensité de la douleur",
+                description="Réduction cliniquement pertinente du score FIQ ≥ 14% entre J0 et 3 mois — auto-questionnaire complété par le patient avant consultation médicale",
             ),
             Endpoint(
-                name="qualité de vie du patient",
+                name="score EVA douleur hebdomadaire",
                 nature=EndpointNature.SUBJECTIVE,
                 causal_role=CausalRole.INDEPENDENT,
                 is_primary=False,
-                description="Questionnaire de qualité de vie SF-36",
+                description="Score EVA moyen sur 7 jours consécutifs à 1, 2 et 3 mois",
+            ),
+            Endpoint(
+                name="qualité du sommeil (Pittsburgh Sleep Quality Index)",
+                nature=EndpointNature.SUBJECTIVE,
+                causal_role=CausalRole.INDEPENDENT,
+                is_primary=False,
+                description="Score PSQI à J0 et 3 mois",
+            ),
+            Endpoint(
+                name="anxiété et dépression (HAD)",
+                nature=EndpointNature.SUBJECTIVE,
+                causal_role=CausalRole.INDEPENDENT,
+                is_primary=False,
+                description="Score HAD à J0 et 3 mois",
             ),
         ],
-        domain="prise en charge de la douleur",
+        domain="fibromyalgie / douleur chronique",
     )
 
 
