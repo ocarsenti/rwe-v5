@@ -143,7 +143,7 @@ def _study_to_coordinates(
     _identifiable_designs = {
         StudyDesign.RCT, StudyDesign.SHAM_RCT, StudyDesign.PRAGMATIC_RCT,
         StudyDesign.COHORT, StudyDesign.ITS, StudyDesign.BEFORE_AFTER,
-        StudyDesign.MATCHED_OBSERVATIONAL,
+        StudyDesign.MATCHED_OBSERVATIONAL, StudyDesign.SINGLE_ARM_PERFORMANCE_GOAL,
     }
     if design_primary not in _identifiable_designs:
         rs = 0.0
@@ -158,6 +158,10 @@ def _study_to_coordinates(
             StudyDesign.ITS: 0.25,
             StudyDesign.BEFORE_AFTER: 0.15,
             StudyDesign.MATCHED_OBSERVATIONAL: 0.35,
+            # No concurrent counterfactual, but a pre-specified success
+            # threshold and justified sample size — weaker than any
+            # comparator-based design, stronger than uncontrolled pilot work.
+            StudyDesign.SINGLE_ARM_PERFORMANCE_GOAL: 0.20,
         }
         rs = rs_map.get(design_primary, 0.3)
 

@@ -84,13 +84,22 @@ _SYSTEM_PROMPT = """Tu es un expert en évaluation clinique et réglementaire de
 
 **study_design** — type de design :
 - "RCT" : essai contrôlé randomisé (inclut crossover, cluster, pragmatique)
-- "SINGLE_ARM" : étude bras unique, pas de comparateur
+- "SINGLE_ARM" : étude bras unique, pas de comparateur — usage générique quand on ne peut
+  pas trancher entre confirmatoire et exploratoire (voir les deux options plus précises ci-dessous)
+- "SINGLE_ARM_PERFORMANCE_GOAL" : étude bras unique **confirmatoire**, avec un critère de
+  jugement principal comparé à un objectif de performance **pré-spécifié et documenté avant
+  l'étude** (seuil de succès fixé a priori, effectif justifié par un calcul de puissance). C'est
+  le design pivot classique pour les dispositifs à haut risque quand aucun comparateur de
+  modalité comparable n'est disponible (ex. valve cardiaque transcathéter comparée à un seuil
+  de dysfonction valvulaire documenté). Préférer cette catégorie à "EXPLORATORY" quand un
+  objectif de performance chiffré et pré-enregistré est explicitement mentionné.
 - "REGISTRY" : registre ou cohorte observationnelle non comparative
 - "COHORT" : cohorte comparative (avec comparateur non randomisé)
 - "BEFORE_AFTER" : avant/après sans groupe contrôle concurrent
 - "META_ANALYSIS" : méta-analyse ou revue systématique
 - "MATCHED_OBSERVATIONAL" : appariement par score de propension ou autre méthode
-- "EXPLORATORY" : pilote, faisabilité, série de cas
+- "EXPLORATORY" : pilote, faisabilité, série de cas, **sans** seuil de succès pré-spécifié —
+  génère des hypothèses, ne les confirme pas
 
 **n_patients** : effectif total de l'étude (entier). null si inconnu.
 
@@ -182,7 +191,7 @@ _USER_TEMPLATE = """Analyse ce texte d'étude clinique et extrais les données s
 
 Réponds en JSON avec ce format exact :
 {{
-  "study_design": "RCT" | "SINGLE_ARM" | "REGISTRY" | "COHORT" | "BEFORE_AFTER" | "META_ANALYSIS" | "MATCHED_OBSERVATIONAL" | "EXPLORATORY",
+  "study_design": "RCT" | "SINGLE_ARM" | "SINGLE_ARM_PERFORMANCE_GOAL" | "REGISTRY" | "COHORT" | "BEFORE_AFTER" | "META_ANALYSIS" | "MATCHED_OBSERVATIONAL" | "EXPLORATORY",
   "n_patients": <int ou null>,
   "has_comparator": <true | false | null>,
   "comparator_feasibility": "<voir liste — uniquement si has_comparator=false>",
@@ -222,7 +231,12 @@ Réponds en JSON avec ce format exact :
 
 _DESIGN_MAP: dict[str, StudyDesign] = {
     "RCT": StudyDesign.RCT,
+    # Generic "single-arm, no comparator" with no further distinction offered by
+    # the LLM defaults to the conservative EXPLORATORY bucket. When the LLM can
+    # identify a pre-specified, documented performance objective, it should
+    # return "SINGLE_ARM_PERFORMANCE_GOAL" instead (see prompt).
     "SINGLE_ARM": StudyDesign.EXPLORATORY,
+    "SINGLE_ARM_PERFORMANCE_GOAL": StudyDesign.SINGLE_ARM_PERFORMANCE_GOAL,
     "REGISTRY": StudyDesign.MATCHED_OBSERVATIONAL,
     "COHORT": StudyDesign.COHORT,
     "BEFORE_AFTER": StudyDesign.BEFORE_AFTER,
@@ -430,13 +444,20 @@ _SYSTEM_PROMPT_FULL = """Tu es un expert en évaluation clinique et réglementai
 
 ## study_design
 - "RCT" : essai contrôlé randomisé
-- "SINGLE_ARM" : bras unique sans comparateur
+- "SINGLE_ARM" : bras unique sans comparateur — générique, quand on ne peut pas trancher
+  entre confirmatoire et exploratoire
+- "SINGLE_ARM_PERFORMANCE_GOAL" : bras unique **confirmatoire**, critère de jugement principal
+  comparé à un objectif de performance **pré-spécifié et documenté avant l'étude** (seuil de
+  succès fixé a priori, effectif justifié par calcul de puissance). Design pivot classique pour
+  dispositifs à haut risque sans comparateur de modalité comparable disponible. Préférer cette
+  catégorie à "EXPLORATORY" dès qu'un seuil de performance chiffré et pré-enregistré est
+  explicitement documenté dans le texte.
 - "REGISTRY" : registre observationnel
 - "COHORT" : cohorte comparative non randomisée
 - "BEFORE_AFTER" : avant/après sans contrôle concurrent
 - "META_ANALYSIS" : méta-analyse / revue systématique
 - "MATCHED_OBSERVATIONAL" : appariement (PSM ou autre)
-- "EXPLORATORY" : pilote, faisabilité, série de cas
+- "EXPLORATORY" : pilote, faisabilité, série de cas, **sans** seuil de succès pré-spécifié
 
 ## blinding_level
 - "OPEN_LABEL" : pas d'aveugle

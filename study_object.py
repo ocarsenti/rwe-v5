@@ -545,6 +545,36 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
             ),
         ))
 
+    # Single-arm confirmatory design vs. a documented, pre-specified performance
+    # objective — weaker than a comparative/randomized design (no concurrent
+    # counterfactual), but NOT exploratory: it has a pre-registered success
+    # threshold and a justified sample size. cf. EDWARDS SAPIEN 3 / EDWARDS
+    # ALTERRA (avis CNEDiMTS 7873): accepted by HAS (SA Suffisant, ASA II) as a
+    # pivotal study, not treated as exploratory/pilot.
+    if (
+        study.study_design == StudyDesign.SINGLE_ARM_PERFORMANCE_GOAL
+        and claim.level in (ClaimLevel.C, ClaimLevel.D)
+    ):
+        gaps.append(ClaimStudyGap(
+            dimension="design",
+            severity="HIGH",
+            description=(
+                "Étude mono-bras confirmatoire comparée à un objectif de performance "
+                "pré-spécifié, pour une revendication d'outcome. Design pivot accepté "
+                "en l'absence de comparateur faisable, mais reste plus faible qu'un "
+                "design comparatif ou randomisé."
+            ),
+            has_critique=(
+                "Un design mono-bras comparé à un objectif de performance documenté et "
+                "pré-enregistré peut soutenir une revendication d'outcome quand aucun "
+                "comparateur de modalité comparable n'est disponible — c'est un design "
+                "pivot reconnu (FDA/PMA) pour les dispositifs à haut risque. Mais sans "
+                "counterfactuel concurrent, l'attribution causale reste plus fragile "
+                "qu'avec un comparateur : le seuil de performance retenu doit lui-même "
+                "être solidement justifié cliniquement."
+            ),
+        ))
+
     # Non-randomized comparative study for outcome claim
     if (
         not study.is_randomized

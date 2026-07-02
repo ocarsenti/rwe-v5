@@ -79,6 +79,14 @@ class StudyDesign(Enum):
     ITS = "ITS"
     BEFORE_AFTER = "BEFORE_AFTER"
     MATCHED_OBSERVATIONAL = "MATCHED_OBSERVATIONAL"
+    # Single-arm, confirmatory, pre-specified/documented performance objective
+    # (FDA/PMA "Objective Performance Criterion" pathway) — distinct from
+    # EXPLORATORY: has a pre-registered success threshold and justified sample
+    # size, used to support a confirmatory claim rather than to generate one.
+    # cf. EDWARDS SAPIEN 3 / EDWARDS ALTERRA (avis CNEDiMTS 7873): 61-patient
+    # pivotal study, primary endpoint compared to a documented performance
+    # objective, accepted by HAS (SA Suffisant) — not treated as exploratory.
+    SINGLE_ARM_PERFORMANCE_GOAL = "SINGLE_ARM_PERFORMANCE_GOAL"
     EXPLORATORY = "EXPLORATORY"
     NOT_IDENTIFIABLE = "NOT_IDENTIFIABLE"
 

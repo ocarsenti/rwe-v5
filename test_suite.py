@@ -3346,6 +3346,16 @@ class TestEvidenceParserMapping(unittest.TestCase):
         self.assertFalse(result.has_comparator)
         self.assertEqual(result.study_design, StudyDesign.EXPLORATORY)
 
+    def test_single_arm_performance_goal_mapped_distinctly(self):
+        """A pre-specified, documented performance objective must map to its
+        own StudyDesign, not be collapsed into EXPLORATORY."""
+        data = self._rct_json()
+        data["study_design"] = "SINGLE_ARM_PERFORMANCE_GOAL"
+        data["has_comparator"] = False
+        result = _parse_result(data, "Device", "Indication")
+        self.assertEqual(result.study_design, StudyDesign.SINGLE_ARM_PERFORMANCE_GOAL)
+        self.assertNotEqual(result.study_design, StudyDesign.EXPLORATORY)
+
 
 class TestEnrichClaim(unittest.TestCase):
     """Tests enrich_claim_with_study() — merging StudyParseResult into ClinicalClaim."""
@@ -3756,6 +3766,34 @@ class TestStudyObject(unittest.TestCase):
         self.assertGreater(len(exp_gaps), 0)
         self.assertEqual(exp_gaps[0].severity, "CRITICAL")
         self.assertEqual(report.overall_risk, OverallRisk.CRITICAL)
+
+    def test_compare_single_arm_performance_goal_not_exploratory(self):
+        """EDWARDS SAPIEN 3 pattern (avis 7873): 61-patient pivotal study,
+        primary endpoint vs. a documented pre-specified performance objective —
+        HAS accepted this (SA Suffisant, ASA II), it is not treated as
+        exploratory/pilot. Must not produce a CRITICAL 'exploratoire' gap.
+        """
+        from study_object import compare_claim_to_study
+        study = self._make_study(
+            study_design=StudyDesign.SINGLE_ARM_PERFORMANCE_GOAL,
+            has_comparator=False,
+            comparator_feasibility=ComparatorFeasibility.DIFFERENT_MODALITY,
+        )
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        exploratory_gaps = [g for g in report.gaps if "exploratoire" in g.description.lower()]
+        self.assertEqual(exploratory_gaps, [])
+
+    def test_compare_single_arm_performance_goal_high_not_critical(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(
+            study_design=StudyDesign.SINGLE_ARM_PERFORMANCE_GOAL,
+            has_comparator=False,
+            comparator_feasibility=ComparatorFeasibility.DIFFERENT_MODALITY,
+        )
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        perf_goal_gaps = [g for g in report.gaps if "objectif de performance" in g.description.lower()]
+        self.assertGreater(len(perf_goal_gaps), 0)
+        self.assertEqual(perf_goal_gaps[0].severity, "HIGH")
 
     def test_compare_open_label_subjective_primary_high(self):
         from study_object import compare_claim_to_study, BlindingLevel
