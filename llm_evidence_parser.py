@@ -22,6 +22,7 @@ import anthropic
 from models import (
     CarePathwayMatch,
     ClinicalClaim,
+    ComparatorFeasibility,
     ContextAlignment,
     ContextMatchType,
     DeviceAlignment,
@@ -62,6 +63,7 @@ class StudyParseResult:
     study_design: StudyDesign | None = None
     n_patients: int | None = None
     has_comparator: bool | None = None
+    comparator_feasibility: ComparatorFeasibility = ComparatorFeasibility.UNKNOWN
     follow_up_months: float | None = None
     study_countries: list[str] = field(default_factory=list)
     endpoint_evidence: list[EndpointEvidence] = field(default_factory=list)
@@ -93,6 +95,17 @@ _SYSTEM_PROMPT = """Tu es un expert en évaluation clinique et réglementaire de
 **n_patients** : effectif total de l'étude (entier). null si inconnu.
 
 **has_comparator** : true si l'étude a un groupe contrôle ou comparateur actif/inactif. false si bras unique, registre non comparatif, before/after sans contrôle concurrent. null si incertain.
+
+**comparator_feasibility** : uniquement pertinent si has_comparator=false. Évalue si un comparateur
+concurrent était raisonnablement disponible pour cette indication (pas seulement s'il existe une
+alternative administrative/réglementaire) :
+- "FEASIBLE" : une alternative de modalité comparable existe, un essai comparatif tête-à-tête aurait
+  été faisable et éthique
+- "DIFFERENT_MODALITY" : la seule alternative relève d'une prise en charge fondamentalement
+  différente et plus difficile à comparer en face-à-face (ex. chirurgie invasive lourde vs.
+  dispositif mini-invasif)
+- "NO_ALTERNATIVE" : aucun traitement alternatif n'existe pour cette indication précise
+- "UNKNOWN" : non déterminable à partir du texte
 
 **follow_up_months** : durée de suivi principale en mois (nombre décimal). null si inconnu.
 
@@ -172,6 +185,7 @@ Réponds en JSON avec ce format exact :
   "study_design": "RCT" | "SINGLE_ARM" | "REGISTRY" | "COHORT" | "BEFORE_AFTER" | "META_ANALYSIS" | "MATCHED_OBSERVATIONAL" | "EXPLORATORY",
   "n_patients": <int ou null>,
   "has_comparator": <true | false | null>,
+  "comparator_feasibility": "<voir liste — uniquement si has_comparator=false>",
   "follow_up_months": <float ou null>,
   "study_countries": ["..."],
   "endpoints": [
@@ -293,6 +307,9 @@ def _parse_result(data: dict, claim_device: str, claim_indication: str) -> Study
 
     result.n_patients = data.get("n_patients")
     result.has_comparator = data.get("has_comparator")
+    result.comparator_feasibility = _COMPARATOR_FEASIBILITY_MAP.get(
+        data.get("comparator_feasibility", "UNKNOWN"), ComparatorFeasibility.UNKNOWN
+    )
     result.follow_up_months = data.get("follow_up_months")
     result.study_countries = data.get("study_countries") or []
 
@@ -353,6 +370,8 @@ def enrich_claim_with_study(
         claim.n_patients = result.n_patients
     if result.has_comparator is not None:
         claim.has_comparator = result.has_comparator
+    if result.comparator_feasibility != ComparatorFeasibility.UNKNOWN:
+        claim.comparator_feasibility = result.comparator_feasibility
     if result.follow_up_months is not None:
         claim.follow_up_months = result.follow_up_months
     if result.study_countries:
@@ -435,6 +454,21 @@ _SYSTEM_PROMPT_FULL = """Tu es un expert en évaluation clinique et réglementai
 - "NONE" : pas de comparateur
 - "UNKNOWN" : non précisé
 
+## comparator_feasibility
+Uniquement pertinent si has_comparator=false. Évalue si un comparateur concurrent
+était raisonnablement disponible pour cette indication, pas seulement s'il existe
+une alternative administrative/réglementaire.
+- "FEASIBLE" : une alternative de modalité comparable existe et un essai comparatif
+  tête-à-tête aurait été faisable et éthique (ex. une autre prothèse posée de la
+  même façon, chez la même population)
+- "DIFFERENT_MODALITY" : la seule alternative identifiée relève d'une prise en
+  charge fondamentalement différente et plus difficile à comparer en face-à-face
+  (ex. chirurgie invasive lourde vs. dispositif mini-invasif/transcathéter) —
+  cf. EDWARDS SAPIEN 3 : seule alternative = reprise chirurgicale à cœur ouvert
+- "NO_ALTERNATIVE" : aucun traitement alternatif n'existe pour cette indication
+  précise (dispositif premier-de-sa-catégorie)
+- "UNKNOWN" : non déterminable à partir du texte
+
 ## primary_analysis_set
 - "ITT" : intention-to-treat
 - "mITT" : modified ITT
@@ -507,6 +541,7 @@ Réponds en JSON avec ce format exact :
   "has_comparator": <true | false | null>,
   "comparator_type": "<voir liste>",
   "comparator_description": "<description du comparateur ou null>",
+  "comparator_feasibility": "<voir liste — uniquement si has_comparator=false>",
 
   "n_patients": <entier ou null>,
   "age_min": <float ou null>,
@@ -578,6 +613,13 @@ _COMPARATOR_MAP: dict[str, ComparatorType] = {
     "BEST_AVAILABLE": ComparatorType.BEST_AVAILABLE,
     "NONE": ComparatorType.NONE,
     "UNKNOWN": ComparatorType.UNKNOWN,
+}
+
+_COMPARATOR_FEASIBILITY_MAP: dict[str, ComparatorFeasibility] = {
+    "FEASIBLE": ComparatorFeasibility.FEASIBLE,
+    "DIFFERENT_MODALITY": ComparatorFeasibility.DIFFERENT_MODALITY,
+    "NO_ALTERNATIVE": ComparatorFeasibility.NO_ALTERNATIVE,
+    "UNKNOWN": ComparatorFeasibility.UNKNOWN,
 }
 
 _ANALYSIS_SET_MAP: dict[str, AnalysisSet] = {
@@ -727,6 +769,9 @@ def _parse_study_object_result(
         data.get("comparator_type", "UNKNOWN"), ComparatorType.UNKNOWN
     )
     obj.comparator_description = data.get("comparator_description") or ""
+    obj.comparator_feasibility = _COMPARATOR_FEASIBILITY_MAP.get(
+        data.get("comparator_feasibility", "UNKNOWN"), ComparatorFeasibility.UNKNOWN
+    )
 
     obj.n_patients = data.get("n_patients")
     obj.age_min = data.get("age_min")

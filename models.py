@@ -18,6 +18,22 @@ class ClaimLevel(Enum):
     D = "COMPLETE_CHAIN"
 
 
+class ComparatorFeasibility(Enum):
+    """Whether a concurrent comparator was realistically available for this indication.
+
+    HAS does not penalize single-arm designs uniformly: it distinguishes a comparator
+    that exists and is of a similar-enough modality to make a head-to-head comparison
+    feasible/ethical (FEASIBLE — e.g. another hip prosthesis for a hip prosthesis) from
+    a case where the only alternative is a fundamentally different, harder-to-randomize-
+    against modality (DIFFERENT_MODALITY — e.g. open-heart surgery vs. a transcatheter
+    device) or where no alternative treatment exists at all (NO_ALTERNATIVE).
+    """
+    FEASIBLE = "FEASIBLE"
+    DIFFERENT_MODALITY = "DIFFERENT_MODALITY"
+    NO_ALTERNATIVE = "NO_ALTERNATIVE"
+    UNKNOWN = "UNKNOWN"
+
+
 class EndpointNature(Enum):
     OBJECTIVE = "OBJECTIVE"
     SUBJECTIVE = "SUBJECTIVE"
@@ -43,6 +59,9 @@ class BiasFlag(Enum):
     PERCEPTION_BIAS = "PERCEPTION_BIAS"
     MEDIATION_GAP = "MEDIATION_GAP"
     PROCESS_TAUTOLOGY = "PROCESS_TAUTOLOGY"
+    SURROGATE_RISK = "SURROGATE_RISK"
+    ADJUDICATION_RISK = "ADJUDICATION_RISK"
+    NO_COMPARATOR = "NO_COMPARATOR"
 
 
 class RepairType(Enum):
@@ -480,6 +499,9 @@ class Endpoint:
     causal_role: CausalRole
     is_primary: bool = False
     description: str = ""
+    is_validated_surrogate: bool = False
+    is_feasibility_accepted_surrogate: bool = False
+    is_independently_adjudicated: bool = False
 
 
 @dataclass
@@ -489,6 +511,15 @@ class ClinicalClaim:
     level: Optional[ClaimLevel] = None
     endpoints: list[Endpoint] = field(default_factory=list)
     domain: str = ""
+    device_alignment: Optional["DeviceAlignment"] = None
+    population_alignment: Optional["PopulationAlignment"] = None
+    context_alignment: Optional["ContextAlignment"] = None
+    study_design: Optional["StudyDesign"] = None
+    n_patients: Optional[int] = None
+    has_comparator: Optional[bool] = None
+    comparator_feasibility: "ComparatorFeasibility" = ComparatorFeasibility.UNKNOWN
+    follow_up_months: Optional[float] = None
+    study_countries: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -674,6 +705,7 @@ class EngineOutput:
     regulatory_readout: str
     manifold_position: Optional["EpistemicManifoldPosition"] = None
     repair_delta: Optional["RepairManifoldDelta"] = None
+    cas_output: Optional["CASOutput"] = None
 
     def to_dict(self) -> dict:
         d = {
@@ -704,6 +736,8 @@ class EngineOutput:
             d["epistemic_manifold"] = self.manifold_position.to_dict()
         if self.repair_delta is not None:
             d["repair_manifold_delta"] = self.repair_delta.to_dict()
+        if self.cas_output is not None:
+            d["cas_output"] = self.cas_output.to_dict()
         return d
 
     def _repair_dict(self) -> dict:
@@ -743,6 +777,58 @@ class ManifoldRegion(Enum):
     INVALID = "INVALID"
     FRAGILE = "FRAGILE"
     ACCEPTABLE = "ACCEPTABLE"
+
+
+# ---------------------------------------------------------------------------
+# CAS (Claim Alignment Score) enums
+# ---------------------------------------------------------------------------
+
+class DeviceMatchType(Enum):
+    EXACT_DEVICE = "EXACT_DEVICE"
+    SAME_FAMILY = "SAME_FAMILY"
+    PROXY_DEVICE = "PROXY_DEVICE"
+    DIFFERENT_DEVICE = "DIFFERENT_DEVICE"
+    UNKNOWN = "UNKNOWN"
+
+
+class PopulationMatchType(Enum):
+    EXACT_INDICATION = "EXACT_INDICATION"
+    NARROWER_SUBGROUP = "NARROWER_SUBGROUP"
+    BROADER_POPULATION = "BROADER_POPULATION"
+    DIFFERENT_POPULATION = "DIFFERENT_POPULATION"
+    UNKNOWN = "UNKNOWN"
+
+
+class ContextMatchType(Enum):
+    SAME_HEALTHCARE_SYSTEM = "SAME_HEALTHCARE_SYSTEM"
+    PARTIALLY_COMPARABLE = "PARTIALLY_COMPARABLE"
+    DIFFERENT_SYSTEM = "DIFFERENT_SYSTEM"
+    UNKNOWN = "UNKNOWN"
+
+
+class CarePathwayMatch(Enum):
+    YES = "YES"
+    PARTIAL = "PARTIAL"
+    NO = "NO"
+    UNKNOWN = "UNKNOWN"
+
+
+class EligibilityShift(Enum):
+    NONE = "NONE"
+    MINOR = "MINOR"
+    MAJOR = "MAJOR"
+
+
+class OrganizationDependency(Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
+class CASVerdict(Enum):
+    ACCEPTABLE = "ACCEPTABLE"
+    WEAK_EVIDENCE = "WEAK_EVIDENCE"
+    REJECTED = "REJECTED"
 
 
 @dataclass
@@ -913,4 +999,128 @@ class RepairManifoldDelta:
             "repair_vectors": [r.to_dict() for r in self.repair_vectors],
             "region_before": self.region_before.value,
             "region_after": self.region_after.value,
+        }
+
+
+# ---------------------------------------------------------------------------
+# CAS (Claim Alignment Score) dataclasses
+# ---------------------------------------------------------------------------
+
+@dataclass
+class DeviceAlignment:
+    device_match_type: DeviceMatchType
+    device_description_claim: str
+    device_description_study: str
+    justification: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "device_match_type": self.device_match_type.value,
+            "device_description_claim": self.device_description_claim,
+            "device_description_study": self.device_description_study,
+            "justification": self.justification,
+        }
+
+
+@dataclass
+class PopulationAlignment:
+    population_match_type: PopulationMatchType
+    population_description_claim: str
+    population_description_study: str
+    subgroup_description: str = ""
+    eligibility_shift: EligibilityShift = EligibilityShift.NONE
+    justification: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "population_match_type": self.population_match_type.value,
+            "population_description_claim": self.population_description_claim,
+            "population_description_study": self.population_description_study,
+            "subgroup_description": self.subgroup_description,
+            "eligibility_shift": self.eligibility_shift.value,
+            "justification": self.justification,
+        }
+
+
+@dataclass
+class ContextAlignment:
+    context_match_type: ContextMatchType
+    care_pathway_match: CarePathwayMatch
+    organization_dependency: OrganizationDependency
+    study_country: str = ""
+    target_country: str = "France"
+    justification: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "context_match_type": self.context_match_type.value,
+            "care_pathway_match": self.care_pathway_match.value,
+            "organization_dependency": self.organization_dependency.value,
+            "study_country": self.study_country,
+            "target_country": self.target_country,
+            "justification": self.justification,
+        }
+
+
+@dataclass
+class CASGatingResult:
+    device_gate_passed: bool
+    device_gate_reason: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "device_gate_passed": self.device_gate_passed,
+            "device_gate_reason": self.device_gate_reason,
+        }
+
+
+@dataclass
+class CASRisk:
+    dimension: str
+    risk_level: str
+    description: str
+
+    def to_dict(self) -> dict:
+        return {
+            "dimension": self.dimension,
+            "risk_level": self.risk_level,
+            "description": self.description,
+        }
+
+
+@dataclass
+class CASOutput:
+    claim_text: str
+    intervention: str
+    domain: str
+    device_alignment: DeviceAlignment
+    population_alignment: PopulationAlignment
+    context_alignment: ContextAlignment
+    d_device: float
+    d_population: float
+    d_context: float
+    cas_score: float
+    gating: CASGatingResult
+    verdict: CASVerdict
+    risks: list[CASRisk]
+    regulatory_interpretation: str
+
+    def to_dict(self) -> dict:
+        return {
+            "claim_text": self.claim_text,
+            "intervention": self.intervention,
+            "domain": self.domain,
+            "device_alignment": self.device_alignment.to_dict(),
+            "population_alignment": self.population_alignment.to_dict(),
+            "context_alignment": self.context_alignment.to_dict(),
+            "scores": {
+                "d_device": round(self.d_device, 3),
+                "d_population": round(self.d_population, 3),
+                "d_context": round(self.d_context, 3),
+                "cas_score": round(self.cas_score, 3),
+            },
+            "gating": self.gating.to_dict(),
+            "verdict": self.verdict.value,
+            "risks": [r.to_dict() for r in self.risks],
+            "regulatory_interpretation": self.regulatory_interpretation,
         }

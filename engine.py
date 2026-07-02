@@ -22,6 +22,7 @@ from epistemic_core import (
 from epistemic_manifold import compute_review_position, compute_repair_delta
 from regulatory_labeler import label_case
 from design_mode import run_design_mode, run_design_mode_json
+from cas_engine import evaluate_cas
 
 
 # ===================================================================
@@ -54,6 +55,21 @@ def analyze(claim: ClinicalClaim, lang: str = "fr") -> EngineOutput:
         claim, endpoint_analyses, structure, bias_flags, design.primary_design,
     )
 
+    cas_output = None
+    if (
+        claim.device_alignment is not None
+        and claim.population_alignment is not None
+        and claim.context_alignment is not None
+    ):
+        cas_output = evaluate_cas(
+            claim_text=claim.text,
+            intervention=claim.intervention,
+            domain=claim.domain,
+            device=claim.device_alignment,
+            population=claim.population_alignment,
+            context=claim.context_alignment,
+        )
+
     output = EngineOutput(
         claim_level=claim.level,
         endpoint_analysis=endpoint_analyses,
@@ -64,6 +80,7 @@ def analyze(claim: ClinicalClaim, lang: str = "fr") -> EngineOutput:
         repair_plan_v2=repair_plan_v2,
         regulatory_readout=regulatory_readout,
         manifold_position=manifold_position,
+        cas_output=cas_output,
     )
 
     if repair_plan_v2 and repair_plan_v2.status == "REPAIRABLE":

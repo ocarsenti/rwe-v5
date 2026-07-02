@@ -21,3 +21,17 @@ body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   background: #f0f4f8;
 }
+
+.input-cas {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input-cas:focus {
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15);
+}

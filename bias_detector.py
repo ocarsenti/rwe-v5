@@ -51,6 +51,41 @@ BIAS_DETAILS: dict[BiasFlag, dict] = {
             "always 'succeed' at doing what it does."
         ),
     },
+    BiasFlag.ADJUDICATION_RISK: {
+        "severity": "MEDIUM",
+        "detail": (
+            "Primary endpoint is objective but assessed without independent blind "
+            "adjudication (Clinical Events Committee). In an open-label device trial, "
+            "investigator-reported events (hospitalization, stroke, complications, PFS) "
+            "are subject to classification bias — the same clinical presentation may be "
+            "coded differently across treatment arms. Set is_independently_adjudicated=True "
+            "when a blinded CEC is documented in the protocol."
+        ),
+    },
+    BiasFlag.SURROGATE_RISK: {
+        "severity": "HIGH",
+        "detail": (
+            "Primary endpoint is a mediated (surrogate) outcome that does not capture "
+            "direct clinical benefit for the patient. The causal chain from this surrogate "
+            "to a hard clinical endpoint must be independently established. If not validated "
+            "in this indication and population, the surrogate cannot substitute for a "
+            "patient-relevant outcome — set is_validated_surrogate=True on the endpoint "
+            "to suppress this flag when the surrogate is accepted in the literature."
+        ),
+    },
+    BiasFlag.NO_COMPARATOR: {
+        "severity": "HIGH",
+        "detail": (
+            "The submitted evidence lacks a control group for an outcome-level claim "
+            "(ClaimLevel C or D). Without a comparator, the counterfactual is unobserved — "
+            "the observed outcome cannot be attributed to the intervention rather than "
+            "natural history, regression to the mean, or concomitant treatments. "
+            "A randomised or matched comparator arm is required for causal attribution. "
+            "This flag is suppressed when comparator_feasibility is DIFFERENT_MODALITY or "
+            "NO_ALTERNATIVE — a single-arm design compared to a documented performance "
+            "objective is acceptable when no comparable-modality alternative exists."
+        ),
+    },
 }
 
 

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useLang } from '../LangContext'
 import { t } from '../i18n'
-import { CLAIM_LEVELS, CAUSAL_STRUCTURES, STUDY_DESIGNS, ENDPOINT_NATURES, CAUSAL_ROLES, BIAS_FLAGS, MANIFOLD_REGIONS, REPAIR_STATUS, label } from '../enumLabels'
+import { CLAIM_LEVELS, CAUSAL_STRUCTURES, STUDY_DESIGNS, ENDPOINT_NATURES, CAUSAL_ROLES, MANIFOLD_REGIONS, label } from '../enumLabels'
 import RadarChart from '../components/RadarChart'
-import BiasDisplay from '../components/BiasDisplay'
 
-export default function ReviewPage() {
+export default function ReviewPage({ filterCases = null, repairPath = '/repair' }) {
   const { lang } = useLang()
+  const navigate = useNavigate()
   const [form, setForm] = useState({
     text: '',
     intervention: '',
@@ -22,7 +23,7 @@ export default function ReviewPage() {
   useEffect(() => {
     fetch('/api/gold-claims')
       .then((r) => r.json())
-      .then(setGoldClaims)
+      .then((data) => setGoldClaims(filterCases ? data.filter((c) => filterCases.includes(c.case_id)) : data))
       .catch(() => {})
   }, [])
 
@@ -177,52 +178,139 @@ export default function ReviewPage() {
         </div>
       )}
 
-      {result && <ReviewResults data={result} lang={lang} />}
+      {result && <ReviewResults data={result} lang={lang} onUpgrade={() => navigate(repairPath)} />}
     </div>
   )
 }
 
-function ReviewResults({ data, lang }) {
+function ReviewResults({ data, lang, onUpgrade }) {
+  const fr = lang === 'fr'
+
+  const biasFlags = data.bias_flags || []
+  const criticalCount = biasFlags.filter(f => f.severity === 'HIGH').length
+  const mediumCount = biasFlags.filter(f => f.severity === 'MEDIUM').length
+  const totalIssues = biasFlags.length
+
+  const repairEngine = data.repair_engine
+  const estimatedActions = repairEngine?.endpoint_repairs?.reduce(
+    (acc, er) => acc + (er.repairs?.length || 0), 0
+  ) ?? null
+  const isRepairable = repairEngine?.status === 'REPAIRABLE'
+
+  const riskLevel =
+    criticalCount >= 2 ? 'CRITIQUE' :
+    criticalCount >= 1 ? 'ÉLEVÉ' :
+    mediumCount >= 2 ? 'MOYEN' : 'FAIBLE'
+
+  const RISK_CONFIG = {
+    CRITIQUE: { label: fr ? 'Non aligné — inférence causale limitée'    : 'Non-aligned — limited causal inference',        color: 'bg-red-100 text-red-800 border-red-200',    dot: 'bg-red-500' },
+    ÉLEVÉ:    { label: fr ? 'Désalignement avec niveau de revendication' : 'Misalignment with claim level',                 color: 'bg-orange-100 text-orange-800 border-orange-200', dot: 'bg-orange-500' },
+    MOYEN:    { label: fr ? 'Ajustement de design requis'                : 'Design adjustment required',                    color: 'bg-yellow-100 text-yellow-800 border-yellow-200', dot: 'bg-yellow-500' },
+    FAIBLE:   { label: fr ? 'Écart mineur'                               : 'Minor gap',                                     color: 'bg-green-100 text-green-800 border-green-200',  dot: 'bg-green-500' },
+  }
+  const risk = RISK_CONFIG[riskLevel]
+
+  const fullReadout = data.regulatory_readout || ''
+  const sentences = fullReadout.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 10)
+  const visibleReadout = sentences.slice(0, 2).join(' ')
+  const blurredReadout = sentences.slice(2, 5).join(' ')
+  const hasMoreReadout = sentences.length > 2
+
   return (
     <div className="space-y-6">
-      <div className="grid md:grid-cols-3 gap-4">
+
+      {/* 4 summary cards */}
+      <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4">
         <SummaryCard label={t('res_claim_level', lang)} value={label(CLAIM_LEVELS, data.claim_level, lang)} />
         <SummaryCard label={t('res_causal_structure', lang)} value={label(CAUSAL_STRUCTURES, data.causal_structure, lang)} />
         <SummaryCard label={t('res_design_rec', lang)} value={label(STUDY_DESIGNS, data.design_recommendation?.primary_design, lang)} />
-      </div>
-
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-        <h3 className="text-lg font-semibold text-gray-800 mb-3">{t('res_regulatory', lang)}</h3>
-        <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-line">{data.regulatory_readout}</p>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-6">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-800 mb-3">{t('res_bias', lang)}</h3>
-          <BiasDisplay biasFlags={data.bias_flags} lang={lang} />
-        </div>
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-800 mb-3">{t('res_endpoints', lang)}</h3>
-          <div className="space-y-3">
-            {data.endpoint_analysis?.map((ea, i) => (
-              <div key={i} className="bg-surface rounded-xl p-3 border border-gray-100">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-sm text-gray-800">{ea.name}</span>
-                  <span className="text-xs text-gray-500">{label(ENDPOINT_NATURES, ea.nature, lang)} / {label(CAUSAL_ROLES, ea.causal_role, lang)}</span>
-                </div>
-                {ea.flags?.length > 0 && (
-                  <div className="flex gap-1 mt-2">
-                    {ea.flags.map((f, j) => (
-                      <span key={j} className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{label(BIAS_FLAGS, f, lang)}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+        <div className={`rounded-2xl p-5 border ${risk.color}`}>
+          <div className="text-xs uppercase tracking-wider mb-2 opacity-60">
+            {fr ? 'Cohérence structurale' : 'Structural coherence'}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full flex-shrink-0 ${risk.dot}`} />
+            <div className="text-xl font-bold">{risk.label}</div>
           </div>
         </div>
       </div>
 
+      {/* Regulatory readout — truncated + blurred remainder */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+        <h3 className="text-lg font-semibold text-gray-800 mb-3">{t('res_regulatory', lang)}</h3>
+        <p className="text-gray-600 text-sm leading-relaxed">{visibleReadout}</p>
+        {hasMoreReadout && (
+          <div className="relative mt-3">
+            <p className="text-gray-400 text-sm leading-relaxed blur-sm select-none pointer-events-none">
+              {blurredReadout}
+            </p>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="bg-white/90 text-primary text-xs font-semibold px-4 py-1.5 rounded-full border border-primary/20 shadow-sm">
+                {fr ? '🔒 Analyse complète dans le Diagnostic Complet' : '🔒 Full analysis in Full Diagnostic'}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Issues detected — count + severity dots only */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">
+          {fr ? 'Écarts détectés' : 'Gaps detected'}
+        </h3>
+        {totalIssues === 0 ? (
+          <p className="text-green-700 text-sm font-medium">
+            {fr ? 'Aucun problème majeur détecté.' : 'No major issues detected.'}
+          </p>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-gray-900">{totalIssues}</span>
+              <span className="text-gray-500 text-sm">
+                {fr
+                  ? `problème${totalIssues > 1 ? 's' : ''} identifié${totalIssues > 1 ? 's' : ''}${criticalCount > 0 ? ` · ${criticalCount} critique${criticalCount > 1 ? 's' : ''}` : ''}`
+                  : `issue${totalIssues > 1 ? 's' : ''} identified${criticalCount > 0 ? ` · ${criticalCount} critical` : ''}`}
+              </span>
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              {biasFlags.map((bf, i) => (
+                <div
+                  key={i}
+                  title={fr ? 'Détail disponible dans le Diagnostic Complet' : 'Detail available in Full Diagnostic'}
+                  className={`w-4 h-4 rounded-full cursor-default ${
+                    bf.severity === 'HIGH' ? 'bg-red-500' :
+                    bf.severity === 'MEDIUM' ? 'bg-yellow-500' : 'bg-blue-400'
+                  }`}
+                />
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 italic">
+              {fr
+                ? 'Le détail de chaque problème est disponible dans le Diagnostic Complet.'
+                : 'Details of each issue are available in the Full Diagnostic.'}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Endpoints — names + classification only, no flags */}
+      {data.endpoint_analysis?.length > 0 && (
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-800 mb-3">{t('res_endpoints', lang)}</h3>
+          <div className="space-y-2">
+            {data.endpoint_analysis.map((ea, i) => (
+              <div key={i} className="flex items-center justify-between bg-surface rounded-xl px-4 py-3 border border-gray-100">
+                <span className="font-medium text-sm text-gray-800">{ea.name}</span>
+                <span className="text-xs text-gray-400">
+                  {label(ENDPOINT_NATURES, ea.nature, lang)} / {label(CAUSAL_ROLES, ea.causal_role, lang)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Epistemic radar — chart + position only, no repair directions */}
       {data.epistemic_manifold && (
         <div className="grid md:grid-cols-2 gap-6">
           <RadarChart coordinates={data.epistemic_manifold.coordinates} title={t('res_manifold', lang)} />
@@ -234,56 +322,75 @@ function ReviewResults({ data, lang }) {
               <InfoRow label={t('res_bias_mag', lang)} value={data.epistemic_manifold.bias_magnitude?.toFixed(3)} />
               <InfoRow label={t('res_reg_status', lang)} value={data.epistemic_manifold.regulatory_status} />
             </div>
-            {data.epistemic_manifold.repair_directions?.length > 0 && (
-              <div className="mt-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">{t('res_repair_dirs', lang)}</h4>
-                {data.epistemic_manifold.repair_directions.map((r, i) => (
-                  <div key={i} className="text-sm text-gray-600 mb-1">
-                    <span className="font-medium">{r.axis}</span>: {r.current?.toFixed(2)} &rarr; {r.target?.toFixed(2)} ({r.action})
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       )}
 
-      {data.repair_engine && data.repair_engine.status !== 'NO_REPAIR_NEEDED' && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-800 mb-3">
-            {t('res_repair_engine', lang)}
-            <span className={`ml-3 text-sm px-3 py-1 rounded-full ${
-              data.repair_engine.status === 'REPAIRABLE' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
-            }`}>{label(REPAIR_STATUS, data.repair_engine.status, lang)}</span>
-          </h3>
-          <p className="text-gray-600 text-sm mb-4">{data.repair_engine.problem_summary}</p>
-          {data.repair_engine.endpoint_repairs?.map((er, i) => (
-            <div key={i} className="bg-surface rounded-xl p-4 mb-3 border border-gray-100">
-              <div className="font-medium text-sm text-gray-800 mb-1">{er.original_endpoint} &mdash; {er.failure_reason}</div>
-              <div className="space-y-1">
-                {er.repairs?.map((r, j) => (
-                  <div key={j} className="text-sm text-gray-600 flex items-start gap-2">
-                    <span className="text-success">&#10003;</span>
-                    <span><strong>{r.endpoint}</strong> ({r.type}) &mdash; {r.why_valid}</span>
+      {/* Premium teaser */}
+      <div className="bg-gradient-to-br from-accent/5 to-primary/5 rounded-2xl border-2 border-dashed border-accent/30 p-6">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center flex-shrink-0 mt-1">
+            <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="font-bold text-gray-900 text-lg">
+                {fr ? 'Diagnostic Complet disponible' : 'Full Diagnostic available'}
+              </h3>
+              <span className="bg-accent text-white text-xs font-bold px-2.5 py-1 rounded-full">Premium</span>
+            </div>
+
+            <div className="grid sm:grid-cols-3 gap-3 mb-4">
+              {totalIssues > 0 && (
+                <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
+                  <div className="text-2xl font-bold text-gray-900">{totalIssues}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    {fr ? 'gaps à analyser' : 'gaps to analyze'}
                   </div>
-                ))}
+                </div>
+              )}
+              {estimatedActions !== null && estimatedActions > 0 && (
+                <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
+                  <div className="text-2xl font-bold text-gray-900">{estimatedActions}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    {fr ? 'actions de correction' : 'correction actions'}
+                  </div>
+                </div>
+              )}
+              <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
+                <div className={`text-sm font-bold ${isRepairable ? 'text-emerald-700' : 'text-orange-700'}`}>
+                  {isRepairable
+                    ? (fr ? 'Réparable' : 'Repairable')
+                    : (fr ? 'Étude requise' : 'Study needed')}
+                </div>
+                <div className="text-xs text-gray-500 mt-0.5">
+                  {fr ? 'sans nouvelle étude' : 'without new study'}
+                </div>
               </div>
             </div>
-          ))}
-        </div>
-      )}
 
-      {data.repair_manifold_delta && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-800 mb-3">
-            {t('res_repair_delta', lang)}: {label(MANIFOLD_REGIONS, data.repair_manifold_delta.region_before, lang)} &rarr; {label(MANIFOLD_REGIONS, data.repair_manifold_delta.region_after, lang)}
-          </h3>
-          <div className="grid md:grid-cols-2 gap-4">
-            <RadarChart coordinates={data.repair_manifold_delta.before} title={t('res_before', lang)} />
-            <RadarChart coordinates={data.repair_manifold_delta.after} title={t('res_after', lang)} />
+            <p className="text-sm text-gray-600 mb-4">
+              {fr
+                ? "Uploadez l'abstract de votre étude (PDF) pour identifier les incompatibilités structurelles entre votre étude et votre revendication, et obtenir un plan de correction priorisé par effort."
+                : "Upload your study abstract (PDF) to identify structural incompatibilities between your study and claim, and get a correction plan prioritised by effort."}
+            </p>
+
+            <button
+              onClick={onUpgrade}
+              className="inline-flex items-center gap-2 bg-accent hover:bg-accent/90 text-white px-6 py-2.5 rounded-xl font-semibold text-sm transition-colors shadow-lg shadow-accent/20"
+            >
+              {fr ? 'Générer le Diagnostic Complet' : 'Generate Full Diagnostic'}
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </button>
           </div>
         </div>
-      )}
+      </div>
+
     </div>
   )
 }

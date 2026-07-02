@@ -24,6 +24,7 @@ from models import (
     CausalStructure,
     ClaimLevel,
     ClinicalClaim,
+    ComparatorFeasibility,
     DesignTypeRequired,
     Endpoint,
     EndpointNature,
@@ -3203,6 +3204,40 @@ class TestNoComparator(unittest.TestCase):
         flags = {bd.flag for bd in output.bias_flags}
         self.assertIn(BiasFlag.NO_COMPARATOR, flags)
 
+    def test_no_comparator_suppressed_when_different_modality(self):
+        """EDWARDS SAPIEN 3 pattern: single-arm, outcome claim, but the only
+        alternative is open-heart surgery — HAS does not fault this (avis 7873,
+        FAVORABLE, no comparator critique). NO_COMPARATOR must not fire.
+        """
+        claim = self._claim(ClaimLevel.C, False)
+        claim.comparator_feasibility = ComparatorFeasibility.DIFFERENT_MODALITY
+        flags = {bd.flag for bd in analyze(claim).bias_flags}
+        self.assertNotIn(BiasFlag.NO_COMPARATOR, flags)
+
+    def test_no_comparator_suppressed_when_no_alternative(self):
+        claim = self._claim(ClaimLevel.C, False)
+        claim.comparator_feasibility = ComparatorFeasibility.NO_ALTERNATIVE
+        flags = {bd.flag for bd in analyze(claim).bias_flags}
+        self.assertNotIn(BiasFlag.NO_COMPARATOR, flags)
+
+    def test_no_comparator_still_fires_when_feasible(self):
+        """APTA SANS CIMENT pattern: single-arm, outcome claim, but a directly
+        comparable alternative (fixed-neck hip prosthesis) existed and wasn't
+        used — HAS penalizes this explicitly (avis 7313, DEFAVORABLE). Must fire.
+        """
+        claim = self._claim(ClaimLevel.C, False)
+        claim.comparator_feasibility = ComparatorFeasibility.FEASIBLE
+        flags = {bd.flag for bd in analyze(claim).bias_flags}
+        self.assertIn(BiasFlag.NO_COMPARATOR, flags)
+
+    def test_no_comparator_still_fires_when_feasibility_unknown(self):
+        """Default/conservative behavior: unknown feasibility still fires,
+        matching pre-existing behavior when nothing more is known."""
+        claim = self._claim(ClaimLevel.C, False)
+        self.assertEqual(claim.comparator_feasibility, ComparatorFeasibility.UNKNOWN)
+        flags = {bd.flag for bd in analyze(claim).bias_flags}
+        self.assertIn(BiasFlag.NO_COMPARATOR, flags)
+
 
 # ===================================================================
 # Evidence parser — unit tests (sans appel LLM)
@@ -3263,6 +3298,16 @@ class TestEvidenceParserMapping(unittest.TestCase):
     def test_has_comparator_true(self):
         result = _parse_result(self._rct_json(), "INSPIRE IV", "SAHOS")
         self.assertTrue(result.has_comparator)
+
+    def test_comparator_feasibility_defaults_unknown(self):
+        result = _parse_result(self._rct_json(), "INSPIRE IV", "SAHOS")
+        self.assertEqual(result.comparator_feasibility, ComparatorFeasibility.UNKNOWN)
+
+    def test_comparator_feasibility_mapped(self):
+        data = dict(self._rct_json())
+        data["comparator_feasibility"] = "DIFFERENT_MODALITY"
+        result = _parse_result(data, "INSPIRE IV", "SAHOS")
+        self.assertEqual(result.comparator_feasibility, ComparatorFeasibility.DIFFERENT_MODALITY)
 
     def test_follow_up_months(self):
         result = _parse_result(self._rct_json(), "INSPIRE IV", "SAHOS")
@@ -3661,6 +3706,47 @@ class TestStudyObject(unittest.TestCase):
             if g.dimension == "design" and "comparateur" in g.description.lower()
         ]
         self.assertEqual(no_comp_gaps, [])
+
+    def test_compare_no_comparator_downgraded_when_different_modality(self):
+        """EDWARDS SAPIEN 3 pattern (avis 7873): single-arm vs. performance
+        objective, only alternative is open-heart surgery — HAS did not
+        penalize this as a comparator gap. Severity must drop to LOW, not HIGH.
+        """
+        from study_object import compare_claim_to_study
+        study = self._make_study(has_comparator=False, comparator_feasibility=ComparatorFeasibility.DIFFERENT_MODALITY)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        no_comp_gaps = [
+            g for g in report.gaps
+            if g.dimension == "design" and "comparateur" in g.description.lower()
+        ]
+        self.assertGreater(len(no_comp_gaps), 0)
+        self.assertEqual(no_comp_gaps[0].severity, "LOW")
+
+    def test_compare_no_comparator_downgraded_when_no_alternative(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(has_comparator=False, comparator_feasibility=ComparatorFeasibility.NO_ALTERNATIVE)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        no_comp_gaps = [
+            g for g in report.gaps
+            if g.dimension == "design" and "comparateur" in g.description.lower()
+        ]
+        self.assertGreater(len(no_comp_gaps), 0)
+        self.assertEqual(no_comp_gaps[0].severity, "LOW")
+
+    def test_compare_no_comparator_still_high_when_feasible(self):
+        """APTA SANS CIMENT pattern (avis 7313): single-arm, but a directly
+        comparable alternative existed and wasn't used — HAS penalized this
+        explicitly. Severity must remain HIGH.
+        """
+        from study_object import compare_claim_to_study
+        study = self._make_study(has_comparator=False, comparator_feasibility=ComparatorFeasibility.FEASIBLE)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        no_comp_gaps = [
+            g for g in report.gaps
+            if g.dimension == "design" and "comparateur" in g.description.lower()
+        ]
+        self.assertGreater(len(no_comp_gaps), 0)
+        self.assertEqual(no_comp_gaps[0].severity, "HIGH")
 
     def test_compare_exploratory_c_claim_critical(self):
         from study_object import compare_claim_to_study, OverallRisk

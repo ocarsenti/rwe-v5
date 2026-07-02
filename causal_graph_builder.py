@@ -8,6 +8,7 @@ from models import (
     CausalStructure,
     ClaimLevel,
     ClinicalClaim,
+    ComparatorFeasibility,
     EndpointAnalysis,
     EndpointNature,
 )
@@ -116,5 +117,13 @@ def detect_structural_issues(
         ]
         if process_endpoints:
             flags.add(BiasFlag.PROCESS_TAUTOLOGY)
+
+    if (
+        claim.has_comparator is False
+        and claim.level in (ClaimLevel.C, ClaimLevel.D)
+        and claim.comparator_feasibility != ComparatorFeasibility.DIFFERENT_MODALITY
+        and claim.comparator_feasibility != ComparatorFeasibility.NO_ALTERNATIVE
+    ):
+        flags.add(BiasFlag.NO_COMPARATOR)
 
     return list(flags)

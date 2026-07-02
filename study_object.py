@@ -28,6 +28,7 @@ from models import (
     CausalRole,
     ClaimLevel,
     ClinicalClaim,
+    ComparatorFeasibility,
     DeviceAlignment,
     DeviceMatchType,
     EndpointNature,
@@ -157,6 +158,7 @@ class StudyObject:
     has_comparator: Optional[bool] = None
     comparator_type: ComparatorType = ComparatorType.UNKNOWN
     comparator_description: str = ""
+    comparator_feasibility: ComparatorFeasibility = ComparatorFeasibility.UNKNOWN
 
     # Population
     n_patients: Optional[int] = None
@@ -210,6 +212,7 @@ class StudyObject:
             "has_comparator": self.has_comparator,
             "comparator_type": self.comparator_type.value,
             "comparator_description": self.comparator_description,
+            "comparator_feasibility": self.comparator_feasibility.value,
             "n_patients": self.n_patients,
             "age_min": self.age_min,
             "age_max": self.age_max,
@@ -450,23 +453,54 @@ def _context_gap(alignment: ContextAlignment) -> ClaimStudyGap | None:
 def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap]:
     gaps = []
 
-    # No comparator for C/D claims
+    # No comparator for C/D claims — but only penalize when a comparator was
+    # realistically feasible. HAS itself does not fault single-arm designs when the
+    # only alternative is a fundamentally different, harder-to-randomize-against
+    # modality (e.g. open-heart surgery vs. a transcatheter device) or when no
+    # alternative treatment exists at all — cf. EDWARDS SAPIEN 3 / EDWARDS ALTERRA
+    # (CNEDiMTS avis, code 7873): accepted single-arm, FAVORABLE, no comparator
+    # critique — vs. APTA SANS CIMENT (code 7313): single-arm penalized explicitly
+    # because a directly comparable hip prosthesis existed and wasn't used.
     if study.has_comparator is False and claim.level in (ClaimLevel.C, ClaimLevel.D):
-        gaps.append(ClaimStudyGap(
-            dimension="design",
-            severity="HIGH",
-            description=(
-                "Étude sans comparateur pour une revendication d'outcome (niveau C/D). "
-                "Le counterfactuel n'est pas observé."
-            ),
-            has_critique=(
-                "Sans groupe contrôle concurrent, l'amélioration observée ne peut être attribuée "
-                "causalement au dispositif : l'histoire naturelle de la pathologie, une régression "
-                "vers la moyenne ou des co-interventions constituent des explications alternatives "
-                "non éliminables. Pour soutenir une revendication d'outcome, le counterfactuel "
-                "doit être observé."
-            ),
-        ))
+        if study.comparator_feasibility in (
+            ComparatorFeasibility.DIFFERENT_MODALITY,
+            ComparatorFeasibility.NO_ALTERNATIVE,
+        ):
+            gaps.append(ClaimStudyGap(
+                dimension="design",
+                severity="LOW",
+                description=(
+                    "Étude sans comparateur pour une revendication d'outcome (niveau C/D), "
+                    "mais absence justifiée : aucune alternative de modalité comparable "
+                    "n'était raisonnablement disponible pour un essai comparatif."
+                ),
+                has_critique=(
+                    "Le counterfactuel n'est pas observé directement, mais un design "
+                    "comparatif n'était pas raisonnablement faisable ou éthique ici — "
+                    "la seule alternative identifiée relève d'une modalité de prise en "
+                    "charge fondamentalement différente (ex. chirurgie invasive vs. "
+                    "dispositif mini-invasif) ou n'existe pas. Un design mono-bras "
+                    "comparé à un objectif de performance documenté est acceptable dans "
+                    "ce contexte, sous réserve que ce seuil de performance soit "
+                    "lui-même correctement justifié."
+                ),
+            ))
+        else:
+            gaps.append(ClaimStudyGap(
+                dimension="design",
+                severity="HIGH",
+                description=(
+                    "Étude sans comparateur pour une revendication d'outcome (niveau C/D). "
+                    "Le counterfactuel n'est pas observé."
+                ),
+                has_critique=(
+                    "Sans groupe contrôle concurrent, l'amélioration observée ne peut être attribuée "
+                    "causalement au dispositif : l'histoire naturelle de la pathologie, une régression "
+                    "vers la moyenne ou des co-interventions constituent des explications alternatives "
+                    "non éliminables. Pour soutenir une revendication d'outcome, le counterfactuel "
+                    "doit être observé."
+                ),
+            ))
 
     # Open-label with subjective primary endpoint
     claim_primary_subjective = any(
@@ -757,6 +791,8 @@ def enrich_claim_with_study_object(
         claim.n_patients = study.n_patients
     if study.has_comparator is not None:
         claim.has_comparator = study.has_comparator
+    if study.comparator_feasibility != ComparatorFeasibility.UNKNOWN:
+        claim.comparator_feasibility = study.comparator_feasibility
     if study.follow_up_months is not None:
         claim.follow_up_months = study.follow_up_months
     if study.study_countries:

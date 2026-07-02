@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useLang } from '../LangContext'
 import { t } from '../i18n'
 import { CLAIM_LEVELS, MANIFOLD_REGIONS, label } from '../enumLabels'
@@ -22,11 +23,25 @@ const EXAMPLES_DATA = [
 
 export default function DesignPage() {
   const { lang } = useLang()
+  const location = useLocation()
   const [form, setForm] = useState({ text: '', intervention: '', domain: '' })
   const [result, setResult] = useState(null)
   const [parseInfo, setParseInfo] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [fromCAS, setFromCAS] = useState(false)
+
+  useEffect(() => {
+    if (location.state?.fromCAS) {
+      const s = location.state
+      setForm({
+        text: s.claim_text || '',
+        intervention: s.intervention || '',
+        domain: s.domain || '',
+      })
+      setFromCAS(true)
+    }
+  }, [location.state])
 
   const examples = EXAMPLES_DATA.map((e) => e[lang])
 
@@ -63,6 +78,16 @@ export default function DesignPage() {
         <h1 className="text-3xl font-bold text-accent">{t('design_title', lang)}</h1>
         <p className="text-gray-500 mt-2">{t('design_desc', lang)}</p>
       </div>
+
+      {fromCAS && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
+          <p className="text-red-800 text-sm font-medium">
+            {lang === 'fr'
+              ? 'Le CAS a identifié un problème d\'alignement étude ↔ revendication. Utilisez le mode DESIGN pour concevoir une stratégie d\'évidence qui corrige ces écarts.'
+              : 'CAS identified a study ↔ claim alignment issue. Use DESIGN mode to build an evidence strategy that addresses these gaps.'}
+          </p>
+        </div>
+      )}
 
       <div className="mb-6 flex flex-wrap gap-2">
         <span className="text-sm text-gray-500 self-center mr-2">{t('examples_label', lang)}</span>

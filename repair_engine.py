@@ -44,167 +44,166 @@ from models import (
 DETECTION_REPAIRS: dict[str, list[dict]] = {
     "time-to-detection": [
         {
-            "endpoint": "independently adjudicated complication rate at 12 months",
+            "endpoint": "taux de complications adjugé indépendamment à 12 mois (CEC)",
             "type": EndpointRepairKind.HARD_CLINICAL,
             "causal_role": "PRIMARY",
-            "why_valid": "Complication occurrence is assessed by independent clinical "
-                         "adjudication committee, not by the device. Decouples measurement "
-                         "from intervention.",
-            "risk_reduction": ["removes circularity", "removes detection bias"],
+            "why_valid": "La survenue de complications est évaluée par un comité d'adjudication "
+                         "indépendant du dispositif. La mesure est ainsi découplée de l'intervention.",
+            "risk_reduction": ["supprime la circularité", "supprime le biais de détection"],
         },
         {
-            "endpoint": "treatment escalation rate verified by independent chart review",
+            "endpoint": "taux d'escalade thérapeutique vérifié par revue indépendante du dossier médical",
             "type": EndpointRepairKind.SOFT_CLINICAL,
             "causal_role": "SECONDARY",
-            "why_valid": "Treatment decisions are documented in medical records independently "
-                         "of device output. Captures downstream clinical impact without "
-                         "device-generated data.",
-            "risk_reduction": ["removes circularity"],
+            "why_valid": "Les décisions thérapeutiques sont documentées dans le dossier médical "
+                         "indépendamment du dispositif. Capture l'impact clinique en aval sans "
+                         "données générées par le dispositif.",
+            "risk_reduction": ["supprime la circularité"],
         },
         {
-            "endpoint": "emergency admission records from external hospital database "
-                        "(not triggered by device alert)",
+            "endpoint": "hospitalisations non programmées issues de la base hospitalière administrative "
+                        "(non déclenchées par alerte du dispositif)",
             "type": EndpointRepairKind.UTILIZATION_INDEPENDENT,
             "causal_role": "PRIMARY",
-            "why_valid": "Hospital admission is recorded in administrative databases "
-                         "independent of the device. Outcome ascertainment is fully "
-                         "decoupled from intervention mechanism.",
-            "risk_reduction": ["removes circularity", "removes detection bias"],
+            "why_valid": "Les hospitalisations sont enregistrées dans les bases administratives "
+                         "indépendamment du dispositif. L'ascertainment de l'outcome est "
+                         "entièrement découplé du mécanisme d'intervention.",
+            "risk_reduction": ["supprime la circularité", "supprime le biais de détection"],
         },
     ],
     "alert": [
         {
-            "endpoint": "unplanned hospitalization rate from national health insurance claims",
+            "endpoint": "taux d'hospitalisation non programmée depuis les données d'assurance maladie (PMSI/SNDS)",
             "type": EndpointRepairKind.UTILIZATION_INDEPENDENT,
             "causal_role": "PRIMARY",
-            "why_valid": "Claims-based hospitalization data is collected independently of "
-                         "the alerting device. No device influence on ascertainment.",
-            "risk_reduction": ["removes circularity", "removes detection bias"],
+            "why_valid": "Les données d'hospitalisation issues des remboursements sont collectées "
+                         "indépendamment du dispositif d'alerte. Aucune influence du dispositif sur l'ascertainment.",
+            "risk_reduction": ["supprime la circularité", "supprime le biais de détection"],
         },
         {
-            "endpoint": "confirmed clinical event rate adjudicated by blinded endpoint committee",
+            "endpoint": "taux d'événements cliniques confirmés, adjugés par un comité d'endpoint en aveugle",
             "type": EndpointRepairKind.HARD_CLINICAL,
             "causal_role": "PRIMARY",
-            "why_valid": "Independent adjudication committee reviews events without knowledge "
-                         "of device arm assignment. Eliminates device influence on outcome.",
-            "risk_reduction": ["removes circularity", "removes detection bias"],
+            "why_valid": "Le comité d'adjudication indépendant évalue les événements sans connaissance "
+                         "de l'assignation au bras dispositif. Élimine l'influence du dispositif sur l'outcome.",
+            "risk_reduction": ["supprime la circularité", "supprime le biais de détection"],
         },
         {
-            "endpoint": "30-day all-cause mortality from civil registry",
+            "endpoint": "mortalité toutes causes à 30 jours depuis le registre d'état civil",
             "type": EndpointRepairKind.SURVIVAL,
             "causal_role": "PRIMARY",
-            "why_valid": "Mortality is ascertained from civil registry data, completely "
-                         "independent of device operation or alert generation.",
-            "risk_reduction": ["removes circularity", "removes detection bias"],
+            "why_valid": "La mortalité est ascertée depuis les données d'état civil, "
+                         "entièrement indépendante du fonctionnement du dispositif ou de la génération d'alertes.",
+            "risk_reduction": ["supprime la circularité", "supprime le biais de détection"],
         },
     ],
     "monitoring": [
         {
-            "endpoint": "all-cause mortality at 12 months from civil registry",
+            "endpoint": "mortalité toutes causes à 12 mois depuis le registre d'état civil",
             "type": EndpointRepairKind.SURVIVAL,
             "causal_role": "PRIMARY",
-            "why_valid": "Mortality is the hardest clinical endpoint. Ascertainment via "
-                         "civil registry is completely independent of monitoring device.",
-            "risk_reduction": ["removes circularity", "removes detection bias"],
+            "why_valid": "La mortalité est le critère clinique le plus robuste. L'ascertainment "
+                         "via le registre d'état civil est entièrement indépendant du dispositif de monitoring.",
+            "risk_reduction": ["supprime la circularité", "supprime le biais de détection"],
         },
         {
-            "endpoint": "unplanned emergency department visits from hospital administrative data",
+            "endpoint": "passages aux urgences non programmés issus des données administratives hospitalières",
             "type": EndpointRepairKind.UTILIZATION_INDEPENDENT,
             "causal_role": "SECONDARY",
-            "why_valid": "ED visits are recorded in hospital information systems independent "
-                         "of the monitoring device. Captures downstream clinical events.",
-            "risk_reduction": ["removes circularity"],
+            "why_valid": "Les passages aux urgences sont enregistrés dans les systèmes d'information "
+                         "hospitaliers indépendamment du dispositif de monitoring. Capture les événements cliniques en aval.",
+            "risk_reduction": ["supprime la circularité"],
         },
         {
-            "endpoint": "disease progression confirmed by independent imaging review "
-                        "(blinded central reading)",
+            "endpoint": "progression de la maladie confirmée par revue d'imagerie indépendante "
+                        "(lecture centrale en aveugle)",
             "type": EndpointRepairKind.HARD_CLINICAL,
             "causal_role": "PRIMARY",
-            "why_valid": "Central imaging review by radiologists blinded to treatment arm "
-                         "ensures progression assessment is independent of monitoring device.",
-            "risk_reduction": ["removes circularity", "removes detection bias"],
+            "why_valid": "La revue centralisée par des radiologues en aveugle du bras de traitement "
+                         "garantit que l'évaluation de la progression est indépendante du dispositif de monitoring.",
+            "risk_reduction": ["supprime la circularité", "supprime le biais de détection"],
         },
     ],
     "detection": [
         {
-            "endpoint": "confirmed diagnosis rate by independent pathology/imaging review",
+            "endpoint": "taux de diagnostic confirmé par revue anatomopathologique ou d'imagerie indépendante",
             "type": EndpointRepairKind.HARD_CLINICAL,
             "causal_role": "PRIMARY",
-            "why_valid": "Diagnosis confirmation by independent pathologist or radiologist "
-                         "not using device output. Eliminates detection-ascertainment loop.",
-            "risk_reduction": ["removes circularity", "removes detection bias"],
+            "why_valid": "La confirmation diagnostique par un anatomopathologiste ou radiologue "
+                         "n'utilisant pas le dispositif élimine la boucle détection-ascertainment.",
+            "risk_reduction": ["supprime la circularité", "supprime le biais de détection"],
         },
         {
-            "endpoint": "time-to-treatment initiation documented in prescriber records",
+            "endpoint": "délai jusqu'à l'initiation du traitement documenté dans le dossier prescripteur",
             "type": EndpointRepairKind.SOFT_CLINICAL,
             "causal_role": "SECONDARY",
-            "why_valid": "Treatment initiation is a clinical decision documented in "
-                         "prescriber records. Partial device dependence if alert triggers "
-                         "action, but the decision itself is clinician-driven.",
-            "risk_reduction": ["removes circularity"],
+            "why_valid": "L'initiation thérapeutique est une décision clinique documentée dans "
+                         "le dossier prescripteur. Dépendance partielle au dispositif si l'alerte déclenche "
+                         "l'action, mais la décision reste clinicien-dépendante.",
+            "risk_reduction": ["supprime la circularité"],
         },
         {
-            "endpoint": "clinical complication rate at 6 months (independently adjudicated)",
+            "endpoint": "taux de complications cliniques à 6 mois (adjugé indépendamment)",
             "type": EndpointRepairKind.HARD_CLINICAL,
             "causal_role": "PRIMARY",
-            "why_valid": "Complications are clinical events assessed independently of "
-                         "the detection mechanism. Downstream outcome validates that "
-                         "earlier detection translates to clinical benefit.",
-            "risk_reduction": ["removes circularity", "removes detection bias"],
+            "why_valid": "Les complications sont des événements cliniques évalués indépendamment "
+                         "du mécanisme de détection. L'outcome en aval valide que la détection précoce "
+                         "se traduit par un bénéfice clinique.",
+            "risk_reduction": ["supprime la circularité", "supprime le biais de détection"],
         },
     ],
     "time-to-treatment": [
         {
-            "endpoint": "90-day all-cause mortality from hospital discharge records",
+            "endpoint": "mortalité toutes causes à 90 jours depuis les données de sortie hospitalière",
             "type": EndpointRepairKind.SURVIVAL,
             "causal_role": "PRIMARY",
-            "why_valid": "Mortality is ascertained from discharge/death records "
-                         "independent of the triage system. Validates that faster triage "
-                         "translates to survival benefit.",
-            "risk_reduction": ["removes circularity", "removes detection bias"],
+            "why_valid": "La mortalité est ascertée depuis les données de sortie/décès "
+                         "indépendamment du système de triage. Valide que la rapidité du triage "
+                         "se traduit en bénéfice de survie.",
+            "risk_reduction": ["supprime la circularité", "supprime le biais de détection"],
         },
         {
-            "endpoint": "functional outcome at 90 days (modified Rankin Scale, blinded assessor)",
+            "endpoint": "état fonctionnel à 90 jours (modified Rankin Scale, évaluateur en aveugle)",
             "type": EndpointRepairKind.HARD_CLINICAL,
             "causal_role": "PRIMARY",
-            "why_valid": "mRS assessed by neurologist blinded to treatment arm. Standard "
-                         "stroke outcome measure independent of triage mechanism.",
-            "risk_reduction": ["removes circularity", "removes detection bias"],
+            "why_valid": "La mRS est évaluée par un neurologue en aveugle du bras de traitement. "
+                         "Critère standard AVC indépendant du mécanisme de triage.",
+            "risk_reduction": ["supprime la circularité", "supprime le biais de détection"],
         },
         {
-            "endpoint": "ICU length of stay from hospital administrative records",
+            "endpoint": "durée de séjour en réanimation depuis les données administratives hospitalières",
             "type": EndpointRepairKind.UTILIZATION_INDEPENDENT,
             "causal_role": "SECONDARY",
-            "why_valid": "ICU duration is documented in hospital information systems "
-                         "independently of the AI triage output. Captures resource "
-                         "utilization downstream of clinical decisions.",
-            "risk_reduction": ["removes circularity"],
+            "why_valid": "La durée en réanimation est documentée dans les systèmes d'information "
+                         "hospitaliers indépendamment du résultat du triage IA. Capture l'utilisation "
+                         "des ressources en aval des décisions cliniques.",
+            "risk_reduction": ["supprime la circularité"],
         },
     ],
     "screening": [
         {
-            "endpoint": "stage at diagnosis from cancer registry data",
+            "endpoint": "stade au diagnostic depuis les données du registre du cancer",
             "type": EndpointRepairKind.HARD_CLINICAL,
             "causal_role": "PRIMARY",
-            "why_valid": "Cancer staging from registry data is determined by pathology "
-                         "and imaging, independent of the screening method used.",
-            "risk_reduction": ["removes detection bias"],
+            "why_valid": "Le stade du cancer issu des données de registre est déterminé par "
+                         "l'anatomopathologie et l'imagerie, indépendamment de la méthode de dépistage.",
+            "risk_reduction": ["supprime le biais de détection"],
         },
         {
-            "endpoint": "disease-specific mortality at 5 years from civil registry",
+            "endpoint": "mortalité spécifique à 5 ans depuis le registre d'état civil",
             "type": EndpointRepairKind.SURVIVAL,
             "causal_role": "PRIMARY",
-            "why_valid": "Cause-specific mortality from registry data. Independent of "
-                         "screening mechanism.",
-            "risk_reduction": ["removes circularity", "removes detection bias"],
+            "why_valid": "Mortalité cause-spécifique depuis les données de registre. "
+                         "Indépendante du mécanisme de dépistage.",
+            "risk_reduction": ["supprime la circularité", "supprime le biais de détection"],
         },
         {
-            "endpoint": "interval cancer rate (cancers diagnosed between screening rounds)",
+            "endpoint": "taux de cancers d'intervalle (diagnostiqués entre deux tours de dépistage)",
             "type": EndpointRepairKind.HARD_CLINICAL,
             "causal_role": "SECONDARY",
-            "why_valid": "Interval cancers are diagnosed through standard clinical pathways, "
-                         "not through the screening device itself.",
-            "risk_reduction": ["removes detection bias"],
+            "why_valid": "Les cancers d'intervalle sont diagnostiqués via les filières cliniques "
+                         "habituelles, sans passer par le dispositif de dépistage.",
+            "risk_reduction": ["supprime le biais de détection"],
         },
     ],
 }
@@ -212,170 +211,167 @@ DETECTION_REPAIRS: dict[str, list[dict]] = {
 SUBJECTIVE_REPAIRS: dict[str, list[dict]] = {
     "pain": [
         {
-            "endpoint": "total analgesic consumption in morphine-equivalent mg/day over 12 weeks",
+            "endpoint": "consommation totale d'analgésiques en mg-équivalent morphine/jour sur 12 semaines",
             "type": EndpointRepairKind.BIOMARKER,
             "causal_role": "PRIMARY",
-            "why_valid": "Medication consumption is objectively recorded in pharmacy records. "
-                         "Reduced analgesic use is an objective proxy for pain reduction not "
-                         "subject to placebo response.",
-            "risk_reduction": ["removes perception bias", "provides objective anchoring"],
+            "why_valid": "La consommation médicamenteuse est objectivement enregistrée dans les données "
+                         "de dispensation officinale. La réduction des analgésiques est un proxy objectif "
+                         "de la diminution de la douleur, non soumis à l'effet placebo.",
+            "risk_reduction": ["supprime le biais de perception", "ancrage objectif"],
         },
         {
-            "endpoint": "6-minute walk test distance in meters at 3 and 6 months",
+            "endpoint": "distance au test de marche de 6 minutes (en mètres) à 3 et 6 mois",
             "type": EndpointRepairKind.HARD_CLINICAL,
             "causal_role": "SECONDARY",
-            "why_valid": "Standardized functional test measured by blinded assessor. "
-                         "Physical performance is less susceptible to placebo than "
-                         "self-reported pain scales.",
-            "risk_reduction": ["removes perception bias"],
+            "why_valid": "Test fonctionnel standardisé mesuré par un évaluateur en aveugle. "
+                         "La performance physique est moins sensible à l'effet placebo "
+                         "que les échelles de douleur auto-rapportées.",
+            "risk_reduction": ["supprime le biais de perception"],
         },
         {
-            "endpoint": "return-to-work rate at 6 months from employment records",
+            "endpoint": "taux de retour au travail à 6 mois depuis les données employeur/assurance",
             "type": EndpointRepairKind.UTILIZATION_INDEPENDENT,
             "causal_role": "SECONDARY",
-            "why_valid": "Employment status is objectively verifiable from employer/insurance "
-                         "records. Captures functional impact of pain reduction in daily life.",
-            "risk_reduction": ["removes perception bias", "provides objective anchoring"],
+            "why_valid": "Le statut professionnel est objectivement vérifiable dans les données employeur "
+                         "ou d'assurance. Capture l'impact fonctionnel de la réduction de la douleur dans la vie quotidienne.",
+            "risk_reduction": ["supprime le biais de perception", "ancrage objectif"],
         },
         {
-            "endpoint": "nocturnal actigraphy sleep efficiency percentage over 4 weeks",
+            "endpoint": "efficacité du sommeil nocturne par actimétrie au poignet sur 4 semaines (%)",
             "type": EndpointRepairKind.BIOMARKER,
             "causal_role": "SECONDARY",
-            "why_valid": "Wrist actigraphy provides objective, continuous sleep measurement. "
-                         "Pain-related sleep disturbance improvement is an objective correlate "
-                         "of analgesic effect.",
-            "risk_reduction": ["removes perception bias"],
+            "why_valid": "L'actimétrie fournit une mesure objective et continue du sommeil. "
+                         "L'amélioration des troubles du sommeil liés à la douleur est un corrélat objectif "
+                         "de l'effet analgésique.",
+            "risk_reduction": ["supprime le biais de perception"],
         },
     ],
     "quality of life": [
         {
-            "endpoint": "all-cause hospitalization rate at 12 months from insurance claims",
+            "endpoint": "taux d'hospitalisation toutes causes à 12 mois depuis les données d'assurance maladie",
             "type": EndpointRepairKind.UTILIZATION_INDEPENDENT,
             "causal_role": "PRIMARY",
-            "why_valid": "Hospitalization from administrative data is objective and not "
-                         "influenced by patient perception. Major QoL events that require "
-                         "hospitalization are clinically significant.",
-            "risk_reduction": ["removes perception bias", "provides objective anchoring"],
+            "why_valid": "Les hospitalisations issues des données administratives sont objectives et non "
+                         "influencées par la perception du patient. Les événements de qualité de vie "
+                         "nécessitant une hospitalisation ont une signification clinique certaine.",
+            "risk_reduction": ["supprime le biais de perception", "ancrage objectif"],
         },
         {
-            "endpoint": "Functional Independence Measure (FIM) score by blinded assessor",
+            "endpoint": "score FIM (Functional Independence Measure) évalué par un évaluateur en aveugle",
             "type": EndpointRepairKind.HARD_CLINICAL,
             "causal_role": "SECONDARY",
-            "why_valid": "FIM is assessed by trained, blinded evaluator. Covers motor and "
-                         "cognitive domains with standardized scoring less susceptible to "
-                         "patient expectation bias.",
-            "risk_reduction": ["removes perception bias"],
+            "why_valid": "La FIM est évaluée par un évaluateur formé et en aveugle. Elle couvre les domaines "
+                         "moteurs et cognitifs avec un score standardisé moins sensible au biais d'attente du patient.",
+            "risk_reduction": ["supprime le biais de perception"],
         },
         {
-            "endpoint": "number of days alive and out of hospital at 12 months",
+            "endpoint": "nombre de jours vivants et hors hôpital à 12 mois",
             "type": EndpointRepairKind.UTILIZATION_INDEPENDENT,
             "causal_role": "PRIMARY",
-            "why_valid": "Composite endpoint from administrative records capturing both "
-                         "survival and freedom from hospitalization. Fully objective.",
-            "risk_reduction": ["removes perception bias", "provides objective anchoring"],
+            "why_valid": "Critère composite issu des données administratives capturant à la fois "
+                         "la survie et l'absence d'hospitalisation. Entièrement objectif.",
+            "risk_reduction": ["supprime le biais de perception", "ancrage objectif"],
         },
     ],
     "qol": [
         {
-            "endpoint": "all-cause hospitalization rate at 12 months from insurance claims",
+            "endpoint": "taux d'hospitalisation toutes causes à 12 mois depuis les données d'assurance maladie",
             "type": EndpointRepairKind.UTILIZATION_INDEPENDENT,
             "causal_role": "PRIMARY",
-            "why_valid": "Administrative outcome not influenced by patient perception.",
-            "risk_reduction": ["removes perception bias"],
+            "why_valid": "Critère administratif non influencé par la perception du patient.",
+            "risk_reduction": ["supprime le biais de perception"],
         },
         {
-            "endpoint": "days alive and out of hospital at 12 months",
+            "endpoint": "jours vivants et hors hôpital à 12 mois",
             "type": EndpointRepairKind.UTILIZATION_INDEPENDENT,
             "causal_role": "PRIMARY",
-            "why_valid": "Composite objective endpoint from administrative records.",
-            "risk_reduction": ["removes perception bias", "provides objective anchoring"],
+            "why_valid": "Critère composite objectif issu des données administratives.",
+            "risk_reduction": ["supprime le biais de perception", "ancrage objectif"],
         },
         {
-            "endpoint": "Functional Independence Measure by blinded assessor",
+            "endpoint": "score FIM (Functional Independence Measure) par évaluateur en aveugle",
             "type": EndpointRepairKind.HARD_CLINICAL,
             "causal_role": "SECONDARY",
-            "why_valid": "Standardized assessor-rated functional measure.",
-            "risk_reduction": ["removes perception bias"],
+            "why_valid": "Mesure fonctionnelle standardisée évaluée par un observateur.",
+            "risk_reduction": ["supprime le biais de perception"],
         },
     ],
     "satisfaction": [
         {
-            "endpoint": "treatment adherence rate from pharmacy dispensing records",
+            "endpoint": "taux d'adhérence au traitement depuis les données de dispensation officinale",
             "type": EndpointRepairKind.BIOMARKER,
             "causal_role": "SECONDARY",
-            "why_valid": "Adherence measured by pharmacy records is objective. "
-                         "Continued use is a revealed-preference proxy for satisfaction.",
-            "risk_reduction": ["removes perception bias"],
+            "why_valid": "L'adhérence mesurée par les données de pharmacie est objective. "
+                         "La poursuite du traitement est un proxy de préférence révélée pour la satisfaction.",
+            "risk_reduction": ["supprime le biais de perception"],
         },
         {
-            "endpoint": "treatment discontinuation rate at 6 months",
+            "endpoint": "taux d'arrêt de traitement à 6 mois",
             "type": EndpointRepairKind.SOFT_CLINICAL,
             "causal_role": "SECONDARY",
-            "why_valid": "Discontinuation is a binary objective event. "
-                         "Patients who are genuinely dissatisfied stop treatment.",
-            "risk_reduction": ["removes perception bias"],
+            "why_valid": "L'arrêt de traitement est un événement binaire objectif. "
+                         "Les patients réellement insatisfaits cessent le traitement.",
+            "risk_reduction": ["supprime le biais de perception"],
         },
         {
-            "endpoint": "healthcare utilization in the 12 months post-intervention "
-                        "from insurance claims",
+            "endpoint": "recours aux soins dans les 12 mois post-intervention depuis les données d'assurance maladie",
             "type": EndpointRepairKind.UTILIZATION_INDEPENDENT,
             "causal_role": "SECONDARY",
-            "why_valid": "Administrative data capturing whether patients seek additional "
-                         "care. Objective proxy for unmet needs.",
-            "risk_reduction": ["removes perception bias"],
+            "why_valid": "Données administratives capturant le recours à des soins supplémentaires. "
+                         "Proxy objectif des besoins non couverts.",
+            "risk_reduction": ["supprime le biais de perception"],
         },
     ],
     "fatigue": [
         {
-            "endpoint": "daily step count from validated accelerometer over 4 weeks",
+            "endpoint": "nombre de pas quotidiens par accéléromètre validé sur 4 semaines",
             "type": EndpointRepairKind.BIOMARKER,
             "causal_role": "SECONDARY",
-            "why_valid": "Accelerometry provides continuous objective measurement of "
-                         "physical activity. Less susceptible to reporting bias than "
-                         "fatigue questionnaires.",
-            "risk_reduction": ["removes perception bias"],
+            "why_valid": "L'actimétrie fournit une mesure objective et continue de l'activité physique. "
+                         "Moins sensible au biais de déclaration que les questionnaires de fatigue.",
+            "risk_reduction": ["supprime le biais de perception"],
         },
         {
-            "endpoint": "cardiopulmonary exercise test VO2max at baseline and 3 months",
+            "endpoint": "VO2max au test d'effort cardio-pulmonaire à l'inclusion et à 3 mois",
             "type": EndpointRepairKind.HARD_CLINICAL,
             "causal_role": "SECONDARY",
-            "why_valid": "VO2max is an objective physiological measure of exercise capacity. "
-                         "Standard assessment by blinded technician.",
-            "risk_reduction": ["removes perception bias"],
+            "why_valid": "La VO2max est une mesure physiologique objective de la capacité d'effort. "
+                         "Évaluation standardisée par un technicien en aveugle.",
+            "risk_reduction": ["supprime le biais de perception"],
         },
         {
-            "endpoint": "days of work absence over 6 months from employer records",
+            "endpoint": "jours d'arrêt de travail sur 6 mois depuis les données employeur",
             "type": EndpointRepairKind.UTILIZATION_INDEPENDENT,
             "causal_role": "SECONDARY",
-            "why_valid": "Work absence is objectively documented. Captures functional "
-                         "impact of fatigue on daily activities.",
-            "risk_reduction": ["removes perception bias", "provides objective anchoring"],
+            "why_valid": "L'arrêt de travail est objectivement documenté. "
+                         "Capture l'impact fonctionnel de la fatigue dans la vie quotidienne.",
+            "risk_reduction": ["supprime le biais de perception", "ancrage objectif"],
         },
     ],
     "symptom score": [
         {
-            "endpoint": "unplanned hospitalization rate from administrative data",
+            "endpoint": "taux d'hospitalisation non programmée depuis les données administratives",
             "type": EndpointRepairKind.UTILIZATION_INDEPENDENT,
             "causal_role": "PRIMARY",
-            "why_valid": "Hospitalization from administrative records. Symptom deterioration "
-                         "leading to hospitalization is an objective downstream event.",
-            "risk_reduction": ["removes perception bias"],
+            "why_valid": "Hospitalisation issue des données administratives. La dégradation "
+                         "symptomatique conduisant à une hospitalisation est un événement clinique objectif en aval.",
+            "risk_reduction": ["supprime le biais de perception"],
         },
         {
-            "endpoint": "treatment modification rate from prescriber records",
+            "endpoint": "taux de modification thérapeutique depuis les dossiers prescripteurs",
             "type": EndpointRepairKind.SOFT_CLINICAL,
             "causal_role": "SECONDARY",
-            "why_valid": "Treatment changes documented by prescribers reflect clinically "
-                         "significant symptom changes, not patient perception alone.",
-            "risk_reduction": ["removes perception bias"],
+            "why_valid": "Les modifications de traitement documentées par les prescripteurs reflètent "
+                         "des changements symptomatiques cliniquement significatifs, non la perception seule du patient.",
+            "risk_reduction": ["supprime le biais de perception"],
         },
         {
-            "endpoint": "emergency department visit rate from hospital information system",
+            "endpoint": "taux de passages aux urgences depuis le système d'information hospitalier",
             "type": EndpointRepairKind.UTILIZATION_INDEPENDENT,
             "causal_role": "SECONDARY",
-            "why_valid": "ED visits are objective events captured in hospital systems. "
-                         "Symptom crises leading to ED visits are clinically meaningful.",
-            "risk_reduction": ["removes perception bias"],
+            "why_valid": "Les passages aux urgences sont des événements objectifs enregistrés dans les "
+                         "systèmes hospitaliers. Les crises symptomatiques menant aux urgences ont une signification clinique.",
+            "risk_reduction": ["supprime le biais de perception"],
         },
     ],
 }
@@ -383,62 +379,62 @@ SUBJECTIVE_REPAIRS: dict[str, list[dict]] = {
 MEDIATION_INTERMEDIATES: dict[str, list[dict]] = {
     "neurostimulat": [
         {
-            "endpoint": "serum beta-endorphin level at 2h and 4h post-stimulation (ELISA)",
+            "endpoint": "taux sérique de bêta-endorphines à 2h et 4h post-stimulation (ELISA)",
             "type": EndpointRepairKind.BIOMARKER,
             "causal_role": "MEDIATOR",
-            "why_valid": "Direct biochemical measurement of the claimed mechanism. "
-                         "If neurostimulation claims endorphin release, endorphin levels "
-                         "must be measured to validate the causal chain.",
-            "risk_reduction": ["fills mediation gap"],
+            "why_valid": "Mesure biochimique directe du mécanisme revendiqué. Si la neurostimulation "
+                         "revendique une libération d'endorphines, les taux d'endorphines doivent être "
+                         "mesurés pour valider la chaîne causale.",
+            "risk_reduction": ["comble le gap de médiation"],
         },
         {
-            "endpoint": "quantitative sensory testing (thermal pain threshold) by blinded assessor",
+            "endpoint": "test sensoriel quantitatif (seuil de douleur thermique) par évaluateur en aveugle",
             "type": EndpointRepairKind.HARD_CLINICAL,
             "causal_role": "MEDIATOR",
-            "why_valid": "Objective psychophysical measure of pain processing. Bridges "
-                         "mechanism (endorphin release) to outcome (pain reduction) with "
-                         "an independent, non-subjective measurement.",
-            "risk_reduction": ["fills mediation gap", "provides objective anchoring"],
+            "why_valid": "Mesure psychophysique objective du traitement de la douleur. Relie le mécanisme "
+                         "(libération d'endorphines) à l'outcome (réduction de la douleur) par une "
+                         "mesure indépendante et non subjective.",
+            "risk_reduction": ["comble le gap de médiation", "ancrage objectif"],
         },
     ],
     "stimulat": [
         {
-            "endpoint": "target biomarker level change from baseline (assay-specific)",
+            "endpoint": "variation du biomarqueur cible depuis la baseline (dosage spécifique à l'indication)",
             "type": EndpointRepairKind.BIOMARKER,
             "causal_role": "MEDIATOR",
-            "why_valid": "Direct biological measurement of the claimed stimulation effect.",
-            "risk_reduction": ["fills mediation gap"],
+            "why_valid": "Mesure biologique directe de l'effet de stimulation revendiqué.",
+            "risk_reduction": ["comble le gap de médiation"],
         },
     ],
     "modulat": [
         {
-            "endpoint": "target pathway activation biomarker (serum/tissue)",
+            "endpoint": "biomarqueur d'activation de la voie cible (sérum ou tissu)",
             "type": EndpointRepairKind.BIOMARKER,
             "causal_role": "MEDIATOR",
-            "why_valid": "Biological marker of pathway modulation validates the causal "
-                         "mechanism before outcome measurement.",
-            "risk_reduction": ["fills mediation gap"],
+            "why_valid": "Le marqueur biologique de la modulation de voie valide le mécanisme causal "
+                         "avant la mesure de l'outcome.",
+            "risk_reduction": ["comble le gap de médiation"],
         },
     ],
     "monitoring": [
         {
-            "endpoint": "time from symptom onset to clinician-initiated treatment change",
+            "endpoint": "délai entre le début des symptômes et la modification thérapeutique initiée par le clinicien",
             "type": EndpointRepairKind.SOFT_CLINICAL,
             "causal_role": "MEDIATOR",
-            "why_valid": "Treatment change is the clinical action that mediates between "
-                         "monitoring (process) and survival (outcome). Clinician decision "
-                         "is the critical link.",
-            "risk_reduction": ["fills mediation gap"],
+            "why_valid": "La modification thérapeutique est l'acte clinique qui médiatise le lien entre "
+                         "le monitoring (processus) et la survie (outcome). La décision clinicienne "
+                         "est le maillon critique de la chaîne causale.",
+            "risk_reduction": ["comble le gap de médiation"],
         },
     ],
     "triage": [
         {
-            "endpoint": "door-to-needle time documented in emergency department records",
+            "endpoint": "délai porte-à-aiguille documenté dans les données du service des urgences",
             "type": EndpointRepairKind.SOFT_CLINICAL,
             "causal_role": "MEDIATOR",
-            "why_valid": "Process time from ED records (not from AI system) bridges "
-                         "triage prioritization to clinical outcome.",
-            "risk_reduction": ["fills mediation gap"],
+            "why_valid": "Le délai de processus issu des données des urgences (non du système IA) "
+                         "relie la priorisation au triage à l'outcome clinique.",
+            "risk_reduction": ["comble le gap de médiation"],
         },
     ],
 }
