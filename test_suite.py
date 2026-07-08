@@ -3619,6 +3619,22 @@ class TestStudyObject(unittest.TestCase):
         self.assertIsNotNone(obj.population_alignment)
         self.assertIsNotNone(obj.context_alignment)
 
+    def test_parse_study_object_result_new_gap_fields_mapped(self):
+        from llm_evidence_parser import _parse_study_object_result
+        data = {
+            "concomitant_treatments_present": True,
+            "concomitant_treatments_controlled": False,
+            "concomitant_treatments_description": "hypnotiques non décrits",
+            "performance_goal_clinically_justified": False,
+            "endpoint_hierarchy_prespecified": True,
+        }
+        obj = _parse_study_object_result(data, "Device", "Indication")
+        self.assertTrue(obj.concomitant_treatments_present)
+        self.assertFalse(obj.concomitant_treatments_controlled)
+        self.assertEqual(obj.concomitant_treatments_description, "hypnotiques non décrits")
+        self.assertFalse(obj.performance_goal_clinically_justified)
+        self.assertTrue(obj.endpoint_hierarchy_prespecified)
+
     def test_parse_study_object_result_empty_data(self):
         from llm_evidence_parser import _parse_study_object_result
         from study_object import BlindingLevel, ComparatorType, FundingType
@@ -3813,6 +3829,116 @@ class TestStudyObject(unittest.TestCase):
         ]
         self.assertGreater(len(sham_gaps), 0)
         self.assertEqual(sham_gaps[0].severity, "HIGH")
+
+    # --- Confounding / uncontrolled co-intervention (SOMNIO pattern, avis 7781) ---
+
+    def test_compare_confounding_uncontrolled_high(self):
+        """SOMNIO pattern (avis CNEDiMTS 7781, SA Insuffisant): concomitant hypnotic
+        treatments present in the population, neither described nor controlled — HAS's
+        real objection was that the observed effect could not be attributed to the
+        device, not an endpoint-validity issue.
+        """
+        from study_object import compare_claim_to_study
+        study = self._make_study(
+            concomitant_treatments_present=True,
+            concomitant_treatments_controlled=False,
+            concomitant_treatments_description="traitements hypnotiques concomitants non décrits",
+        )
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        confounding_gaps = [g for g in report.gaps if "confusion" in g.description.lower()]
+        self.assertGreater(len(confounding_gaps), 0)
+        self.assertEqual(confounding_gaps[0].severity, "HIGH")
+
+    def test_compare_confounding_silent_when_controlled(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(
+            concomitant_treatments_present=True,
+            concomitant_treatments_controlled=True,
+        )
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        confounding_gaps = [g for g in report.gaps if "confusion" in g.description.lower()]
+        self.assertEqual(confounding_gaps, [])
+
+    def test_compare_confounding_silent_when_absent(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(concomitant_treatments_present=False)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        confounding_gaps = [g for g in report.gaps if "confusion" in g.description.lower()]
+        self.assertEqual(confounding_gaps, [])
+
+    # --- Endpoint multiplicity without hierarchy (ENTERRA II pattern, avis 7254) ---
+
+    def test_compare_endpoint_multiplicity_no_hierarchy_medium(self):
+        """ENTERRA II pattern (avis CNEDiMTS 7254, accepted but downgraded ASA):
+        multiple co-primary endpoints without a pre-specified statistical hierarchy.
+        """
+        from study_object import compare_claim_to_study, StudyEndpoint
+        study = self._make_study()
+        study.endpoints = [
+            StudyEndpoint(name="fréquence des vomissements", is_primary=True),
+            StudyEndpoint(name="sévérité des symptômes GCSI", is_primary=True),
+        ]
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        multiplicity_gaps = [g for g in report.gaps if "multiplicité" in g.description.lower()]
+        self.assertGreater(len(multiplicity_gaps), 0)
+        self.assertEqual(multiplicity_gaps[0].severity, "MEDIUM")
+
+    def test_compare_endpoint_multiplicity_silent_with_hierarchy(self):
+        from study_object import compare_claim_to_study, StudyEndpoint
+        study = self._make_study(endpoint_hierarchy_prespecified=True)
+        study.endpoints = [
+            StudyEndpoint(name="fréquence des vomissements", is_primary=True),
+            StudyEndpoint(name="sévérité des symptômes GCSI", is_primary=True),
+        ]
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        multiplicity_gaps = [g for g in report.gaps if "multiplicité" in g.description.lower()]
+        self.assertEqual(multiplicity_gaps, [])
+
+    def test_compare_endpoint_multiplicity_silent_single_primary(self):
+        from study_object import compare_claim_to_study, StudyEndpoint
+        study = self._make_study()
+        study.endpoints = [StudyEndpoint(name="mortalité", is_primary=True)]
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        multiplicity_gaps = [g for g in report.gaps if "multiplicité" in g.description.lower()]
+        self.assertEqual(multiplicity_gaps, [])
+
+    # --- Performance goal without clinical justification (SAPIEN 3/ALTERRA pattern, avis 7873) ---
+
+    def test_compare_performance_goal_unjustified_medium(self):
+        """SAPIEN 3/ALTERRA pattern (avis CNEDiMTS 7873): accepted single-arm pivotal
+        design, but HAS's residual critique was the absence of documented clinical
+        justification for the performance objective's threshold itself.
+        """
+        from study_object import compare_claim_to_study
+        study = self._make_study(
+            study_design=StudyDesign.SINGLE_ARM_PERFORMANCE_GOAL,
+            has_comparator=False,
+            comparator_feasibility=ComparatorFeasibility.DIFFERENT_MODALITY,
+            performance_goal_clinically_justified=False,
+        )
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        threshold_gaps = [g for g in report.gaps if "seuil de succès" in g.description.lower()]
+        self.assertGreater(len(threshold_gaps), 0)
+        self.assertEqual(threshold_gaps[0].severity, "MEDIUM")
+
+    def test_compare_performance_goal_silent_when_justified(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(
+            study_design=StudyDesign.SINGLE_ARM_PERFORMANCE_GOAL,
+            has_comparator=False,
+            comparator_feasibility=ComparatorFeasibility.DIFFERENT_MODALITY,
+            performance_goal_clinically_justified=True,
+        )
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        threshold_gaps = [g for g in report.gaps if "seuil de succès" in g.description.lower()]
+        self.assertEqual(threshold_gaps, [])
+
+    def test_compare_performance_goal_irrelevant_for_rct(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(study_design=StudyDesign.RCT)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        threshold_gaps = [g for g in report.gaps if "seuil de succès" in g.description.lower()]
+        self.assertEqual(threshold_gaps, [])
 
     def test_compare_has_critique_always_populated(self):
         from study_object import compare_claim_to_study
@@ -4043,6 +4169,27 @@ class TestGapRepairEngine(unittest.TestCase):
         self.assertIn(GapRepairType.FOLLOW_UP_EXTENSION, types)
         self.assertEqual(plan.actions[0].effort, GapRepairEffort.MEDIUM)
 
+    def test_design_confounding_not_blocking_medium_effort(self):
+        claim = self._c_claim()
+        gaps = [_gap("design", "HIGH", "Traitements concomitants présents dans la population d'étude, non décrits ou non contrôlés (facteur de confusion).")]
+        report = _make_comparison_report(gaps, OverallRisk.HIGH)
+        plan = repair_comparison(report, claim)
+        self.assertEqual(len(plan.non_repairable_gaps), 0)
+        self.assertTrue(plan.is_fully_repairable)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.CONFOUNDER_CONTROL, types)
+        self.assertEqual(plan.actions[0].effort, GapRepairEffort.MEDIUM)
+
+    def test_design_performance_goal_unjustified_low_effort(self):
+        claim = self._c_claim()
+        gaps = [_gap("design", "MEDIUM", "Seuil de performance pré-spécifié sans justification clinique documentée pour le seuil de succès retenu.")]
+        report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
+        plan = repair_comparison(report, claim)
+        self.assertTrue(plan.is_fully_repairable)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.PERFORMANCE_GOAL_JUSTIFICATION, types)
+        self.assertEqual(plan.actions[0].effort, GapRepairEffort.LOW)
+
     # ------------------------------------------------------------------
     # ENDPOINT gaps
     # ------------------------------------------------------------------
@@ -4074,6 +4221,16 @@ class TestGapRepairEngine(unittest.TestCase):
         adj = [a for a in plan.actions if a.repair_type == GapRepairType.ADJUDICATION_ADDITION]
         self.assertEqual(len(adj), 1)
         self.assertEqual(adj[0].effort, GapRepairEffort.LOW)
+
+    def test_endpoint_multiplicity_low_effort(self):
+        claim = self._c_claim()
+        gaps = [_gap("endpoint", "MEDIUM", "Multiplicité des critères de jugement principaux (2 critères co-primaires) sans hiérarchisation statistique pré-spécifiée.")]
+        report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
+        plan = repair_comparison(report, claim)
+        self.assertTrue(plan.is_fully_repairable)
+        mult = [a for a in plan.actions if a.repair_type == GapRepairType.MULTIPLICITY_CORRECTION]
+        self.assertEqual(len(mult), 1)
+        self.assertEqual(mult[0].effort, GapRepairEffort.LOW)
 
     # ------------------------------------------------------------------
     # Sorting + summary

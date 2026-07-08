@@ -493,6 +493,32 @@ une alternative administrative/réglementaire.
   précise (dispositif premier-de-sa-catégorie)
 - "UNKNOWN" : non déterminable à partir du texte
 
+## concomitant_treatments_present / concomitant_treatments_controlled
+Pertinent quand l'indication admet des traitements concomitants standards (ex. hypnotiques
+dans l'apnée du sommeil, antalgiques dans la douleur chronique) qui pourraient eux-mêmes
+expliquer l'effet observé.
+- **concomitant_treatments_present** : true si l'étude mentionne explicitement que des
+  patients recevaient un traitement concomitant pertinent pour l'indication pendant l'étude.
+  false si le protocole les exclut explicitement ou si l'indication n'a pas de traitement
+  concomitant pertinent plausible. null si non déterminable.
+- **concomitant_treatments_controlled** : pertinent uniquement si present=true. true si ces
+  traitements sont documentés ET stables/exclus par critère d'éligibilité/ajustés
+  statistiquement (covariable, stratification, sensibilité). false si mentionnés mais non
+  contrôlés dans l'analyse. null si non déterminable.
+- **concomitant_treatments_description** : brève description textuelle si pertinent, sinon "".
+
+## endpoint_hierarchy_prespecified
+Pertinent uniquement si plusieurs endpoints sont marqués is_primary=true. true si une
+procédure de contrôle de la multiplicité (hiérarchisation séquentielle, gatekeeping,
+répartition alpha) est explicitement documentée dans le plan d'analyse statistique. false ou
+null sinon.
+
+## performance_goal_clinically_justified
+Pertinent uniquement si study_design="SINGLE_ARM_PERFORMANCE_GOAL". true si le texte
+justifie explicitement le seuil de succès retenu (référence à une donnée historique, un
+consensus clinique, ou un critère réglementaire documenté). false ou null si le seuil est
+mentionné sans justification clinique de sa valeur.
+
 ## primary_analysis_set
 - "ITT" : intention-to-treat
 - "mITT" : modified ITT
@@ -587,6 +613,11 @@ Réponds en JSON avec ce format exact :
   "comparator_description": "<description du comparateur ou null>",
   "comparator_feasibility": "<voir liste — uniquement si has_comparator=false>",
 
+  "concomitant_treatments_present": <true | false | null>,
+  "concomitant_treatments_controlled": <true | false | null>,
+  "concomitant_treatments_description": "<description ou \"\">",
+  "performance_goal_clinically_justified": <true | false | null>,
+
   "n_patients": <entier ou null>,
   "age_min": <float ou null>,
   "age_max": <float ou null>,
@@ -614,6 +645,7 @@ Réponds en JSON avec ce format exact :
       "reached_significance": <true | false | null>
     }}
   ],
+  "endpoint_hierarchy_prespecified": <true | false | null>,
 
   "primary_analysis_set": "<voir liste>",
   "sample_size_calculation_provided": <true | false>,
@@ -832,6 +864,11 @@ def _parse_study_object_result(
         data.get("comparator_feasibility", "UNKNOWN"), ComparatorFeasibility.UNKNOWN
     )
 
+    obj.concomitant_treatments_present = data.get("concomitant_treatments_present")
+    obj.concomitant_treatments_controlled = data.get("concomitant_treatments_controlled")
+    obj.concomitant_treatments_description = data.get("concomitant_treatments_description") or ""
+    obj.performance_goal_clinically_justified = data.get("performance_goal_clinically_justified")
+
     obj.n_patients = data.get("n_patients")
     obj.age_min = data.get("age_min")
     obj.age_max = data.get("age_max")
@@ -864,6 +901,8 @@ def _parse_study_object_result(
             nature=_NATURE_MAP.get(ep.get("nature", "OBJECTIVE"), EndpointNature.OBJECTIVE),
             causal_role=_CAUSAL_ROLE_MAP.get(ep.get("causal_role", "INDEPENDENT"), CausalRole.INDEPENDENT),
         ))
+
+    obj.endpoint_hierarchy_prespecified = data.get("endpoint_hierarchy_prespecified")
 
     obj.primary_analysis_set = _ANALYSIS_SET_MAP.get(
         data.get("primary_analysis_set", "UNKNOWN"), AnalysisSet.UNKNOWN

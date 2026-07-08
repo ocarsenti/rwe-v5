@@ -34,6 +34,9 @@ class GapRepairType(Enum):
     BRIDGING_STUDY          = "bridging_study"
     CLAIM_RESTRICTION       = "claim_restriction"
     CONTEXT_TRANSPOSABILITY = "context_transposability"
+    CONFOUNDER_CONTROL      = "confounder_control"
+    MULTIPLICITY_CORRECTION = "multiplicity_correction"
+    PERFORMANCE_GOAL_JUSTIFICATION = "performance_goal_justification"
 
 
 class GapRepairEffort(Enum):
@@ -498,7 +501,50 @@ def _repair_design_gap(
         ))
         return actions, True
 
-    # 2. No comparator for C/D claim
+    # 2. Confounding / uncontrolled co-intervention (SOMNIO pattern)
+    if "confusion" in desc or "concomitant" in desc:
+        actions.append(GapRepairAction(
+            gap_dimension="design",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.CONFOUNDER_CONTROL,
+            description="Décrire et contrôler les traitements concomitants",
+            specific_suggestion=(
+                "Des traitements concomitants pertinents pour l'indication sont présents "
+                "sans être décrits ou contrôlés : l'effet observé ne peut être attribué "
+                "au dispositif seul. Options par ordre de robustesse : "
+                "(1) Analyse de sensibilité post-hoc ajustant sur les traitements "
+                "concomitants documentés, si les données ont été collectées mais non "
+                "analysées. (2) Amendement de protocole excluant ou stabilisant ces "
+                "traitements par critère d'éligibilité, sur une étude en cours. "
+                "(3) Nouvelle étude avec exclusion ou stratification pré-spécifiée des "
+                "co-interventions si aucune donnée exploitable n'existe."
+            ),
+            effort=GapRepairEffort.MEDIUM,
+            removes_risk=["facteur de confusion", "attribution causale non établie"],
+        ))
+        return actions, False
+
+    # 3. Performance goal threshold without clinical justification (SAPIEN 3/ALTERRA pattern)
+    if "seuil de performance" in desc or "seuil de succès" in desc:
+        actions.append(GapRepairAction(
+            gap_dimension="design",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.PERFORMANCE_GOAL_JUSTIFICATION,
+            description="Documenter la justification clinique du seuil de performance",
+            specific_suggestion=(
+                "Le seuil de succès pré-spécifié n'est pas justifié cliniquement dans le "
+                "dossier. Amendable sans nouvelle étude : produire une justification "
+                "documentée du seuil retenu — référence à une donnée de référence "
+                "historique publiée, consensus clinique d'experts, ou critère "
+                "réglementaire (FDA Objective Performance Criterion) applicable à cette "
+                "indication et cette population."
+            ),
+            effort=GapRepairEffort.LOW,
+            removes_risk=["seuil de performance non justifié"],
+        ))
+        return actions, False
+
+    # 4. No comparator for C/D claim
     if "sans comparateur" in desc or "comparateur" in desc:
         _claim_level = getattr(claim, "level", None)
         control_type = (
@@ -524,7 +570,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 3. Open-label with subjective primary
+    # 5. Open-label with subjective primary
     if "patient-rapporté" in desc or "subjectif" in desc or "pro" in desc:
         actions.append(GapRepairAction(
             gap_dimension="design",
@@ -558,7 +604,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 4. Short / insufficient follow-up
+    # 6. Short / insufficient follow-up
     if "suivi" in desc or "mois" in desc:
         is_durability_only = "durabilité" in desc  # LOW gap (12–24 mois)
         if is_durability_only:
@@ -594,7 +640,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 5. Non-randomized comparative
+    # 7. Non-randomized comparative
     actions.append(GapRepairAction(
         gap_dimension="design",
         gap_severity=gap.severity,
@@ -838,7 +884,28 @@ def _repair_endpoint_gap(
         ))
         return actions, False
 
-    # 6. Fallback générique endpoint
+    # 6. Endpoint multiplicity without hierarchy (ENTERRA II pattern)
+    if "multiplicité" in desc:
+        actions.append(GapRepairAction(
+            gap_dimension="endpoint",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.MULTIPLICITY_CORRECTION,
+            description="Hiérarchiser les critères de jugement co-primaires",
+            specific_suggestion=(
+                "Plusieurs critères co-primaires sans contrôle de la multiplicité "
+                "inflatent le risque d'erreur de première espèce global. Amendable sans "
+                "nouvelle étude : verrouiller dans le plan d'analyse statistique une "
+                "hiérarchie de test séquentielle (gatekeeping) ou une répartition du "
+                "risque alpha entre les critères, avant la levée de l'aveugle. "
+                "Alternative : désigner un seul critère primaire et reclasser les autres "
+                "en critères secondaires hiérarchisés."
+            ),
+            effort=GapRepairEffort.LOW,
+            removes_risk=["inflation du risque alpha", "multiplicité non contrôlée"],
+        ))
+        return actions, False
+
+    # 7. Fallback générique endpoint
     actions.append(GapRepairAction(
         gap_dimension="endpoint",
         gap_severity=gap.severity,

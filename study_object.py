@@ -165,6 +165,19 @@ class StudyObject:
     comparator_description: str = ""
     comparator_feasibility: ComparatorFeasibility = ComparatorFeasibility.UNKNOWN
 
+    # Confounding / co-intervention (cf. avis CNEDiMTS SOMNIO 7781: SA Insuffisant
+    # because the observed effect could not be attributed to the device — concomitant
+    # hypnotic treatments were neither described nor controlled)
+    concomitant_treatments_present: Optional[bool] = None
+    concomitant_treatments_controlled: Optional[bool] = None
+    concomitant_treatments_description: str = ""
+
+    # Performance goal justification — only relevant when study_design is
+    # SINGLE_ARM_PERFORMANCE_GOAL (cf. avis CNEDiMTS SAPIEN 3/ALTERRA 7873: accepted
+    # design, but HAS's residual critique was the absence of documented clinical
+    # justification for the pre-specified success threshold itself)
+    performance_goal_clinically_justified: Optional[bool] = None
+
     # Population
     n_patients: Optional[int] = None
     age_min: Optional[float] = None
@@ -184,6 +197,11 @@ class StudyObject:
 
     # Endpoints
     endpoints: list[StudyEndpoint] = field(default_factory=list)
+    # Set true when multiple primary endpoints are covered by a documented
+    # multiplicity-control procedure (gatekeeping, hierarchical testing,
+    # alpha-splitting) — cf. avis CNEDiMTS ENTERRA II 7254: accepted but with a
+    # downgraded ASA specifically because of endpoint multiplicity without hierarchy.
+    endpoint_hierarchy_prespecified: Optional[bool] = None
 
     # Statistics
     primary_analysis_set: AnalysisSet = AnalysisSet.UNKNOWN
@@ -218,6 +236,10 @@ class StudyObject:
             "comparator_type": self.comparator_type.value,
             "comparator_description": self.comparator_description,
             "comparator_feasibility": self.comparator_feasibility.value,
+            "concomitant_treatments_present": self.concomitant_treatments_present,
+            "concomitant_treatments_controlled": self.concomitant_treatments_controlled,
+            "concomitant_treatments_description": self.concomitant_treatments_description,
+            "performance_goal_clinically_justified": self.performance_goal_clinically_justified,
             "n_patients": self.n_patients,
             "age_min": self.age_min,
             "age_max": self.age_max,
@@ -230,6 +252,7 @@ class StudyObject:
             "longest_follow_up_months": self.longest_follow_up_months,
             "dropout_rate_pct": self.dropout_rate_pct,
             "endpoints": [e.to_dict() for e in self.endpoints],
+            "endpoint_hierarchy_prespecified": self.endpoint_hierarchy_prespecified,
             "primary_analysis_set": self.primary_analysis_set.value,
             "sample_size_calculation_provided": self.sample_size_calculation_provided,
             "study_countries": self.study_countries,
@@ -507,6 +530,37 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 ),
             ))
 
+    # Confounding / uncontrolled co-intervention — the observed effect may not be
+    # attributable to the device if concomitant treatments are present and neither
+    # described nor controlled. cf. avis CNEDiMTS SOMNIO 7781 (SA Insuffisant):
+    # HAS's real objection was not the endpoint's causal nature but concomitant
+    # hypnotic treatments left undescribed/uncontrolled — a basic causal-identification
+    # threat distinct from the endpoint-validity gaps below.
+    if (
+        study.concomitant_treatments_present is True
+        and study.concomitant_treatments_controlled is not True
+        and claim.level in (ClaimLevel.C, ClaimLevel.D)
+    ):
+        gaps.append(ClaimStudyGap(
+            dimension="design",
+            severity="HIGH",
+            description=(
+                "Traitements concomitants présents dans la population d'étude, non "
+                "décrits ou non contrôlés (facteur de confusion)."
+                + (f" {study.concomitant_treatments_description}" if study.concomitant_treatments_description else "")
+            ),
+            has_critique=(
+                "Lorsque des traitements concomitants pertinents pour l'indication sont "
+                "présents dans la population étudiée sans être décrits, exclus par les "
+                "critères d'éligibilité, ou ajustés dans l'analyse, l'effet observé ne peut "
+                "être attribué au dispositif seul : le traitement concomitant constitue une "
+                "explication causale alternative non éliminée. Une description exhaustive "
+                "des co-interventions et, si elles ne peuvent être exclues, un ajustement "
+                "statistique pré-spécifié (stratification, covariable, sensibilité) sont "
+                "requis pour établir l'attribution causale."
+            ),
+        ))
+
     # Open-label with subjective primary endpoint
     claim_primary_subjective = any(
         ep.nature == EndpointNature.SUBJECTIVE and ep.is_primary
@@ -577,6 +631,38 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 "counterfactuel concurrent, l'attribution causale reste plus fragile "
                 "qu'avec un comparateur : le seuil de performance retenu doit lui-même "
                 "être solidement justifié cliniquement."
+            ),
+        ))
+
+    # Pre-specified performance goal without documented clinical justification —
+    # distinct from the general single-arm-vs-comparator weakness above: even when
+    # a single-arm-performance-goal design is itself accepted (no feasible
+    # comparator), the numeric success threshold used for "success" must itself be
+    # clinically justified (derived from a historical benchmark, clinical consensus,
+    # or documented regulatory criterion), not an arbitrary statistical target.
+    # cf. avis CNEDiMTS SAPIEN 3/ALTERRA 7873: accepted single-arm pivotal design,
+    # but HAS's residual critique was the absence of documented clinical
+    # justification for the performance objective itself.
+    if (
+        study.study_design == StudyDesign.SINGLE_ARM_PERFORMANCE_GOAL
+        and study.performance_goal_clinically_justified is not True
+        and claim.level in (ClaimLevel.C, ClaimLevel.D)
+    ):
+        gaps.append(ClaimStudyGap(
+            dimension="design",
+            severity="MEDIUM",
+            description=(
+                "Seuil de performance pré-spécifié sans justification clinique "
+                "documentée pour le seuil de succès retenu."
+            ),
+            has_critique=(
+                "Un design mono-bras comparé à un objectif de performance n'est "
+                "valide que si le seuil de succès lui-même est cliniquement "
+                "justifié — dérivé d'une donnée de référence historique, d'un "
+                "consensus clinique ou d'un critère réglementaire documenté. Un "
+                "seuil statistique non justifié cliniquement ne permet pas "
+                "d'établir qu'un résultat au-dessus du seuil équivaut à un "
+                "bénéfice clinique pertinent."
             ),
         ))
 
@@ -732,6 +818,36 @@ def _endpoint_gaps(
                 ))
             elif bd.flag == BiasFlag.NO_COMPARATOR:
                 pass  # covered in design gaps
+
+    # Endpoint multiplicity without hierarchy — multiple co-primary endpoints inflate
+    # the type-I error rate unless a multiplicity-control procedure (gatekeeping,
+    # hierarchical testing, alpha-splitting) is pre-specified. cf. avis CNEDiMTS
+    # ENTERRA II 7254: accepted, but with a downgraded ASA specifically because of
+    # endpoint multiplicity without hierarchy — a statistical-rigor problem distinct
+    # from any individual endpoint's causal validity.
+    primary_study_eps_for_multiplicity = [e for e in study.endpoints if e.is_primary]
+    if (
+        len(primary_study_eps_for_multiplicity) > 1
+        and study.endpoint_hierarchy_prespecified is not True
+    ):
+        gaps.append(ClaimStudyGap(
+            dimension="endpoint",
+            severity="MEDIUM",
+            description=(
+                f"Multiplicité des critères de jugement principaux "
+                f"({len(primary_study_eps_for_multiplicity)} critères co-primaires) "
+                "sans hiérarchisation statistique pré-spécifiée."
+            ),
+            has_critique=(
+                "Plusieurs critères sont désignés co-primaires sans procédure de "
+                "contrôle de la multiplicité pré-spécifiée (hiérarchisation séquentielle, "
+                "gatekeeping, répartition du risque alpha) : le risque d'erreur de première "
+                "espèce global est inflaté au-delà du seuil nominal, et une conclusion de "
+                "succès sur l'un des critères ne peut être interprétée isolément. Une "
+                "hiérarchie de test pré-spécifiée dans le plan d'analyse statistique, "
+                "verrouillée avant la levée de l'aveugle, est requise."
+            ),
+        ))
 
     # Check study-level endpoint adjudication gap (independent of epistemic output)
     primary_study_eps = [e for e in study.endpoints if e.is_primary]
