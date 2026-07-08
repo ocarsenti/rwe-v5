@@ -31,6 +31,7 @@ from models import (
     ComparatorFeasibility,
     DeviceAlignment,
     DeviceMatchType,
+    Endpoint,
     EndpointNature,
     PopulationAlignment,
     PopulationMatchType,
@@ -117,6 +118,8 @@ class StudyEndpoint:
     is_independently_adjudicated: bool = False
     result_direction: ResultDirection = ResultDirection.UNKNOWN
     reached_significance: Optional[bool] = None
+    nature: EndpointNature = EndpointNature.OBJECTIVE
+    causal_role: CausalRole = CausalRole.INDEPENDENT
 
     def to_dict(self) -> dict:
         d = {
@@ -127,6 +130,8 @@ class StudyEndpoint:
             "is_feasibility_accepted_surrogate": self.is_feasibility_accepted_surrogate,
             "is_independently_adjudicated": self.is_independently_adjudicated,
             "result_direction": self.result_direction.value,
+            "nature": self.nature.value,
+            "causal_role": self.causal_role.value,
         }
         if self.reached_significance is not None:
             d["reached_significance"] = self.reached_significance
@@ -828,18 +833,23 @@ def enrich_claim_with_study_object(
     if study.study_countries:
         claim.study_countries = study.study_countries
 
-    for ep_ev in study.endpoints:
-        for endpoint in claim.endpoints:
-            if (
-                ep_ev.name.lower() in endpoint.name.lower()
-                or endpoint.name.lower() in ep_ev.name.lower()
-            ):
-                if ep_ev.is_validated_surrogate:
-                    endpoint.is_validated_surrogate = True
-                if ep_ev.is_feasibility_accepted_surrogate:
-                    endpoint.is_feasibility_accepted_surrogate = True
-                if ep_ev.is_independently_adjudicated:
-                    endpoint.is_independently_adjudicated = True
+    # Replace the claim's endpoints (guessed from the bare claim sentence, before the
+    # study text was available) with the study's actual endpoints — now that the study
+    # parser classifies nature/causal_role too, this is what the epistemic core should
+    # reason about, not a placeholder invented without seeing the submitted evidence.
+    if study.endpoints:
+        claim.endpoints = [
+            Endpoint(
+                name=ep.name,
+                nature=ep.nature,
+                causal_role=ep.causal_role,
+                is_primary=ep.is_primary,
+                is_validated_surrogate=ep.is_validated_surrogate,
+                is_feasibility_accepted_surrogate=ep.is_feasibility_accepted_surrogate,
+                is_independently_adjudicated=ep.is_independently_adjudicated,
+            )
+            for ep in study.endpoints
+        ]
 
     if study.device_alignment is not None:
         claim.device_alignment = study.device_alignment

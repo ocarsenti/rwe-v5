@@ -21,6 +21,7 @@ import anthropic
 
 from models import (
     CarePathwayMatch,
+    CausalRole,
     ClinicalClaim,
     ComparatorFeasibility,
     ContextAlignment,
@@ -28,6 +29,7 @@ from models import (
     DeviceAlignment,
     DeviceMatchType,
     EligibilityShift,
+    EndpointNature,
     OrganizationDependency,
     PopulationAlignment,
     PopulationMatchType,
@@ -518,6 +520,26 @@ une alternative administrative/réglementaire.
 - "MIXED" : résultats mixtes
 - "UNKNOWN" : non rapporté
 
+## nature (par endpoint)
+- "OBJECTIVE" : mesure indépendante de l'observateur (mortalité, hospitalisations, biomarqueurs)
+- "SUBJECTIVE" : dépend du patient/observateur (douleur, qualité de vie, satisfaction, scores
+  auto-rapportés comme l'ISI ou l'EVA)
+- "INSTRUMENTED" : mesuré par le dispositif lui-même (temps de détection, alertes générées)
+
+## causal_role (par endpoint)
+- "INDEPENDENT" : critère clinique dur, atteint directement (mortalité, hospitalisation,
+  complication, échec du dispositif) — même si biologiquement médié, c'est un critère
+  patient-pertinent accepté comme tel, pas un marqueur intermédiaire
+- "MEDIATED" : marqueur intermédiaire/de substitution qui n'est PAS lui-même le bénéfice
+  clinique final (biomarqueur, score physiologique, critère composite non validé) — la chaîne
+  causale vers un bénéfice clinique dur reste à démontrer
+- "CIRCULAR" : l'endpoint EST ce que le dispositif mesure/détecte lui-même — le dispositif est
+  à la fois l'intervention et l'instrument de mesure (piège principal des DMN)
+IMPORTANT : ne classe MEDIATED que les marqueurs de substitution au sens strict. Un critère
+clinique dur ou un score fonctionnel/qualité de vie validé dans l'indication reste INDEPENDENT
+même s'il dépend biologiquement du mécanisme d'action — MEDIATED n'est pas un synonyme de
+"non direct", c'est réservé aux vrais critères intermédiaires.
+
 ## is_validated_surrogate (par endpoint)
 true UNIQUEMENT si les 3 conditions sont simultanément réunies :
 1. Reconnaissance réglementaire formelle (FDA/EMA/HAS) dans cette indication ET cette population
@@ -584,6 +606,8 @@ Réponds en JSON avec ce format exact :
       "name": "<nom du critère>",
       "is_primary": <true | false>,
       "time_point": "<ex: 12 mois ou null>",
+      "nature": "OBJECTIVE" | "SUBJECTIVE" | "INSTRUMENTED",
+      "causal_role": "INDEPENDENT" | "MEDIATED" | "CIRCULAR",
       "is_validated_surrogate": <true | false>,
       "is_independently_adjudicated": <true | false>,
       "result_direction": "IMPROVED" | "NOT_IMPROVED" | "MIXED" | "UNKNOWN",
@@ -673,6 +697,18 @@ _RESULT_DIR_MAP: dict[str, ResultDirection] = {
     "NOT_IMPROVED": ResultDirection.NOT_IMPROVED,
     "MIXED": ResultDirection.MIXED,
     "UNKNOWN": ResultDirection.UNKNOWN,
+}
+
+_NATURE_MAP: dict[str, EndpointNature] = {
+    "OBJECTIVE": EndpointNature.OBJECTIVE,
+    "SUBJECTIVE": EndpointNature.SUBJECTIVE,
+    "INSTRUMENTED": EndpointNature.INSTRUMENTED,
+}
+
+_CAUSAL_ROLE_MAP: dict[str, CausalRole] = {
+    "INDEPENDENT": CausalRole.INDEPENDENT,
+    "MEDIATED": CausalRole.MEDIATED,
+    "CIRCULAR": CausalRole.CIRCULAR,
 }
 
 
@@ -825,6 +861,8 @@ def _parse_study_object_result(
             is_independently_adjudicated=bool(ep.get("is_independently_adjudicated", False)),
             result_direction=result_dir,
             reached_significance=ep.get("reached_significance"),
+            nature=_NATURE_MAP.get(ep.get("nature", "OBJECTIVE"), EndpointNature.OBJECTIVE),
+            causal_role=_CAUSAL_ROLE_MAP.get(ep.get("causal_role", "INDEPENDENT"), CausalRole.INDEPENDENT),
         ))
 
     obj.primary_analysis_set = _ANALYSIS_SET_MAP.get(
