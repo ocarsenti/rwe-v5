@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLang } from '../LangContext'
+import { useGuest } from '../guest/GuestContext'
 import { t } from '../i18n'
 import { CLAIM_LEVELS, CAUSAL_STRUCTURES, STUDY_DESIGNS, ENDPOINT_NATURES, CAUSAL_ROLES, MANIFOLD_REGIONS, label } from '../enumLabels'
 import RadarChart from '../components/RadarChart'
+import AccessRequestCard from '../components/AccessRequestCard'
 
 export default function ReviewPage({ filterCases = null, repairPath = '/repair' }) {
   const { lang } = useLang()
   const navigate = useNavigate()
+  const guest = useGuest()
+  const hasAccess = !guest || (guest.token && guest.quota && !guest.error && guest.quota.remaining > 0)
   const [form, setForm] = useState({
     text: '',
     intervention: '',
@@ -46,15 +50,23 @@ export default function ReviewPage({ filterCases = null, repairPath = '/repair' 
     setError(null)
     setParseInfo(null)
     try {
+      const guestToken = guest?.token
       const res = await fetch('/api/smart-review', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(guestToken ? { 'x-guest-token': guestToken } : {}),
+        },
         body: JSON.stringify({ ...form, lang }),
       })
-      if (!res.ok) throw new Error(`${lang === 'fr' ? 'Erreur' : 'Error'} ${res.status}`)
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.detail || `${lang === 'fr' ? 'Erreur' : 'Error'} ${res.status}`)
+      }
       const data = await res.json()
       if (data._parse_info) setParseInfo(data._parse_info)
       setResult(data)
+      guest?.refreshQuota()
     } catch (e) {
       setError(e.message)
     } finally {
@@ -69,6 +81,19 @@ export default function ReviewPage({ filterCases = null, repairPath = '/repair' 
         <p className="text-gray-500 mt-2">{t('review_desc', lang)}</p>
       </div>
 
+      {!hasAccess && (
+        <AccessRequestCard
+          fr={lang === 'fr'}
+          title={lang === 'fr' ? 'Accès sur demande — phase de test' : 'Access on request — testing phase'}
+          desc={lang === 'fr'
+            ? 'Le Diagnostic (rapide et complet) est en phase de test et accessible gratuitement sur demande. Écrivez-moi et je vous envoie un accès avec un quota d’analyses dédié.'
+            : 'Diagnosis (quick and full) is in testing phase and free on request. Reach out and I’ll send you an access link with a dedicated analysis quota.'}
+          subject={lang === 'fr' ? 'Demande d’accès test — EvidenceAble' : 'Test access request — EvidenceAble'}
+        />
+      )}
+
+      {hasAccess && (
+      <>
       {goldClaims.length > 0 && (
         <div className="mb-6 flex flex-wrap gap-2">
           <span className="text-sm text-gray-500 self-center mr-2">{t('ref_cases_label', lang)}</span>
@@ -154,6 +179,8 @@ export default function ReviewPage({ filterCases = null, repairPath = '/repair' 
           <span className="text-xs text-gray-400">{t('ai_hint_review', lang)}</span>
         </div>
       </div>
+      </>
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-red-700">{error}</div>
@@ -340,7 +367,7 @@ function ReviewResults({ data, lang, onUpgrade }) {
               <h3 className="font-bold text-gray-900 text-lg">
                 {fr ? 'Diagnostic Complet disponible' : 'Full Diagnostic available'}
               </h3>
-              <span className="bg-accent text-white text-xs font-bold px-2.5 py-1 rounded-full">Premium</span>
+              <span className="bg-accent text-white text-xs font-bold px-2.5 py-1 rounded-full">{fr ? 'Sur demande' : 'On request'}</span>
             </div>
 
             <div className="grid sm:grid-cols-3 gap-3 mb-4">

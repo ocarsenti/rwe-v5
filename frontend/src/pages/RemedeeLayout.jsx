@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useLang } from '../LangContext'
 import GuestBanner from '../guest/GuestBanner'
+import evidenceableWordmark from '../assets/evidenceable-wordmark-compact.png'
 
 export default function RemedeeLayout() {
   const { pathname } = useLocation()
@@ -8,16 +9,16 @@ export default function RemedeeLayout() {
 
   const NAV_ITEMS = [
     { path: '/remedee', label: lang === 'fr' ? 'Accueil' : 'Home' },
-    { path: '/remedee/review', label: lang === 'fr' ? 'Diagnostic' : 'Diagnostic' },
-    { path: '/remedee/repair', label: lang === 'fr' ? 'Diag. Complet' : 'Full Diag.' },
+    { path: '/remedee/review', label: lang === 'fr' ? 'Diag. rapide' : 'Quick Diag.' },
+    { path: '/remedee/repair', label: 'Diag + Repair' },
   ]
 
   return (
     <>
       <nav className="bg-primary text-white shadow-lg sticky top-0 z-50 print:hidden">
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-          <Link to="/remedee" className="text-xl font-bold tracking-tight flex-shrink-0">
-            <span className="text-accent">Epi</span>Strat
+          <Link to="/remedee" className="flex-shrink-0 bg-white rounded-md px-2.5 py-1.5 flex items-center">
+            <img src={evidenceableWordmark} alt="EvidenceAble" className="h-7 w-auto" />
           </Link>
           <div className="flex items-center gap-2">
             <div className="flex gap-1">
@@ -59,7 +60,7 @@ export default function RemedeeLayout() {
       <GuestBanner />
       <Outlet />
       <footer className="bg-primary text-white/60 text-center py-6 text-sm mt-auto print:hidden">
-        EpiStrat
+        EvidenceAble
       </footer>
     </>
   )

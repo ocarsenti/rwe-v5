@@ -4,7 +4,7 @@ export const translations = {
   nav_review: { fr: 'REVIEW', en: 'REVIEW' },
   nav_design: { fr: 'DESIGN', en: 'DESIGN' },
   nav_gold: { fr: 'Cas de référence', en: 'Reference Cases' },
-  footer: { fr: 'EpiStrat', en: 'EpiStrat' },
+  footer: { fr: 'EvidenceAble', en: 'EvidenceAble' },
 
   // Landing — Hero
   hero_badge: { fr: 'Accès au marché des dispositifs médicaux', en: 'Medical Device Market Access' },
@@ -35,8 +35,8 @@ export const translations = {
   },
   why_3_title: { fr: 'Deux dimensions, pas une', en: 'Two dimensions, not one' },
   why_3_text: {
-    fr: "EpiStrat sépare ce que personne ne sépare : l'alignement (vos données sont-elles pertinentes ?) de la qualité (vos données sont-elles solides ?). Parce que la CNEDiMTS évalue les deux — et les rejets viennent de l'une comme de l'autre.",
-    en: "EpiStrat separates what nobody else does: alignment (is your data relevant?) from quality (is your data sound?). Because the CNEDiMTS evaluates both — and rejections come from either one.",
+    fr: "EvidenceAble sépare ce que personne ne sépare : l'alignement (vos données sont-elles pertinentes ?) de la qualité (vos données sont-elles solides ?). Parce que la CNEDiMTS évalue les deux — et les rejets viennent de l'une comme de l'autre.",
+    en: "EvidenceAble separates what nobody else does: alignment (is your data relevant?) from quality (is your data sound?). Because the CNEDiMTS evaluates both — and rejections come from either one.",
   },
 
   // Landing — Two modes

@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react'
 import { Routes, Route, Link, useLocation, Outlet } from 'react-router-dom'
 import { LangProvider, useLang } from './LangContext'
 import { GuestProvider } from './guest/GuestContext'
+import GuestBanner from './guest/GuestBanner'
 import Landing from './pages/Landing'
 import LandingOdysight from './pages/LandingOdysight'
 import OdysightLayout from './pages/OdysightLayout'
@@ -11,6 +13,31 @@ import DesignPage from './pages/DesignPage'
 import GoldPage from './pages/GoldPage'
 import RepairPage from './pages/RepairPage'
 import AdminPage from './pages/AdminPage'
+import evidenceableWordmark from './assets/evidenceable-wordmark-compact.png'
+import evidenceableIcon from './assets/evidenceable-icon.png'
+
+function IntroSplash({ onEnter }) {
+  return (
+    <div
+      onClick={onEnter}
+      className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center gap-6 cursor-pointer"
+    >
+      <img
+        src={evidenceableIcon}
+        alt=""
+        className="w-16 h-16 opacity-0 animate-[intro-fade-scale_0.6s_ease-out_forwards]"
+      />
+      <img
+        src={evidenceableWordmark}
+        alt="EvidenceAble"
+        className="w-64 opacity-0 animate-[intro-fade_0.6s_ease-out_0.35s_forwards]"
+      />
+      <p className="text-sm text-gray-400 opacity-0 animate-[intro-fade_0.6s_ease-out_0.9s_forwards]">
+        Cliquez pour continuer
+      </p>
+    </div>
+  )
+}
 
 function Navbar() {
   const { pathname } = useLocation()
@@ -18,17 +45,15 @@ function Navbar() {
 
   const NAV_ITEMS = [
     { path: '/', label: lang === 'fr' ? 'Accueil' : 'Home' },
-    { path: '/review', label: lang === 'fr' ? 'Diagnostic' : 'Diagnostic' },
-    { path: '/repair', label: lang === 'fr' ? 'Diag. Complet' : 'Full Diag.', premium: true },
-    { path: '/design', label: 'Design' },
+    { path: '/repair', label: 'Diag + Repair', premium: true },
     { path: '/gold', label: lang === 'fr' ? 'Cas référence' : 'Reference cases' },
   ]
 
   return (
     <nav className="bg-primary text-white shadow-lg sticky top-0 z-50 print:hidden">
       <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-        <Link to="/" className="text-xl font-bold tracking-tight flex-shrink-0">
-          <span className="text-accent">Epi</span>Strat
+        <Link to="/" className="flex-shrink-0 bg-white rounded-md px-2.5 py-1.5 flex items-center">
+          <img src={evidenceableWordmark} alt="EvidenceAble" className="h-7 w-auto" />
         </Link>
         <div className="flex items-center gap-2">
           <div className="flex gap-1">
@@ -81,21 +106,54 @@ function MainLayout() {
       <Navbar />
       <Outlet />
       <footer className="bg-primary text-white/60 text-center py-6 text-sm mt-auto print:hidden">
-        EpiStrat
+        EvidenceAble
       </footer>
     </div>
   )
 }
 
+function VisitTracker() {
+  const location = useLocation()
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/admin')) return
+    fetch('/api/track-visit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: location.pathname }),
+    }).catch(() => {})
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', 'page_view', {
+        page_path: location.pathname,
+        page_location: window.location.href,
+        page_title: document.title,
+      })
+    }
+  }, [location.pathname])
+
+  return null
+}
+
 export default function App() {
+  const [entered, setEntered] = useState(false)
+
+  if (!entered) {
+    return (
+      <IntroSplash
+        onEnter={() => setEntered(true)}
+      />
+    )
+  }
+
   return (
     <LangProvider>
       <div className="min-h-screen bg-surface">
+        <VisitTracker />
         <Routes>
           <Route element={<MainLayout />}>
             <Route path="/" element={<Landing />} />
             <Route path="/review" element={<ReviewPage />} />
-            <Route path="/repair" element={<RepairPage />} />
+            <Route path="/repair" element={<GuestProvider><GuestBanner /><RepairPage /></GuestProvider>} />
             <Route path="/design" element={<DesignPage />} />
             <Route path="/gold" element={<GoldPage />} />
           </Route>

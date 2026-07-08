@@ -1,44 +1,38 @@
 import { Link } from 'react-router-dom'
 import { useLang } from '../LangContext'
+import Reveal from '../components/Reveal'
+import NarrativeBeat from '../components/NarrativeBeat'
+import { RulerIcon, ClipboardIcon, TargetIcon, DatabaseIcon, DocumentIcon, CogIcon, RocketIcon, XCircleIcon } from '../components/icons'
+import demonstrationTriptyque from '../assets/demonstration-triptyque.png'
 
-// ── Engine pillars ───────────────────────────────────────────────────────────
+// ── What the engine analyzes (no framework/mechanism language on the landing) ──
 
-const ENGINE_PILLARS_FR = [
-  {
-    title: 'Structure causale de la revendication',
-    desc: 'Le niveau de preuve implicite est-il cohérent avec le type d\'affirmation ? Une revendication d\'outcome clinique n\'est pas soutenue par les mêmes exigences de design qu\'une revendication de performance.',
-  },
-  {
-    title: 'Indépendance de la mesure',
-    desc: 'Le dispositif influence-t-il directement la façon dont l\'effet est mesuré ? Un critère généré ou déclenché par le dispositif lui-même ne permet pas une inférence causale indépendante.',
-  },
-  {
-    title: 'Compatibilité design ↔ revendication',
-    desc: 'Le design permet-il réellement une inférence causale au niveau revendiqué ? Un design exploratoire ne démontre pas un outcome clinique. Un essai sans comparateur ne soutient pas une revendication d\'efficacité.',
-  },
-  {
-    title: 'Cohérence dispositif ↔ population ↔ contexte',
-    desc: 'L\'étude évalue-t-elle le bon dispositif, dans le bon usage, sur la bonne population ? Un écart à ce niveau fragilise la validité externe indépendamment de la qualité interne de l\'étude.',
-  },
+const ANALYSIS_POINTS_FR = [
+  'Peut-on attribuer l\'effet observé au dispositif ?',
+  'Les critères de jugement permettent-ils réellement de mesurer le bénéfice revendiqué ?',
+  'Les preuves produites répondent-elles à la question clinique posée ?',
 ]
 
-const ENGINE_PILLARS_EN = [
-  {
-    title: 'Causal structure of the claim',
-    desc: 'Is the implicit level of evidence consistent with the type of claim? An outcome-level claim requires different design requirements than a performance-level one.',
-  },
-  {
-    title: 'Independence of measurement',
-    desc: 'Does the device directly influence how the effect is measured? An endpoint generated or triggered by the device itself does not allow independent causal inference.',
-  },
-  {
-    title: 'Design ↔ claim compatibility',
-    desc: 'Does the design actually allow causal inference at the claimed level? An exploratory design does not demonstrate a clinical outcome. A single-arm study does not support an efficacy claim.',
-  },
-  {
-    title: 'Device ↔ population ↔ context consistency',
-    desc: 'Does the study evaluate the right device, in the right use, on the right population? A gap at this level weakens external validity regardless of the internal quality of the study.',
-  },
+const ANALYSIS_POINTS_EN = [
+  'Can the observed effect be attributed to the device?',
+  'Do the endpoints actually measure the claimed benefit?',
+  'Does the evidence produced answer the clinical question being asked?',
+]
+
+// ── Why studies fail to demonstrate their claim ─────────────────────────────
+
+const PROBLEM_CARDS_FR = [
+  { Icon: RulerIcon,    title: 'Mesure non adaptée',              desc: 'Un critère influencé par le dispositif lui-même ne permet pas d\'attribuer l\'effet observé.' },
+  { Icon: ClipboardIcon, title: 'Design insuffisant',             desc: 'Un design exploratoire ou sans comparateur ne permet pas d\'inférence causale.' },
+  { Icon: TargetIcon,   title: 'Preuve non pertinente',           desc: 'Des données qui répondent à une question différente de celle posée.' },
+  { Icon: DatabaseIcon, title: 'Plus de données ne suffisent pas', desc: 'Si la structure de la démonstration est inadéquate, ajouter des données ne corrige pas le problème.' },
+]
+
+const PROBLEM_CARDS_EN = [
+  { Icon: RulerIcon,    title: 'Unsuitable measurement',    desc: 'An endpoint influenced by the device itself cannot attribute the observed effect.' },
+  { Icon: ClipboardIcon, title: 'Insufficient design',      desc: 'An exploratory design or one without a comparator does not allow causal inference.' },
+  { Icon: TargetIcon,   title: 'Irrelevant evidence',       desc: 'Data that answers a different question from the one being asked.' },
+  { Icon: DatabaseIcon, title: 'More data is not enough',   desc: 'If the demonstration structure is inadequate, adding more data does not fix the problem.' },
 ]
 
 // ── Illustrative example gaps ─────────────────────────────────────────────────
@@ -79,71 +73,79 @@ export default function Landing() {
   const { lang } = useLang()
   const fr = lang === 'fr'
 
-  const enginePillars = fr ? ENGINE_PILLARS_FR : ENGINE_PILLARS_EN
-  const exampleGaps   = fr ? EXAMPLE_GAPS_FR   : EXAMPLE_GAPS_EN
+  const analysisPoints = fr ? ANALYSIS_POINTS_FR : ANALYSIS_POINTS_EN
+  const problemCards    = fr ? PROBLEM_CARDS_FR : PROBLEM_CARDS_EN
+  const exampleGaps    = fr ? EXAMPLE_GAPS_FR : EXAMPLE_GAPS_EN
 
   return (
     <div>
 
       {/* ── HERO ─────────────────────────────────────────────────────────────── */}
-      <section className="bg-gradient-to-br from-primary to-primary-light text-white py-24 px-6 relative overflow-hidden">
+      <section className="bg-gradient-to-br from-primary to-primary-light text-white py-20 px-6 relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.05)_0%,transparent_50%)]" />
-        <div className="max-w-4xl mx-auto text-center relative">
+        <div className="max-w-6xl mx-auto relative grid lg:grid-cols-2 gap-12 items-center">
 
-          <div className="inline-block bg-white/10 rounded-full px-4 py-1.5 text-sm font-medium mb-10 backdrop-blur-sm">
-            {fr
-              ? 'Dispositifs médicaux · Méthodologie clinique · Accès au marché'
-              : 'Medical devices · Clinical methodology · Market access'}
-          </div>
-
-          <h1 className="text-4xl md:text-5xl font-bold mb-5 leading-tight max-w-3xl mx-auto">
-            {fr
-              ? 'Évitez les dossiers rejetés pour des problèmes de méthodologie évitables.'
-              : 'Avoid dossier rejections caused by preventable methodological gaps.'}
-          </h1>
-
-          <p className="text-lg text-white/85 mb-6 max-w-2xl mx-auto leading-relaxed">
-            {fr
-              ? 'EpiStrat analyse la cohérence entre une revendication et les preuves qui la soutiennent. Il reconstruit la logique de la revendication, identifie le niveau de preuve qu\'elle implique, et applique des règles explicites de causalité et de validité de mesure.'
-              : 'EpiStrat analyses the coherence between a claim and the evidence supporting it. It reconstructs the logic of the claim, identifies the level of evidence it implies, and applies explicit rules of causality and measurement validity.'}
-          </p>
-
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl px-6 py-4 mb-8 max-w-xl mx-auto border border-white/15">
-            <p className="text-white/85 text-sm leading-relaxed">
+          <div className="text-center lg:text-left">
+            <div className="inline-block bg-white/10 rounded-full px-4 py-1.5 text-sm font-medium mb-8 backdrop-blur-sm">
               {fr
-                ? 'Un seul moteur épistémique. Deux niveaux d\'analyse selon les informations que vous fournissez — revendication seule, ou revendication et données cliniques.'
-                : 'One epistemic engine. Two levels of analysis depending on the information you provide — claim alone, or claim and clinical data.'}
+                ? 'Dispositifs médicaux · Méthodologie clinique · Accès au marché'
+                : 'Medical devices · Clinical methodology · Market access'}
+            </div>
+
+            <h1 className="text-4xl md:text-5xl font-bold mb-5 leading-tight">
+              {fr
+                ? 'Votre étude a-t-elle été conçue pour démontrer ce que vous affirmez ?'
+                : 'Was your study designed to demonstrate what you claim?'}
+            </h1>
+
+            <p className="text-lg text-white/85 mb-8 leading-relaxed">
+              {fr
+                ? 'EvidenceAble vous indique si votre stratégie de preuve est réellement capable de soutenir votre revendication clinique — avant d\'investir dans une étude ou de soumettre un dossier.'
+                : 'EvidenceAble tells you whether your evidence strategy can actually support your clinical claim — before you invest in a study or submit a dossier.'}
             </p>
+
+            <div className="flex items-center gap-3 justify-center lg:justify-start mb-8 flex-wrap text-sm text-white/80">
+              <span className="bg-white/10 border border-white/15 rounded-lg px-3 py-2">
+                {fr ? 'Revendication + données cliniques (essai, cohorte, registre, RWE)' : 'Claim + clinical data (trial, cohort, registry, RWE)'}
+              </span>
+              <span className="text-white/50">→</span>
+              <span className="bg-white/10 border border-white/15 rounded-lg px-3 py-2">
+                {fr ? 'Écarts identifiés et plan de correction' : 'Identified gaps and correction plan'}
+              </span>
+            </div>
+
+            <div className="flex gap-3 justify-center lg:justify-start flex-wrap">
+              <Link
+                to="/repair"
+                className="bg-accent hover:bg-accent/90 text-white px-6 py-3 rounded-xl font-semibold transition-colors shadow-lg shadow-accent/30"
+              >
+                {fr ? 'Analyser mes données →' : 'Analyse my evidence →'}
+              </Link>
+              <a
+                href={`mailto:olivier@evidenceable.com?subject=${encodeURIComponent(fr ? 'Demande d’accès test — EvidenceAble' : 'Test access request — EvidenceAble')}`}
+                className="border border-white/25 hover:bg-white/10 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
+              >
+                {fr ? 'Demander un accès gratuit' : 'Request free access'}
+              </a>
+            </div>
           </div>
 
-          <div className="flex gap-4 justify-center flex-wrap">
-            <Link
-              to="/review"
-              className="bg-white/15 hover:bg-white/25 text-white px-8 py-3.5 rounded-xl font-semibold text-lg transition-colors backdrop-blur-sm border border-white/20 text-left"
-            >
-              <span className="block">→ {fr ? 'Analyse rapide' : 'Quick analysis'}</span>
-              <span className="block text-xs text-white/60 font-normal mt-0.5">
-                {fr ? 'À partir de votre revendication' : 'From your claim'}
-              </span>
-            </Link>
-            <Link
-              to="/repair"
-              className="bg-accent hover:bg-accent/90 text-white px-8 py-3.5 rounded-xl font-semibold text-lg transition-colors shadow-lg shadow-accent/30 text-left"
-            >
-              <span className="block">
-                → {fr ? 'Analyse complète' : 'Full analysis'}
-                <span className="ml-2 bg-white/20 text-xs font-bold px-2 py-0.5 rounded-full align-middle">Premium</span>
-              </span>
-              <span className="block text-xs text-white/60 font-normal mt-0.5">
-                {fr ? 'Revendication + données cliniques' : 'Claim + clinical data'}
-              </span>
-            </Link>
+          <div className="bg-white rounded-3xl p-6 shadow-xl">
+            <img src={demonstrationTriptyque} alt={fr ? 'Le triptyque de la démonstration clinique' : 'The clinical demonstration triptych'} className="w-full h-auto" />
           </div>
         </div>
       </section>
 
+      <div className="max-w-xl mx-auto px-6 py-8">
+        <NarrativeBeat>
+          {fr
+            ? "Avant d'aller plus loin, une question simple se pose."
+            : 'Before going further, a simple question needs answering.'}
+        </NarrativeBeat>
+      </div>
+
       {/* ── PROBLÈME ─────────────────────────────────────────────────────────── */}
-      <section className="py-20 px-6 bg-white">
+      <Reveal as="section" className="py-20 px-6 bg-white">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-3xl font-bold text-primary text-center mb-6">
             {fr
@@ -156,289 +158,203 @@ export default function Landing() {
               : 'In many clinical projects, the problem is not the quality of the data. It is the gap between what the data source measures and what the claim asserts — whether it is a randomised trial, an observational cohort or real-world data.'}
           </p>
 
-          <div className="space-y-3 mb-10">
-            {(fr
-              ? [
-                  'Une efficacité évaluée avec un critère non indépendant de l\'intervention.',
-                  'Un design exploratoire utilisé pour soutenir une conclusion causale.',
-                  'Un proxy interprété comme un bénéfice clinique direct.',
-                  'Des données qui répondent à une question différente de celle posée par la revendication.',
-                ]
-              : [
-                  'Efficacy evaluated with an endpoint that is not independent of the intervention.',
-                  'An exploratory design used to support a causal conclusion.',
-                  'A proxy interpreted as a direct clinical benefit.',
-                  'Data that answers a different question from the one posed by the claim.',
-                ]
-            ).map((item, i) => (
-              <div key={i} className="flex items-start gap-4 bg-gray-50 border border-gray-100 rounded-xl px-6 py-4">
-                <span className="text-gray-300 font-bold mt-0.5 flex-shrink-0 text-lg">×</span>
-                <p className="text-gray-700 text-sm leading-relaxed">{item}</p>
-              </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
+            {problemCards.map(({ Icon, title, desc }, i) => (
+              <Reveal key={i} delay={i * 80} className="bg-gray-50 border border-gray-100 rounded-xl px-5 py-6 text-center flex flex-col items-center">
+                <div className="w-12 h-12 rounded-full bg-white border border-gray-100 flex items-center justify-center mb-3 shadow-sm">
+                  <Icon className="w-6 h-6 text-gray-400" />
+                </div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <XCircleIcon className="w-4 h-4 text-red-400 flex-shrink-0" />
+                  <p className="text-sm font-bold text-gray-800">{title}</p>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed">{desc}</p>
+              </Reveal>
             ))}
           </div>
-
-          <p className="text-center text-gray-400 text-sm mb-8 italic">
-            {fr
-              ? 'Dans ces cas, ajouter des données ne corrige pas le problème.'
-              : 'In these cases, adding more data does not fix the problem.'}
-          </p>
 
           <div className="bg-primary/5 border-2 border-primary/15 rounded-xl px-8 py-6 text-center">
             <p className="text-primary font-semibold text-lg leading-relaxed">
               {fr
-                ? 'La question centrale devient : votre source de données a-t-elle été conçue pour démontrer ce que vous affirmez ?'
-                : 'The central question becomes: was your data source designed to demonstrate what you claim?'}
+                ? 'La question centrale devient : votre stratégie de preuve peut-elle réellement démontrer votre revendication clinique ?'
+                : 'The central question becomes: can your evidence strategy actually demonstrate your clinical claim?'}
             </p>
           </div>
         </div>
-      </section>
+      </Reveal>
 
-      {/* ── CE QUE FAIT EPISTRAT ─────────────────────────────────────────────── */}
-      <section className="py-20 px-6 bg-surface border-y border-gray-100">
-        <div className="max-w-5xl mx-auto">
+      <div className="max-w-xl mx-auto px-6 py-8">
+        <NarrativeBeat>
+          {fr
+            ? "C'est précisément cette question que le moteur répond, de façon systématique et traçable."
+            : 'This is exactly the question the engine answers — systematically, and traceably.'}
+        </NarrativeBeat>
+      </div>
+
+      {/* ── CE QUE LE MOTEUR ANALYSE ─────────────────────────────────────────── */}
+      <Reveal as="section" className="py-20 px-6 bg-surface border-y border-gray-100">
+        <div className="max-w-3xl mx-auto">
           <h2 className="text-3xl font-bold text-primary text-center mb-4">
-            {fr
-              ? 'Un moteur de cohérence entre revendication et preuve clinique'
-              : 'An engine for coherence between claim and clinical evidence'}
+            {fr ? 'Ce que le moteur analyse' : 'What the engine analyzes'}
           </h2>
-          <p className="text-center text-gray-500 mb-4 max-w-2xl mx-auto text-sm leading-relaxed">
+          <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto text-sm leading-relaxed">
             {fr
-              ? 'EpiStrat analyse la structure logique entre une revendication et un dossier de preuve — essai randomisé, cohorte, registre ou RWE. Il n\'interprète pas librement. Il applique un ensemble de règles explicites fondées sur des principes méthodologiques.'
-              : 'EpiStrat analyses the logical structure between a claim and an evidence dossier — randomised trial, cohort, registry or RWE. It does not interpret freely. It applies a set of explicit rules based on methodological principles.'}
-          </p>
-          <p className="text-center text-gray-400 text-xs mb-12 italic">
-            {fr
-              ? 'Chaque écart identifié est relié à une règle explicite. Chaque conclusion est traçable et reproductible.'
-              : 'Each identified gap is linked to an explicit rule. Every conclusion is traceable and reproducible.'}
+              ? 'Une étude clinique ne suffit pas — ce qui compte, c\'est sa capacité à démontrer de manière crédible le bénéfice revendiqué. Le moteur analyse automatiquement les éléments méthodologiques qui déterminent cette capacité.'
+              : 'A clinical study is not enough — what matters is its ability to credibly demonstrate the claimed benefit. The engine automatically analyses the methodological elements that determine that ability.'}
           </p>
 
-          <div className="grid md:grid-cols-2 gap-5">
-            {enginePillars.map((p, i) => (
-              <div key={i} className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <span className="text-primary font-bold text-sm">{i + 1}</span>
-                  </div>
-                  <h3 className="font-semibold text-gray-800">{p.title}</h3>
-                </div>
-                <p className="text-sm text-gray-500 leading-relaxed">{p.desc}</p>
-              </div>
+          <div className="space-y-3 mb-10">
+            {analysisPoints.map((item, i) => (
+              <Reveal key={i} delay={i * 80} className="flex items-start gap-4 bg-white border border-gray-100 rounded-xl px-6 py-4 shadow-sm">
+                <span className="text-accent font-bold mt-0.5 flex-shrink-0 text-lg">✓</span>
+                <p className="text-gray-700 text-sm leading-relaxed font-medium">{item}</p>
+              </Reveal>
             ))}
           </div>
+
+          <p className="text-center text-gray-400 text-sm max-w-2xl mx-auto italic">
+            {fr
+              ? 'Le moteur ne se limite pas à détecter des biais isolés — il évalue la capacité d\'une étude à soutenir une démonstration clinique.'
+              : 'The engine does not just flag isolated biases — it evaluates a study\'s ability to support a clinical demonstration.'}
+          </p>
         </div>
-      </section>
+      </Reveal>
+
+      <div className="max-w-xl mx-auto px-6 py-8">
+        <NarrativeBeat>
+          {fr
+            ? 'Concrètement, ce moteur unique se décline en deux profondeurs d\'analyse.'
+            : 'In practice, this single engine comes in two depths of analysis.'}
+        </NarrativeBeat>
+      </div>
 
       {/* ── COMMENT ÇA FONCTIONNE ────────────────────────────────────────────── */}
-      <section className="py-20 px-6 bg-white">
+      <Reveal as="section" className="py-20 px-6 bg-white">
         <div className="max-w-5xl mx-auto">
           <h2 className="text-3xl font-bold text-primary text-center mb-4">
-            {fr ? 'Deux niveaux d\'analyse' : 'Two levels of analysis'}
+            {fr ? 'Comment ça fonctionne' : 'How it works'}
           </h2>
-          <p className="text-center text-gray-500 text-sm mb-2 max-w-lg mx-auto font-medium">
+          <p className="text-center text-gray-500 text-sm mb-14 max-w-lg mx-auto font-medium">
             {fr
-              ? 'Le même moteur. Plus ou moins d\'informations selon votre besoin.'
-              : 'The same engine. More or less information depending on your need.'}
-          </p>
-          <p className="text-center text-gray-400 text-xs mb-14 max-w-md mx-auto">
-            {fr
-              ? 'Vous pouvez utiliser l\'analyse rapide seule, l\'analyse complète directement, ou les deux — dans n\'importe quel ordre.'
-              : 'You can use quick analysis alone, start directly with full analysis, or both — in any order.'}
+              ? 'Votre revendication et vos données cliniques, analysées ensemble.'
+              : 'Your claim and your clinical data, analysed together.'}
           </p>
 
-          {/* Analyse rapide */}
-          <div className="mb-8 rounded-2xl border-2 border-primary/20 overflow-hidden shadow-sm">
-            <div className="bg-primary/5 border-b border-primary/10 px-8 py-5 flex items-center gap-4">
-              <span className="bg-primary text-white text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wide">
-                {fr ? 'Analyse rapide — Gratuit' : 'Quick analysis — Free'}
-              </span>
-              <h3 className="text-xl font-bold text-primary">
-                {fr
-                  ? 'À partir de votre revendication clinique'
-                  : 'From your clinical claim'}
-              </h3>
-            </div>
-            <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-100">
-              <div className="p-6">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">
-                  {fr ? 'Entrée' : 'Input'}
-                </p>
-                <p className="text-sm text-gray-600 leading-relaxed mb-4">
-                  {fr
-                    ? 'Décrivez votre revendication clinique en texte libre : dispositif, indication, effet attendu, type d\'évaluation.'
-                    : 'Describe your clinical claim in free text: device, indication, expected effect, type of evaluation.'}
-                </p>
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-3 font-mono text-xs text-gray-400 italic">
-                  {fr
-                    ? '"Notre dispositif améliore la détection précoce des complications chez les patients atteints de…"'
-                    : '"Our device improves early detection of complications in patients with…"'}
+          <div className="grid md:grid-cols-3 gap-6 relative">
+            {[
+              {
+                Icon: DocumentIcon,
+                title: fr ? 'Vous fournissez' : 'You provide',
+                desc: fr
+                  ? 'Votre revendication et un abstract ou PDF (≤ 5 pages) d\'un essai, d\'une cohorte, d\'un registre ou d\'une étude en vie réelle.'
+                  : 'Your claim and an abstract or PDF (≤ 5 pages) of a trial, cohort, registry, or real-world study.',
+              },
+              {
+                Icon: CogIcon,
+                title: fr ? 'Le moteur analyse' : 'The engine analyses',
+                desc: fr
+                  ? 'Il reconstruit la logique de la revendication, évalue les critères de jugement et le design d\'étude, puis identifie les écarts structurels.'
+                  : 'It reconstructs the logic of the claim, evaluates the endpoints and study design, then identifies structural gaps.',
+              },
+              {
+                Icon: ClipboardIcon,
+                title: fr ? 'Vous obtenez' : 'You get',
+                desc: fr
+                  ? 'Un diagnostic de démonstration et un plan de correction priorisé (immédiat, amendement ou nouvelle étude).'
+                  : 'A demonstration diagnostic and a prioritised correction plan (immediate, amendment, or new study).',
+              },
+            ].map(({ Icon, title, desc }, i) => (
+              <Reveal key={i} delay={i * 100} className="bg-surface rounded-2xl border border-gray-100 p-6 relative">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-lg bg-accent/10 text-accent flex items-center justify-center font-bold text-sm flex-shrink-0">
+                    {i + 1}
+                  </div>
+                  <Icon className="w-6 h-6 text-accent flex-shrink-0" />
+                  <h3 className="font-bold text-gray-800">{title}</h3>
                 </div>
-              </div>
-              <div className="p-6">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">
-                  {fr ? 'Sortie' : 'Output'}
-                </p>
-                <div className="space-y-2.5">
-                  {(fr
-                    ? ['Niveau de revendication (A → D)', 'Structure causale classifiée', 'Points de fragilité méthodologique', 'Type de design généralement nécessaire']
-                    : ['Claim level (A → D)', 'Classified causal structure', 'Methodological fragility points', 'Type of study design typically required']
-                  ).map((item, i) => (
-                    <div key={i} className="flex gap-2 text-sm text-gray-600">
-                      <span className="text-primary font-bold flex-shrink-0">·</span> {item}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="p-6 bg-primary/3 flex flex-col justify-between">
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">
-                    {fr ? 'Valeur' : 'Value'}
-                  </p>
-                  <p className="text-sm text-primary font-medium leading-relaxed">
-                    {fr
-                      ? 'Savoir en quelques secondes si une revendication est cohérente avec un cadre de preuve — avant de concevoir ou de sélectionner une source de données.'
-                      : 'Know in seconds whether a claim is consistent with an evidence framework — before designing or selecting a data source.'}
-                  </p>
-                </div>
-                <Link
-                  to="/review"
-                  className="mt-6 inline-block bg-primary hover:bg-primary-light text-white px-6 py-2.5 rounded-xl font-medium transition-colors text-center text-sm"
-                >
-                  {fr ? 'Tester ma revendication →' : 'Test my claim →'}
-                </Link>
-              </div>
-            </div>
+                <p className="text-sm text-gray-600 leading-relaxed">{desc}</p>
+                {i < 2 && (
+                  <span className="hidden md:flex absolute top-1/2 -right-4 -translate-y-1/2 w-8 h-8 items-center justify-center text-accent text-xl font-bold z-10">
+                    →
+                  </span>
+                )}
+              </Reveal>
+            ))}
           </div>
 
-          {/* Analyse complète */}
-          <div className="rounded-2xl border-2 border-accent/30 overflow-hidden shadow-sm">
-            <div className="bg-accent/5 border-b border-accent/20 px-8 py-5 flex items-center gap-4">
-              <span className="bg-accent text-white text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wide">
-                {fr ? 'Analyse complète — Premium' : 'Full analysis — Premium'}
-              </span>
-              <h3 className="text-xl font-bold text-accent">
-                {fr
-                  ? 'À partir de votre revendication et de vos données cliniques'
-                  : 'From your claim and clinical data'}
-              </h3>
-            </div>
-            <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-100">
-              <div className="p-6">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">
-                  {fr ? 'Entrée' : 'Input'}
-                </p>
-                <p className="text-sm text-gray-600 leading-relaxed mb-4">
-                  {fr
-                    ? 'Revendication + abstract ou PDF (≤ 5 pages) — essai, cohorte, registre ou RWE. Le moteur extrait et structure les éléments méthodologiques clés.'
-                    : 'Claim + abstract or PDF (≤ 5 pages) — trial, cohort, registry or RWE. The engine extracts and structures the key methodological elements.'}
-                </p>
-                <div className="space-y-1">
-                  {(fr
-                    ? ['Dispositif étudié', 'Design · Randomisation · Aveugle · Comparateur', 'Population · Contexte · Durée de suivi', 'Endpoints principaux']
-                    : ['Device studied', 'Design · Randomisation · Blinding · Comparator', 'Population · Context · Follow-up', 'Primary endpoints']
-                  ).map((item, i) => (
-                    <div key={i} className="flex gap-2 text-xs text-gray-500">
-                      <span className="text-accent font-bold">·</span> {item}
-                    </div>
-                  ))}
-                  <p className="mt-3 text-xs text-gray-400 italic leading-relaxed">
-                    {fr
-                      ? 'Essai randomisé, étude observationnelle, registre, ou données en vie réelle — EpiStrat analyse la structure méthodologique, pas le type de publication.'
-                      : 'Randomised trial, observational study, registry, or real-world data — EpiStrat analyses the methodological structure, not the publication type.'}
-                  </p>
-                </div>
-              </div>
-              <div className="p-6">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">
-                  {fr ? 'Sortie' : 'Output'}
-                </p>
-                <div className="space-y-2">
-                  {(fr
-                    ? [
-                        'Analyse des écarts par dimension : device · population · design · endpoints · causalité',
-                        'Identification des incohérences structurelles',
-                        'Plan de correction priorisé : immédiat · amendement · nouvelle étude',
-                        'Export PDF du rapport',
-                      ]
-                    : [
-                        'Gap analysis by dimension: device · population · design · endpoints · causality',
-                        'Identification of structural incoherences',
-                        'Prioritised correction plan: immediate · amendment · new study',
-                        'PDF export of the report',
-                      ]
-                  ).map((item, i) => (
-                    <div key={i} className="flex gap-2 text-sm text-gray-600">
-                      <span className="text-accent font-bold flex-shrink-0">·</span> {item}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="p-6 bg-accent/3 flex flex-col justify-between">
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">
-                    {fr ? 'Valeur' : 'Value'}
-                  </p>
-                  <p className="text-sm text-accent font-medium leading-relaxed">
-                    {fr
-                      ? 'Savoir si un design ou une source de données est suffisant pour une revendication donnée — ou identifier les ajustements méthodologiques nécessaires avant de commanditer ou de modifier une source de données.'
-                      : 'Know whether a design or data source is sufficient for a given claim — or identify the methodological adjustments needed before commissioning or modifying a data source.'}
-                  </p>
-                </div>
-                <Link
-                  to="/repair"
-                  className="mt-6 inline-block bg-accent hover:bg-accent/90 text-white px-6 py-2.5 rounded-xl font-medium transition-colors text-center shadow-md shadow-accent/20 text-sm"
-                >
-                  {fr ? 'Analyser mes données →' : 'Analyse my evidence →'}
-                </Link>
-              </div>
-            </div>
+          <div className="text-center mt-10">
+            <Link
+              to="/repair"
+              className="inline-block bg-accent hover:bg-accent/90 text-white px-8 py-3 rounded-xl font-semibold transition-colors shadow-md shadow-accent/20"
+            >
+              {fr ? 'Analyser mes données →' : 'Analyse my evidence →'}
+            </Link>
+            <p className="text-xs text-gray-400 mt-3">
+              {fr ? 'Diagnostic Complet + Repair — sur demande' : 'Full Diagnosis + Repair — on request'}
+            </p>
           </div>
         </div>
-      </section>
+      </Reveal>
+
+      <div className="max-w-xl mx-auto px-6 py-8">
+        <NarrativeBeat>
+          {fr
+            ? 'À l\'arrivée, le moteur rend un verdict de démonstration.'
+            : 'In the end, the engine returns a demonstration verdict.'}
+        </NarrativeBeat>
+      </div>
 
       {/* ── VERDICT ──────────────────────────────────────────────────────────── */}
-      <section className="bg-surface py-14 px-6 border-y border-gray-100">
+      <Reveal as="section" className="bg-surface py-14 px-6 border-y border-gray-100">
         <div className="max-w-3xl mx-auto text-center">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
-            {fr ? 'Diagnostic de cohérence' : 'Coherence diagnostic'}
+            {fr ? 'Diagnostic de démonstration' : 'Demonstration diagnostic'}
           </p>
           <h2 className="text-2xl font-bold text-primary mb-8">
-            {fr ? 'Compatibilité entre revendication et structure de preuve' : 'Compatibility between claim and evidence structure'}
+            {fr ? 'La structure de preuve permet-elle de démontrer la revendication ?' : 'Does the evidence structure actually demonstrate the claim?'}
           </h2>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <AlignmentBadge
+            <Reveal delay={0} className="flex-1"><AlignmentBadge
               color="green"
-              label={fr ? 'Cohérent' : 'Coherent'}
+              label={fr ? 'Démonstration valide' : 'Valid demonstration'}
               sub={fr
-                ? 'La structure de preuve est compatible avec la revendication. Les principaux critères méthodologiques sont alignés.'
-                : 'The evidence structure is compatible with the claim. The main methodological criteria are aligned.'}
-            />
-            <AlignmentBadge
+                ? 'La structure de preuve permet une démonstration valide au niveau revendiqué. Les critères méthodologiques nécessaires sont réunis.'
+                : 'The evidence structure allows a valid demonstration at the claimed level. The necessary methodological criteria are met.'}
+            /></Reveal>
+            <Reveal delay={80} className="flex-1"><AlignmentBadge
               color="orange"
-              label={fr ? 'Partiellement cohérent' : 'Partially coherent'}
+              label={fr ? 'Démonstration partielle' : 'Partial demonstration'}
               sub={fr
                 ? 'Des écarts structurels existent mais peuvent être corrigés par ajustement de design sans refonte complète.'
                 : 'Structural gaps exist but can be corrected by design adjustment without a full redesign.'}
-            />
-            <AlignmentBadge
+            /></Reveal>
+            <Reveal delay={160} className="flex-1"><AlignmentBadge
               color="red"
-              label={fr ? 'Non cohérent' : 'Non-coherent'}
+              label={fr ? 'Démonstration non valide' : 'Invalid demonstration'}
               sub={fr
                 ? 'Le design ou les mesures ne permettent pas une inférence causale au niveau de la revendication formulée.'
                 : 'The design or measurements do not allow causal inference at the level of the formulated claim.'}
-            />
+            /></Reveal>
           </div>
         </div>
-      </section>
+      </Reveal>
+
+      <div className="max-w-xl mx-auto px-6 py-8">
+        <NarrativeBeat>
+          {fr
+            ? 'Voici, sur un cas concret, à quoi ressemble ce diagnostic.'
+            : 'Here is what that diagnosis looks like on a concrete case.'}
+        </NarrativeBeat>
+      </div>
 
       {/* ── EXEMPLE ──────────────────────────────────────────────────────────── */}
-      <section className="py-20 px-6 bg-white">
+      <Reveal as="section" className="py-20 px-6 bg-white">
         <div className="max-w-5xl mx-auto">
           <p className="text-center text-accent font-semibold text-sm uppercase tracking-widest mb-4">
             {fr ? 'Exemple concret' : 'Concrete example'}
           </p>
           <h2 className="text-3xl font-bold text-primary text-center mb-4">
-            {fr ? 'Décalage revendication ↔ preuve' : 'Claim ↔ evidence misalignment'}
+            {fr ? 'Décalage revendication ↔ preuve' : 'Claim ↔ evidence mismatch'}
           </h2>
 
           <div className="text-center mb-10">
@@ -446,11 +362,19 @@ export default function Landing() {
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
                 {fr ? 'Revendication' : 'Claim'}
               </p>
-              <p className="text-sm text-gray-700 italic">
+              <p className="text-sm text-gray-700 italic mb-3">
                 {fr
                   ? '"Le dispositif permet une détection précoce des événements critiques et améliore la prise en charge."'
                   : '"The device enables early detection of critical events and improves patient management."'}
               </p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">
+                  {fr ? 'Résultat' : 'Result'}
+                </span>
+                <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2.5 py-1 rounded-full">
+                  {fr ? 'Démonstration partielle' : 'Partial demonstration'}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -459,12 +383,12 @@ export default function Landing() {
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
               <div className="bg-gray-50 border-b border-gray-100 px-5 py-3">
                 <span className="font-semibold text-gray-700 text-sm">
-                  {fr ? 'Analyse EpiStrat — 3 écarts identifiés' : 'EpiStrat analysis — 3 gaps identified'}
+                  {fr ? 'Analyse EvidenceAble — 3 écarts identifiés' : 'EvidenceAble analysis — 3 gaps identified'}
                 </span>
               </div>
               <div className="divide-y divide-gray-50">
                 {exampleGaps.map((g, i) => (
-                  <div key={i} className="px-5 py-4">
+                  <Reveal key={i} delay={i * 80} className="px-5 py-4">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="bg-primary/10 text-primary text-xs font-bold px-2 py-0.5 rounded">
                         {fr ? `Écart ${i + 1}` : `Gap ${i + 1}`}
@@ -472,7 +396,7 @@ export default function Landing() {
                       <span className="text-xs text-gray-400 font-semibold uppercase tracking-wide">{g.label}</span>
                     </div>
                     <p className="text-sm text-gray-700 leading-relaxed">{g.desc}</p>
-                  </div>
+                  </Reveal>
                 ))}
               </div>
             </div>
@@ -497,25 +421,64 @@ export default function Landing() {
                       { effort: '🏗 New study', cls: 'bg-red-50 border-red-200 text-red-700', action: 'Reformulate endpoints to make them independent of the device', hint: 'Replace the device-generated endpoint with an independently adjudicated outcome.' },
                     ]
                 ).map((a, i) => (
-                  <div key={i}>
+                  <Reveal key={i} delay={i * 80}>
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${a.cls}`}>{a.effort}</span>
                     </div>
                     <p className="text-sm font-medium text-gray-800 mb-1">{a.action}</p>
                     <p className="text-xs text-gray-400 italic border-l-2 border-gray-200 pl-3 leading-relaxed">{a.hint}</p>
-                  </div>
+                  </Reveal>
                 ))}
               </div>
             </div>
           </div>
+
+          {/* Ce que vous gagnez */}
+          <div className="mt-12 bg-surface rounded-2xl border border-gray-100 p-8">
+            <h3 className="text-center font-bold text-gray-800 mb-6">
+              {fr ? 'Ce que vous gagnez' : 'What you gain'}
+            </h3>
+            <div className="grid sm:grid-cols-2 gap-5">
+              {(fr
+                ? [
+                    { title: 'Décider avant d\'investir dans une étude', desc: 'Évitez les impasses méthodologiques coûteuses.' },
+                    { title: 'Renforcer votre dossier avant soumission', desc: 'Anticipez les critiques structurelles.' },
+                    { title: 'Prioriser les actions qui comptent', desc: 'Un plan clair : immédiat, amendement ou nouvelle étude.' },
+                    { title: 'Gagner du temps avec les parties prenantes', desc: 'Arguments structurés et traçables.' },
+                  ]
+                : [
+                    { title: 'Decide before investing in a study', desc: 'Avoid costly methodological dead ends.' },
+                    { title: 'Strengthen your dossier before submission', desc: 'Anticipate structural critiques.' },
+                    { title: 'Prioritise the actions that matter', desc: 'A clear plan: immediate, amendment, or new study.' },
+                    { title: 'Save time with stakeholders', desc: 'Structured, traceable arguments.' },
+                  ]
+              ).map(({ title, desc }, i) => (
+                <Reveal key={i} delay={i * 80} className="flex items-start gap-3">
+                  <span className="text-accent font-bold mt-0.5 flex-shrink-0 text-lg">✓</span>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{title}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
+          </div>
         </div>
-      </section>
+      </Reveal>
+
+      <div className="max-w-xl mx-auto px-6 py-8">
+        <NarrativeBeat>
+          {fr
+            ? "Ce n'est pas un cas isolé — ce motif se retrouve à l'échelle du corpus réglementaire."
+            : 'This is not an isolated case — the pattern recurs across the regulatory corpus.'}
+        </NarrativeBeat>
+      </div>
 
       {/* ── VALIDATION DU CADRE ───────────────────────────────────────────────── */}
-      <section className="py-20 px-6 bg-surface border-y border-gray-100">
+      <Reveal as="section" className="py-20 px-6 bg-surface border-y border-gray-100">
         <div className="max-w-5xl mx-auto">
           <p className="text-center text-accent font-semibold text-sm uppercase tracking-widest mb-4">
-            {fr ? 'Validation du cadre' : 'Framework validation'}
+            {fr ? 'Validation empirique' : 'Empirical validation'}
           </p>
           <h2 className="text-3xl font-bold text-primary text-center mb-4">
             {fr
@@ -529,8 +492,8 @@ export default function Landing() {
           </p>
           <p className="text-center text-gray-400 text-xs mb-14 italic max-w-xl mx-auto">
             {fr
-              ? 'Ce cadre ne constitue pas une prédiction réglementaire. Il s\'agit d\'une modélisation des principes méthodologiques observés.'
-              : 'This framework does not constitute a regulatory prediction. It is a formalisation of observed methodological principles.'}
+              ? 'Ces règles ne constituent pas une prédiction réglementaire. Elles formalisent des principes méthodologiques observés.'
+              : 'These rules do not constitute a regulatory prediction. They formalise observed methodological principles.'}
           </p>
 
           <div className="grid md:grid-cols-3 gap-6">
@@ -547,8 +510,8 @@ export default function Landing() {
                     pattern: 'Dépendance des critères de jugement',
                     scale: 'Part significative des cas',
                     detail: 'Le critère principal est généré ou influencé par le dispositif évalué. L\'ascertainment de l\'outcome n\'est pas indépendant du bras de traitement.',
-                    quote: 'critère de jugement principal reposant sur une alerte générée par le dispositif lui-même',
-                    source: 'CNEDiMTS, 2022',
+                    quote: 'le critère de jugement principal […] est le nombre de fois où le dispositif détecte une augmentation de la température avant le patient',
+                    source: 'CNEDiMTS, 2023',
                   },
                   {
                     pattern: 'Insuffisance du design',
@@ -570,8 +533,8 @@ export default function Landing() {
                     pattern: 'Endpoint dependency',
                     scale: 'Significant proportion of cases',
                     detail: 'The primary endpoint is generated or influenced by the device under evaluation. Outcome ascertainment is not independent of the treatment arm.',
-                    quote: 'primary endpoint based on an alert generated by the device itself',
-                    source: 'CNEDiMTS, 2022',
+                    quote: 'the primary endpoint […] is the number of times the device detects a temperature rise before the patient does',
+                    source: 'CNEDiMTS, 2023',
                   },
                   {
                     pattern: 'Insufficient study design',
@@ -582,7 +545,7 @@ export default function Landing() {
                   },
                 ]
             ).map((item, i) => (
-              <div key={i} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+              <Reveal key={i} delay={i * 80} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                 <div className="inline-block bg-primary/8 text-primary text-xs font-bold px-3 py-1 rounded-full mb-3">
                   {item.scale}
                 </div>
@@ -592,135 +555,79 @@ export default function Landing() {
                   &laquo; {item.quote} &raquo;
                   <span className="block text-right text-gray-400 mt-1">— {item.source}</span>
                 </div>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
-      </section>
+      </Reveal>
 
-      {/* ── TARIFICATION ─────────────────────────────────────────────────────── */}
-      <section className="py-20 px-6 bg-white">
-        <div className="max-w-5xl mx-auto">
+      <div className="max-w-xl mx-auto px-6 py-8">
+        <NarrativeBeat>
+          {fr
+            ? "Cette validation n'est pas théorique — voici comment y accéder."
+            : "This validation isn't theoretical — here's how to access it."}
+        </NarrativeBeat>
+      </div>
+
+      {/* ── ACCÈS — phase de test ────────────────────────────────────────────── */}
+      <Reveal as="section" className="py-20 px-6 bg-white">
+        <div className="max-w-2xl mx-auto">
           <h2 className="text-3xl font-bold text-primary text-center mb-4">
-            {fr ? 'Tarifs' : 'Pricing'}
+            {fr ? 'Accès' : 'Access'}
           </h2>
-          <p className="text-center text-gray-500 mb-12 max-w-xl mx-auto text-sm">
+          <p className="text-center text-gray-500 mb-2 max-w-xl mx-auto text-sm">
             {fr
-              ? 'L\'analyse de revendication est gratuite. L\'analyse complète revendication × données cliniques est en accès Premium.'
-              : 'Claim analysis is free. Full claim × clinical evidence analysis requires Premium access.'}
+              ? 'EvidenceAble est en phase de test. Le Diagnostic Complet + Repair est gratuit, accessible sur demande avec un quota d\'analyses dédié.'
+              : 'EvidenceAble is in testing phase. Full Diagnosis + Repair is free, accessible on request with a dedicated analysis quota.'}
+          </p>
+          <p className="text-center text-gray-400 mb-12 max-w-xl mx-auto text-xs italic">
+            {fr
+              ? 'Offre limitée dans le temps et en nombre de demandes.'
+              : 'Limited-time offer, limited number of requests.'}
           </p>
 
-          <div className="grid md:grid-cols-3 gap-6">
-
-            {/* Free */}
-            <div className="bg-white rounded-2xl border-2 border-gray-100 p-7 shadow-sm">
-              <div className="mb-6">
-                <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
-                  {fr ? 'Analyse de revendication' : 'Claim analysis'}
-                </div>
-                <div className="text-4xl font-bold text-gray-900 mb-1">€0</div>
-                <div className="text-gray-500 text-sm">{fr ? 'Sans inscription' : 'No sign-up required'}</div>
-              </div>
-              <div className="bg-primary/5 rounded-xl p-4 mb-6">
-                <p className="text-sm text-primary font-medium">
-                  {fr
-                    ? 'Savoir en quelques secondes si une revendication est cohérente avec un cadre de preuve — avant de concevoir ou de sélectionner une source de données.'
-                    : 'Know in seconds whether a claim is consistent with an evidence framework — before designing or selecting a data source.'}
-                </p>
-              </div>
-              <ul className="space-y-2.5 mb-8">
-                {(fr
-                  ? ['Classification du niveau de revendication (A → D)', 'Analyse de la structure causale', 'Premiers points de fragilité']
-                  : ['Classification of claim level (A → D)', 'Causal structure analysis', 'Initial fragility points']
-                ).map((item, i) => (
-                  <li key={i} className="flex gap-2.5 text-sm text-gray-700">
-                    <span className="text-primary font-bold mt-0.5 flex-shrink-0">✓</span> {item}
-                  </li>
-                ))}
-              </ul>
-              <Link to="/review" className="block text-center bg-primary hover:bg-primary-light text-white px-6 py-3 rounded-xl font-semibold transition-colors">
-                {fr ? 'Tester ma revendication →' : 'Test my claim →'}
-              </Link>
+          <Reveal className="bg-white rounded-2xl border-2 border-dashed border-accent/40 p-8 shadow-sm text-center">
+            <div className="inline-block bg-accent/10 text-accent text-xs font-bold px-3 py-1.5 rounded-full mb-6">
+              {fr ? 'Phase de test' : 'Testing phase'}
             </div>
 
-            {/* 399 */}
-            <div className="bg-white rounded-2xl border-2 border-accent/30 p-7 shadow-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 bg-accent/10 text-accent text-xs font-bold px-3 py-1.5 rounded-bl-xl">
-                {fr ? 'À la carte' : 'Pay-per-use'}
+            <div className="mb-8 text-left max-w-sm mx-auto">
+              <div className="text-xs font-bold text-accent uppercase tracking-widest mb-3">
+                {fr ? 'Diag Complet + Repair' : 'Full Diag + Repair'}
               </div>
-              <div className="mb-6">
-                <div className="text-xs font-bold text-accent uppercase tracking-widest mb-2">
-                  {fr ? 'Analyse complète' : 'Full analysis'}
-                </div>
-                <div className="flex items-baseline gap-1 mb-1">
-                  <span className="text-4xl font-bold text-gray-900">€399</span>
-                  <span className="text-gray-500 text-sm">{fr ? '/ 3 rapports' : '/ 3 reports'}</span>
-                </div>
-                <div className="text-gray-400 text-xs">{fr ? '≈ 133 € par rapport' : '≈ €133 per report'}</div>
-              </div>
-              <div className="bg-accent/5 rounded-xl p-4 mb-6">
-                <p className="text-sm text-accent font-medium">
-                  {fr
-                    ? 'Savoir si un dossier de données est suffisant pour une revendication donnée — ou identifier les ajustements nécessaires avant de décider.'
-                    : 'Know whether a data dossier is sufficient for a given claim — or identify the adjustments needed before deciding.'}
-                </p>
-              </div>
-              <ul className="space-y-2.5 mb-8">
+              <ul className="space-y-2">
                 {(fr
-                  ? ['Analyse revendication + données cliniques (essai, cohorte, registre, RWE)', 'Détection des écarts méthodologiques par dimension', 'Plan de correction structuré et priorisé', 'Export PDF du rapport complet']
-                  : ['Claim + clinical data analysis (trial, cohort, registry, RWE)', 'Methodological gap detection by dimension', 'Structured and prioritised correction plan', 'Full report PDF export']
+                  ? ['Analyse revendication + données cliniques', 'Détection des écarts méthodologiques par dimension', 'Plan de correction structuré et priorisé', 'Export PDF du rapport complet']
+                  : ['Claim + clinical data analysis', 'Methodological gap detection by dimension', 'Structured and prioritised correction plan', 'Full report PDF export']
                 ).map((item, i) => (
-                  <li key={i} className="flex gap-2.5 text-sm text-gray-700">
+                  <li key={i} className="flex gap-2 text-sm text-gray-700">
                     <span className="text-accent font-bold mt-0.5 flex-shrink-0">✓</span> {item}
                   </li>
                 ))}
               </ul>
-              <Link to="/repair" className="block text-center bg-accent hover:bg-accent/90 text-white px-6 py-3 rounded-xl font-semibold transition-colors shadow-md shadow-accent/20">
-                {fr ? 'Analyser mes données →' : 'Analyse my evidence →'}
-              </Link>
             </div>
 
-            {/* 799 */}
-            <div className="bg-gradient-to-br from-primary to-primary-light rounded-2xl border-2 border-primary p-7 shadow-lg text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-bl-xl">
-                {fr ? 'Meilleure valeur' : 'Best value'}
-              </div>
-              <div className="mb-6">
-                <div className="text-xs font-bold text-white/60 uppercase tracking-widest mb-2">Pro</div>
-                <div className="flex items-baseline gap-1 mb-1">
-                  <span className="text-4xl font-bold">€799</span>
-                  <span className="text-white/70 text-sm">{fr ? '/ mois' : '/ month'}</span>
-                </div>
-                <div className="text-white/50 text-xs">{fr ? 'Analyses illimitées' : 'Unlimited analyses'}</div>
-              </div>
-              <div className="bg-white/10 rounded-xl p-4 mb-6">
-                <p className="text-sm text-white font-medium">
-                  {fr
-                    ? 'Travailler plusieurs dossiers en parallèle, avec historique des analyses et support méthodologique avancé.'
-                    : 'Work on multiple dossiers in parallel, with analysis history and advanced methodological support.'}
-                </p>
-              </div>
-              <ul className="space-y-2.5 mb-8">
-                {(fr
-                  ? ['Tout l\'Analyse complète inclus', 'Analyses illimitées', 'Suivi multi-dossiers en parallèle', 'Historique des analyses', 'Support méthodologique avancé']
-                  : ['Everything in Full Analysis included', 'Unlimited analyses', 'Multi-dossier parallel tracking', 'Analysis history', 'Advanced methodological support']
-                ).map((item, i) => (
-                  <li key={i} className="flex gap-2.5 text-sm text-white/90">
-                    <span className="text-accent font-bold mt-0.5 flex-shrink-0">✓</span> {item}
-                  </li>
-                ))}
-              </ul>
-              <a href="mailto:contact@epistrat.io" className="block text-center bg-white text-primary hover:bg-gray-50 px-6 py-3 rounded-xl font-semibold transition-colors">
-                {fr ? 'Contacter →' : 'Contact us →'}
-              </a>
-            </div>
-
-          </div>
+            <a
+              href={`mailto:olivier@evidenceable.com?subject=${encodeURIComponent(fr ? 'Demande d’accès test — EvidenceAble' : 'Test access request — EvidenceAble')}`}
+              className="inline-block text-center bg-accent hover:bg-accent/90 text-white px-8 py-3 rounded-xl font-semibold transition-colors shadow-md shadow-accent/20"
+            >
+              {fr ? 'Demander un accès gratuit →' : 'Request free access →'}
+            </a>
+            <p className="text-xs text-gray-400 mt-4">olivier@evidenceable.com</p>
+          </Reveal>
         </div>
-      </section>
+      </Reveal>
+
+      <div className="max-w-xl mx-auto px-6 py-8">
+        <NarrativeBeat>
+          {fr
+            ? 'Reste une chose à retenir avant de commencer.'
+            : 'One thing remains to keep in mind before you begin.'}
+        </NarrativeBeat>
+      </div>
 
       {/* ── CLOSING ──────────────────────────────────────────────────────────── */}
-      <section className="py-20 px-6 bg-gradient-to-br from-primary to-primary-light text-white">
+      <Reveal as="section" className="py-20 px-6 bg-gradient-to-br from-primary to-primary-light text-white">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-3xl font-bold mb-4">
             {fr
@@ -729,36 +636,66 @@ export default function Landing() {
           </h2>
           <p className="text-xl text-white/85 mb-6 leading-relaxed">
             {fr
-              ? 'Elles ne sont simplement pas alignées avec la revendication qu\'elles sont censées démontrer.'
-              : 'They are simply not aligned with the claim they are supposed to demonstrate.'}
+              ? 'Elles ne sont simplement pas conçues pour démontrer la revendication qu\'elles sont censées soutenir.'
+              : 'They are simply not designed to demonstrate the claim they are supposed to support.'}
           </p>
           <p className="text-white/60 mb-10 max-w-xl mx-auto text-sm leading-relaxed">
             {fr
-              ? 'EpiStrat structure cet alignement avant que le problème ne devienne un risque de design.'
-              : 'EpiStrat structures this alignment before the problem becomes a design risk.'}
+              ? 'EvidenceAble vérifie cette démonstration avant que le problème ne devienne un risque de design.'
+              : 'EvidenceAble verifies that demonstration before the problem becomes a design risk.'}
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
-            <Link
-              to="/review"
-              className="bg-white/15 hover:bg-white/25 text-white border border-white/20 px-8 py-3.5 rounded-xl font-semibold transition-colors backdrop-blur-sm text-left"
-            >
-              <span className="block">{fr ? 'Analyse rapide' : 'Quick analysis'}</span>
-              <span className="block text-xs text-white/60 font-normal mt-0.5">
-                {fr ? 'À partir de votre revendication' : 'From your claim'}
-              </span>
-            </Link>
             <Link
               to="/repair"
               className="bg-accent hover:bg-accent/90 text-white px-8 py-3.5 rounded-xl font-semibold transition-colors shadow-lg shadow-accent/30 text-left"
             >
-              <span className="block">{fr ? 'Analyse complète' : 'Full analysis'}</span>
+              <span className="block">{fr ? 'Diagnostic complet + Repair' : 'Full diagnosis + Repair'}</span>
               <span className="block text-xs text-white/60 font-normal mt-0.5">
                 {fr ? 'Revendication + données cliniques' : 'Claim + clinical data'}
               </span>
             </Link>
           </div>
         </div>
-      </section>
+      </Reveal>
+
+      {/* ── FINAL CTA BANNER ─────────────────────────────────────────────────── */}
+      <Reveal as="section" className="py-10 px-6 bg-primary/5">
+        <div className="max-w-5xl mx-auto bg-white rounded-2xl border border-primary/10 shadow-sm px-6 py-6 flex flex-col md:flex-row items-center gap-5 justify-between">
+          <div className="flex items-center gap-4 text-center md:text-left">
+            <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+              <RocketIcon className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="font-bold text-gray-800">
+                {fr
+                  ? 'Ne découvrez pas les limites de votre étude devant la HAS.'
+                  : "Don't discover your study's limits in front of the HAS."}
+              </p>
+              <p className="text-sm text-gray-500">
+                {fr
+                  ? 'Vérifiez la capacité de démonstration de votre stratégie, dès maintenant.'
+                  : "Check your evidence strategy's demonstration capacity, right now."}
+              </p>
+            </div>
+          </div>
+          <div className="text-center flex-shrink-0">
+            <Link
+              to="/repair"
+              className="inline-block bg-primary hover:bg-primary-light text-white px-6 py-3 rounded-xl font-semibold transition-colors"
+            >
+              {fr ? 'Analyser mes données →' : 'Analyse my evidence →'}
+            </Link>
+            <p className="text-xs text-gray-400 mt-2">
+              {fr ? 'Phase de test – Accès gratuit sur demande' : 'Testing phase – Free access on request'}
+            </p>
+          </div>
+        </div>
+        <p className="text-center text-xs text-gray-400 max-w-2xl mx-auto mt-8 leading-relaxed">
+          {fr
+            ? 'EvidenceAble n\'analyse pas les données brutes ni les résultats statistiques. Le moteur évalue la cohérence structurelle entre la revendication, les critères de jugement et le design d\'étude.'
+            : 'EvidenceAble does not analyse raw data or statistical results. The engine evaluates the structural coherence between the claim, the endpoints and the study design.'}
+        </p>
+      </Reveal>
 
     </div>
   )

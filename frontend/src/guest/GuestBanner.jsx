@@ -12,6 +12,7 @@ export default function GuestBanner() {
       token_expired:   fr ? 'Accès expiré.'                  : 'Access expired.',
       token_disabled:  fr ? 'Accès désactivé.'               : 'Access disabled.',
       quota_exhausted: fr ? 'Quota d\'analyses épuisé.'      : 'Analysis quota exhausted.',
+      token_required:  fr ? 'Accès sur demande.'             : 'Access on request.',
     }[error] || (fr ? 'Erreur d\'accès.' : 'Access error.')
     return (
       <div className="bg-red-50 border-b border-red-200 px-6 py-2 text-sm text-red-700 text-center print:hidden">

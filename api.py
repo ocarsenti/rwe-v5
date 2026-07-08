@@ -230,6 +230,7 @@ def smart_review_endpoint(req: SmartReviewRequest):
     output = result.to_dict()
     output = translate_engine_output(output, lang=req.lang)
     output["_parse_info"] = parse_info
+
     return output
 
 
@@ -602,11 +603,12 @@ async def diagnose_premium_endpoint(
     x_guest_token: Optional[str] = Header(None),
 ):
     """Premium endpoint: PDF abstract → full StudyObject → gaps + repair plan."""
-    # Guest token quota check
-    if x_guest_token:
-        ok, reason, _ = verify_token(x_guest_token)
-        if not ok:
-            raise HTTPException(status_code=403, detail=reason)
+    # Guest token required — testing phase, access granted manually with a quota
+    if not x_guest_token:
+        raise HTTPException(status_code=403, detail="token_required")
+    ok, reason, _ = verify_token(x_guest_token)
+    if not ok:
+        raise HTTPException(status_code=403, detail=reason)
 
     # 1. Parse claim text → ClinicalClaim
     full_text = claim_text.strip()
@@ -688,7 +690,6 @@ async def diagnose_premium_endpoint(
     except Exception:
         result["llm_summary"] = None
 
-    if x_guest_token:
-        consume_token(x_guest_token)
+    consume_token(x_guest_token)
 
     return result

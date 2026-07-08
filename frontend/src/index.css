@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #1e3a5f;
-  --color-primary-light: #2d5986;
-  --color-accent: #e67e22;
-  --color-accent-light: #f39c4f;
+  --color-primary: #14294f;
+  --color-primary-light: #556480;
+  --color-accent: #14a17e;
+  --color-accent-light: #55bba2;
   --color-success: #27ae60;
   --color-danger: #e74c3c;
   --color-warning: #f1c40f;
@@ -14,6 +14,16 @@
 
 html {
   scroll-behavior: smooth;
+}
+
+@keyframes intro-fade-scale {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes intro-fade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 body {

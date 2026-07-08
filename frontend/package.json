@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:domain": "vite build --base=/ --outDir=dist-domain",
     "lint": "oxlint",
     "preview": "vite preview"
   },

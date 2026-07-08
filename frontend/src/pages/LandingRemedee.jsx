@@ -120,8 +120,8 @@ export default function LandingRemedee() {
 
           <p className="text-lg text-white/85 mb-6 max-w-2xl mx-auto leading-relaxed">
             {fr
-              ? 'EpiStrat analyse la cohérence entre une revendication et les preuves qui la soutiennent. Il reconstruit la logique de la revendication, identifie le niveau de preuve qu\'elle implique, et applique des règles explicites de causalité et de validité de mesure.'
-              : 'EpiStrat analyses the coherence between a claim and the evidence supporting it. It reconstructs the logic of the claim, identifies the level of evidence it implies, and applies explicit rules of causality and measurement validity.'}
+              ? 'EvidenceAble analyse la cohérence entre une revendication et les preuves qui la soutiennent. Il reconstruit la logique de la revendication, identifie le niveau de preuve qu\'elle implique, et applique des règles explicites de causalité et de validité de mesure.'
+              : 'EvidenceAble analyses the coherence between a claim and the evidence supporting it. It reconstructs the logic of the claim, identifies the level of evidence it implies, and applies explicit rules of causality and measurement validity.'}
           </p>
 
           <div className="bg-white/10 backdrop-blur-sm rounded-xl px-6 py-4 mb-8 max-w-xl mx-auto border border-white/15">
@@ -207,7 +207,7 @@ export default function LandingRemedee() {
         </div>
       </section>
 
-      {/* ── CE QUE FAIT EPISTRAT ─────────────────────────────────────────────── */}
+      {/* ── CE QUE FAIT EvidenceAble ─────────────────────────────────────────────── */}
       <section className="py-20 px-6 bg-surface border-y border-gray-100">
         <div className="max-w-5xl mx-auto">
           <h2 className="text-3xl font-bold text-primary text-center mb-4">
@@ -217,8 +217,8 @@ export default function LandingRemedee() {
           </h2>
           <p className="text-center text-gray-500 mb-4 max-w-2xl mx-auto text-sm leading-relaxed">
             {fr
-              ? 'EpiStrat analyse la structure logique entre une revendication et un dossier de preuve — essai randomisé, cohorte, registre ou RWE. Il n\'interprète pas librement. Il applique un ensemble de règles explicites fondées sur des principes méthodologiques.'
-              : 'EpiStrat analyses the logical structure between a claim and an evidence dossier — randomised trial, cohort, registry or RWE. It does not interpret freely. It applies a set of explicit rules based on methodological principles.'}
+              ? 'EvidenceAble analyse la structure logique entre une revendication et un dossier de preuve — essai randomisé, cohorte, registre ou RWE. Il n\'interprète pas librement. Il applique un ensemble de règles explicites fondées sur des principes méthodologiques.'
+              : 'EvidenceAble analyses the logical structure between a claim and an evidence dossier — randomised trial, cohort, registry or RWE. It does not interpret freely. It applies a set of explicit rules based on methodological principles.'}
           </p>
           <p className="text-center text-gray-400 text-xs mb-12 italic">
             {fr
@@ -467,7 +467,7 @@ export default function LandingRemedee() {
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
               <div className="bg-gray-50 border-b border-gray-100 px-5 py-3">
                 <span className="font-semibold text-gray-700 text-sm">
-                  {fr ? 'Analyse EpiStrat — 3 écarts identifiés' : 'EpiStrat analysis — 3 gaps identified'}
+                  {fr ? 'Analyse EvidenceAble — 3 écarts identifiés' : 'EvidenceAble analysis — 3 gaps identified'}
                 </span>
               </div>
               <div className="divide-y divide-gray-50">
@@ -665,8 +665,8 @@ export default function LandingRemedee() {
           </p>
           <p className="text-white/60 mb-10 max-w-xl mx-auto text-sm leading-relaxed">
             {fr
-              ? 'EpiStrat structure cet alignement avant que le problème ne devienne un risque de design.'
-              : 'EpiStrat structures this alignment before the problem becomes a design risk.'}
+              ? 'EvidenceAble structure cet alignement avant que le problème ne devienne un risque de design.'
+              : 'EvidenceAble structures this alignment before the problem becomes a design risk.'}
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
             <Link

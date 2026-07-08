@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useLang } from '../LangContext'
 import { useGuest } from '../guest/GuestContext'
 import RadarChart from '../components/RadarChart'
+import AccessRequestCard from '../components/AccessRequestCard'
 import { CLAIM_LEVELS, CAUSAL_STRUCTURES, STUDY_DESIGNS, MANIFOLD_REGIONS, label, desc } from '../enumLabels'
 import { t } from '../i18n'
 
@@ -57,6 +58,8 @@ export default function RepairPage() {
   const fr = lang === 'fr'
   const [searchParams] = useSearchParams()
   const guest = useGuest()
+  // guest === null → route not gated (legacy/open). Otherwise require a valid, non-exhausted token.
+  const hasAccess = !guest || (guest.token && guest.quota && !guest.error && guest.quota.remaining > 0)
 
   const [claim, setClaim] = useState({
     text: searchParams.get('claim') || '',
@@ -146,7 +149,7 @@ export default function RepairPage() {
           <h1 className="text-3xl font-bold text-primary">
             {fr ? 'Diagnostic Complet' : 'Full Diagnostic'}
           </h1>
-          <span className="bg-accent text-white text-xs font-bold px-2.5 py-1 rounded-full">Premium</span>
+          <span className="bg-accent text-white text-xs font-bold px-2.5 py-1 rounded-full">{fr ? 'Sur demande' : 'On request'}</span>
         </div>
         <p className="text-gray-500 max-w-2xl">
           {fr
@@ -155,7 +158,20 @@ export default function RepairPage() {
         </p>
       </div>
 
+      {!hasAccess && (
+        <AccessRequestCard
+          fr={fr}
+          title={fr ? 'Accès sur demande — phase de test' : 'Access on request — testing phase'}
+          desc={fr
+            ? 'Le Diagnostic Complet + Repair est en phase de test et accessible gratuitement sur demande. Écrivez-moi et je vous envoie un accès avec un quota d’analyses dédié.'
+            : 'Full Diagnostic + Repair is in testing phase and free on request. Reach out and I’ll send you an access link with a dedicated analysis quota.'}
+          subject={fr ? 'Demande d’accès test — Diag Complet + Repair' : 'Test access request — Full Diag + Repair'}
+        />
+      )}
+
       {/* Form */}
+      {hasAccess && (
+      <>
       <div className="print:hidden grid lg:grid-cols-2 gap-6 mb-8">
         {/* Left: Claim */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
@@ -301,6 +317,8 @@ export default function RepairPage() {
           </p>
         )}
       </div>
+      </>
+      )}
 
       {error && (
         <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm print:hidden">
@@ -336,7 +354,7 @@ function DiagnosticResults({ result, lang }) {
           {fr ? 'Diagnostic de cohérence — Rapport complet' : 'Coherence Diagnostic — Full Report'}
         </h1>
         <p className="text-gray-500 text-sm mt-1">
-          EpiStrat · {new Date().toLocaleDateString('fr-FR')}
+          EvidenceAble · {new Date().toLocaleDateString('fr-FR')}
         </p>
         {parseInfo.intervention && (
           <p className="text-sm mt-1">
@@ -701,6 +719,7 @@ function DiagnosticResults({ result, lang }) {
     </div>
   )
 }
+
 
 function SummaryCard({ label, value, description }) {
   return (

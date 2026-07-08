@@ -16,6 +16,7 @@ from guest_store import (
     adjust_quota,
     get_analytics,
 )
+from visit_store import record_visit, get_visit_stats
 
 ADMIN_SECRET = os.getenv("ADMIN_SECRET", "rwe-admin-2024")
 
@@ -37,6 +38,16 @@ def verify(token: str):
         "remaining": guest["quota"] - guest["used"],
         "expires": guest["expires"],
     }
+
+
+class TrackVisitRequest(BaseModel):
+    path: str
+
+
+@guest_router.post("/track-visit")
+def track_visit(req: TrackVisitRequest):
+    record_visit(req.path[:200])
+    return {"ok": True}
 
 
 # ── Admin endpoints ──────────────────────────────────────────────────────────
@@ -95,3 +106,9 @@ def admin_adjust_quota(token: str, delta: int, x_admin_secret: Optional[str] = H
 def admin_analytics(x_admin_secret: Optional[str] = Header(None)):
     _check_admin(x_admin_secret)
     return get_analytics()
+
+
+@admin_router.get("/admin/visit-stats")
+def admin_visit_stats(x_admin_secret: Optional[str] = Header(None)):
+    _check_admin(x_admin_secret)
+    return get_visit_stats()

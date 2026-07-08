@@ -2,6 +2,18 @@ import { useState, useEffect } from 'react'
 
 const ADMIN_SECRET = 'rwe-admin-2024'
 
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, '')
+const SURFACE_PATHS = {
+  main: `${BASE}/repair`,
+  odysight: `${BASE}/odysight`,
+  remedee: `${BASE}/remedee`,
+}
+const SURFACE_LABELS = {
+  main: 'Site principal',
+  odysight: 'Odysight',
+  remedee: 'Remedee',
+}
+
 function api(path, opts = {}) {
   return fetch(path, {
     headers: { 'x-admin-secret': ADMIN_SECRET, 'Content-Type': 'application/json', ...opts.headers },
@@ -14,8 +26,11 @@ export default function AdminPage() {
   const [pwd, setPwd] = useState('')
   const [guests, setGuests] = useState([])
   const [analytics, setAnalytics] = useState([])
+  const [visitStats, setVisitStats] = useState(null)
   const [tab, setTab] = useState('guests')
   const [form, setForm] = useState({ name: '', email: '', quota: 10, days_valid: 30, note: '' })
+  const [surface, setSurface] = useState('main')
+  const [rowSurface, setRowSurface] = useState({})
   const [created, setCreated] = useState(null)
   const [loading, setLoading] = useState(false)
 
@@ -27,6 +42,7 @@ export default function AdminPage() {
   const load = () => {
     api('/api/admin/guests').then(setGuests)
     api('/api/admin/analytics').then(setAnalytics)
+    api('/api/admin/visit-stats').then(setVisitStats)
   }
 
   useEffect(() => { if (authed) load() }, [authed])
@@ -37,7 +53,7 @@ export default function AdminPage() {
       method: 'POST',
       body: JSON.stringify({ ...form, quota: Number(form.quota), days_valid: Number(form.days_valid) }),
     })
-    setCreated(g)
+    setCreated({ ...g, surface })
     setForm({ name: '', email: '', quota: 10, days_valid: 30, note: '' })
     load()
     setLoading(false)
@@ -53,10 +69,10 @@ export default function AdminPage() {
     load()
   }
 
-  const demoUrl = (token) => `${window.location.origin}/odysight?token=${token}`
+  const demoUrl = (token, surf = 'main') => `${window.location.origin}${SURFACE_PATHS[surf] || SURFACE_PATHS.main}?token=${token}`
 
-  const copyLink = (token) => {
-    const url = demoUrl(token)
+  const copyLink = (token, surf = 'main') => {
+    const url = demoUrl(token, surf)
     if (navigator.clipboard) {
       navigator.clipboard.writeText(url).then(() => alert('Lien copié !')).catch(() => fallbackCopy(url))
     } else {
@@ -80,7 +96,7 @@ export default function AdminPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 w-full max-w-sm">
-          <h1 className="text-xl font-bold text-gray-900 mb-6">Admin EpiStrat</h1>
+          <h1 className="text-xl font-bold text-gray-900 mb-6">Admin EvidenceAble</h1>
           <input
             type="password"
             value={pwd}
@@ -109,9 +125,9 @@ export default function AdminPage() {
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Admin EpiStrat</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Admin EvidenceAble</h1>
           <div className="flex gap-2">
-            {['guests', 'create', 'analytics'].map((t) => (
+            {['guests', 'create', 'visits', 'analytics'].map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -119,7 +135,7 @@ export default function AdminPage() {
                   tab === t ? 'bg-primary text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
                 }`}
               >
-                {{ guests: 'Accès', create: 'Créer', analytics: 'Analytics' }[t]}
+                {{ guests: 'Accès', create: 'Créer', visits: 'Visites', analytics: 'Analytics' }[t]}
               </button>
             ))}
           </div>
@@ -182,8 +198,17 @@ export default function AdminPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
+                          <select
+                            value={rowSurface[g.token] || 'main'}
+                            onChange={(e) => setRowSurface({ ...rowSurface, [g.token]: e.target.value })}
+                            className="text-xs border border-gray-200 rounded px-1 py-0.5 text-gray-600"
+                          >
+                            {Object.entries(SURFACE_LABELS).map(([key, label]) => (
+                              <option key={key} value={key}>{label}</option>
+                            ))}
+                          </select>
                           <button
-                            onClick={() => copyLink(g.token)}
+                            onClick={() => copyLink(g.token, rowSurface[g.token] || 'main')}
                             className="text-primary text-xs font-medium hover:underline"
                           >
                             Copier lien
@@ -244,6 +269,18 @@ export default function AdminPage() {
                   />
                 </div>
               </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Destination du lien</label>
+                <select
+                  value={surface}
+                  onChange={(e) => setSurface(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  {Object.entries(SURFACE_LABELS).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
               <button
                 onClick={createGuest}
                 disabled={!form.name || loading}
@@ -257,20 +294,85 @@ export default function AdminPage() {
               <div className="mt-6 bg-green-50 border border-green-200 rounded-xl p-4">
                 <p className="text-sm font-semibold text-green-800 mb-2">Accès créé — {created.name}</p>
                 <p className="text-xs text-gray-500 mb-1">Token : <code className="font-mono">{created.token}</code></p>
+                <p className="text-xs text-gray-500 mb-1">Destination : {SURFACE_LABELS[created.surface] || SURFACE_LABELS.main}</p>
                 <div className="flex items-center gap-2 mt-2">
                   <input
                     readOnly
-                    value={demoUrl(created.token)}
+                    value={demoUrl(created.token, created.surface)}
                     className="flex-1 text-xs border border-gray-200 rounded-lg px-3 py-1.5 font-mono bg-white"
                   />
                   <button
-                    onClick={() => copyLink(created.token)}
+                    onClick={() => copyLink(created.token, created.surface)}
                     className="text-xs bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90"
                   >
                     Copier
                   </button>
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'visits' && (
+          <div className="space-y-6">
+            {!visitStats ? (
+              <div className="text-gray-400 text-sm">Chargement…</div>
+            ) : (
+              <>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                    <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Vues totales</div>
+                    <div className="text-3xl font-bold text-gray-900">{visitStats.total}</div>
+                  </div>
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                    <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Aujourd'hui</div>
+                    <div className="text-3xl font-bold text-gray-900">{visitStats.today}</div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-50">
+                    <h2 className="font-semibold text-gray-900">Vues par page</h2>
+                  </div>
+                  <div className="divide-y divide-gray-50">
+                    {Object.entries(visitStats.by_path).map(([path, count]) => (
+                      <div key={path} className="px-6 py-3 flex items-center justify-between text-sm">
+                        <span className="font-mono text-gray-600">{path}</span>
+                        <span className="font-bold text-gray-900">{count}</span>
+                      </div>
+                    ))}
+                    {Object.keys(visitStats.by_path).length === 0 && (
+                      <div className="px-6 py-8 text-center text-gray-400 text-sm">Aucune vue enregistrée</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                  <h2 className="font-semibold text-gray-900 mb-4">14 derniers jours</h2>
+                  {visitStats.by_day.length === 0 ? (
+                    <div className="text-center text-gray-400 text-sm py-4">Aucune donnée</div>
+                  ) : (
+                    <div className="flex items-end gap-2 h-32">
+                      {visitStats.by_day.map(({ date, count }) => {
+                        const max = Math.max(...visitStats.by_day.map((d) => d.count), 1)
+                        return (
+                          <div key={date} className="flex-1 flex flex-col items-center gap-1">
+                            <div
+                              className="w-full bg-accent/70 rounded-t"
+                              style={{ height: `${Math.max(4, (count / max) * 96)}px` }}
+                              title={`${date} : ${count}`}
+                            />
+                            <span className="text-[9px] text-gray-400 rotate-0">{date.slice(5)}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 italic">
+                  Compteur de vues de page (pas de visiteurs uniques) — chaque navigation compte, y compris les rechargements.
+                </p>
+              </>
             )}
           </div>
         )}
