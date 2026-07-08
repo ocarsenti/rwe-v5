@@ -3704,6 +3704,27 @@ class TestStudyObject(unittest.TestCase):
         device_gaps = [g for g in report.gaps if g.dimension == "device"]
         self.assertEqual(device_gaps[0].severity, "MEDIUM")
 
+    def test_compare_proxy_device_high_gap(self):
+        """PROXY_DEVICE (other manufacturer, analogous device) must NOT be scored
+        like SAME_FAMILY. Cf. avis CNEDiMTS 7425 (SCEWO BRO / TOPCHAIR-S, different
+        manufacturer, rejected — SA insuffisant) and avis INCEPTIV (Medtronic), which
+        bridges freely from its own predecessor INTELLIS (SAME_FAMILY) but explicitly
+        refuses to extrapolate from EVOKE (Saluda, PROXY_DEVICE) despite the same
+        closed-loop mechanism."""
+        from study_object import compare_claim_to_study
+        study = self._make_study(
+            device_alignment=DeviceAlignment(
+                device_match_type=DeviceMatchType.PROXY_DEVICE,
+                device_description_claim="SCEWO BRO",
+                device_description_study="TOPCHAIR-S",
+                justification="autre fabricant, dispositif analogue mais non extrapolable",
+            ),
+        )
+        report = compare_claim_to_study(self._make_claim(), study)
+        device_gaps = [g for g in report.gaps if g.dimension == "device"]
+        self.assertEqual(len(device_gaps), 1)
+        self.assertEqual(device_gaps[0].severity, "HIGH")
+
     def test_compare_no_comparator_high_gap_c_claim(self):
         from study_object import compare_claim_to_study
         study = self._make_study(has_comparator=False)
@@ -4073,6 +4094,24 @@ class TestGapRepairEngine(unittest.TestCase):
         types = [a.repair_type for a in plan.actions]
         self.assertIn(GapRepairType.BRIDGING_STUDY, types)
         self.assertIn(GapRepairType.CLAIM_RESTRICTION, types)
+
+    def test_device_proxy_device_high_blocking(self):
+        """PROXY_DEVICE (analogous device, other manufacturer) must NOT route to
+        BRIDGING_STUDY like SAME_FAMILY — HAS treats it as effectively no evidence
+        (cf. SCEWO BRO avis 7425, INCEPTIV/EVOKE) : a dedicated study is required,
+        and the original claim is not repairable by amendment alone."""
+        claim = self._c_claim()
+        gaps = [_gap("device", "HIGH", "Dispositif étudié (TOPCHAIR-S) ≠ dispositif revendiqué (SCEWO BRO). Autre fabricant.")]
+        report = _make_comparison_report(gaps, OverallRisk.HIGH)
+        plan = repair_comparison(report, claim)
+        self.assertEqual(len(plan.non_repairable_gaps), 1)
+        self.assertFalse(plan.is_fully_repairable)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.STUDY_COMMISSION, types)
+        self.assertIn(GapRepairType.CLAIM_RESTRICTION, types)
+        self.assertNotIn(GapRepairType.BRIDGING_STUDY, types)
+        study_commission = [a for a in plan.actions if a.repair_type == GapRepairType.STUDY_COMMISSION]
+        self.assertEqual(study_commission[0].effort, GapRepairEffort.HIGH)
 
     def test_device_claim_restriction_low_effort(self):
         claim = self._c_claim()

@@ -363,7 +363,7 @@ def _device_gap(alignment: DeviceAlignment, study: StudyObject) -> ClaimStudyGap
         return None
     severity_map = {
         DeviceMatchType.SAME_FAMILY: "MEDIUM",
-        DeviceMatchType.PROXY_DEVICE: "MEDIUM",
+        DeviceMatchType.PROXY_DEVICE: "HIGH",
         DeviceMatchType.DIFFERENT_DEVICE: "CRITICAL",
         DeviceMatchType.UNKNOWN: "MEDIUM",
     }
@@ -374,6 +374,23 @@ def _device_gap(alignment: DeviceAlignment, study: StudyObject) -> ClaimStudyGap
             "caractéristiques d'utilisation peuvent différer de façon cliniquement significative. "
             "Des données démontrant l'équivalence de performance (banc d'essai + données cliniques "
             "comparatives) sont requises pour établir la transposabilité."
+        ),
+        # PROXY_DEVICE — a *different manufacturer's* device in the same functional
+        # category, not a generation of the claimed device's own product line. HAS
+        # treats this materially worse than SAME_FAMILY: cf. avis INCEPTIV (Medtronic),
+        # which extrapolates freely from its own predecessor INTELLIS (SAME_FAMILY,
+        # accepted) but explicitly refuses to extrapolate from EVOKE (Saluda,
+        # PROXY_DEVICE) despite EVOKE being "le seul autre stimulateur médullaire"
+        # with the same closed-loop mechanism — and cf. SCEWO BRO (avis 7425),
+        # rejected outright (SA insuffisant) for relying solely on TOPCHAIR-S
+        # (different manufacturer) with no device-specific data of its own.
+        "HIGH": (
+            "Le dispositif étudié n'est pas une génération ou variante du dispositif "
+            "revendiqué, mais un dispositif distinct d'un autre fabricant, seulement "
+            "analogue par sa catégorie fonctionnelle ou son mécanisme. HAS ne traite pas "
+            "ce cas comme une passerelle intra-produit : sans donnée clinique propre au "
+            "dispositif revendiqué, l'intérêt thérapeutique ne peut être établi, quelle "
+            "que soit la similarité fonctionnelle apparente avec le dispositif analogue."
         ),
         "CRITICAL": (
             "La preuve générée sur un dispositif ne peut être directement transposée à un "

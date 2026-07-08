@@ -220,6 +220,46 @@ def _repair_device_gap(
         ))
         is_blocking = True
 
+    elif gap.severity == "HIGH":
+        # PROXY_DEVICE — dispositif analogue d'un autre fabricant, pas une génération
+        # du dispositif revendiqué. Cf. avis INCEPTIV (Medtronic) : bridging accepté
+        # depuis INTELLIS (même fabricant) mais extrapolation refusée depuis EVOKE
+        # (Saluda, même mécanisme boucle fermée) ; SCEWO BRO (avis 7425) rejeté (SA
+        # insuffisant) faute de donnée propre, malgré un comparateur analogue
+        # (TOPCHAIR-S). Une étude technique de "bridging" entre fabricants n'a pas de
+        # valeur probante pour HAS : seule une étude dédiée au dispositif revendiqué,
+        # ou une restriction de la revendication, est recevable.
+        actions.append(GapRepairAction(
+            gap_dimension="device",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.STUDY_COMMISSION,
+            description="Commanditer une étude clinique spécifique au dispositif revendiqué",
+            specific_suggestion=(
+                f"Le dispositif étudié provient d'un autre fabricant que '{claim.intervention}' "
+                "et n'en est pas une génération, malgré une similarité fonctionnelle apparente. "
+                "Aucune étude de bridging technique entre fabricants n'est recevable ici : il "
+                "faut une étude clinique dédiée (ou a minima une cohorte prospective) spécifique "
+                f"à '{claim.intervention}'."
+            ),
+            effort=GapRepairEffort.HIGH,
+            removes_risk=["mismatch dispositif", "extrapolation inter-fabricants"],
+        ))
+        actions.append(GapRepairAction(
+            gap_dimension="device",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.CLAIM_RESTRICTION,
+            description="Restreindre la revendication au dispositif réellement étudié",
+            specific_suggestion=(
+                "Alternative immédiate : reformuler la revendication pour couvrir "
+                "uniquement le dispositif analogue testé (référence exacte du fabricant "
+                f"tiers), en retirant '{claim.intervention}' du champ de la claim tant "
+                "qu'aucune donnée propre n'est disponible."
+            ),
+            effort=GapRepairEffort.LOW,
+            removes_risk=["mismatch dispositif"],
+        ))
+        is_blocking = True
+
     else:
         # SAME_FAMILY — même famille, génération différente
         actions.append(GapRepairAction(
