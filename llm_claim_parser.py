@@ -92,6 +92,7 @@ def parse_claim_with_llm(claim_text: str, lang: str = "fr") -> ClinicalClaim:
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=2048,
+        temperature=0,
         system=SYSTEM_PROMPT + lang_instruction,
         messages=[
             {"role": "user", "content": USER_TEMPLATE.format(claim_text=claim_text)},

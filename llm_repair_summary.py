@@ -89,6 +89,7 @@ Write only the summary, no title, no bullet points, continuous prose."""
     response = _get_client().messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=400,
+        temperature=0,
         messages=[{"role": "user", "content": prompt}],
     )
     return response.content[0].text.strip()

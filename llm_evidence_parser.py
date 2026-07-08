@@ -290,6 +290,7 @@ def parse_study_with_llm(
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=4096,
+        temperature=0,
         system=_SYSTEM_PROMPT,
         messages=[{
             "role": "user",
@@ -735,6 +736,7 @@ def parse_study_object_with_llm(
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=4096,
+        temperature=0,
         system=_SYSTEM_PROMPT_FULL,
         messages=[{
             "role": "user",
