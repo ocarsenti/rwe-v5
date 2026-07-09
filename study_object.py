@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
+from endpoint_classifier import is_known_validated_surrogate
 from models import (
     BiasFlag,
     CausalRole,
@@ -799,6 +800,28 @@ def _endpoint_gaps(
                         ),
                     ))
                 else:
+                    _has_known_surrogate = any(
+                        not getattr(ep, "is_validated_surrogate", False)
+                        and is_known_validated_surrogate(ep)
+                        for ep in _primary_eps
+                    )
+                    _critique = (
+                        "Un surrogate non formellement validé par FDA/EMA/HAS dans cette "
+                        "indication ne peut être présupposé prédictif du bénéfice clinique : "
+                        "la corrélation surrogate→outcome doit être démontrée par des essais "
+                        "randomisés dans l'indication précise. En l'absence de cette "
+                        "validation, le lien causal entre amélioration du surrogate et "
+                        "bénéfice patient reste une hypothèse non démontrée."
+                    )
+                    if _has_known_surrogate:
+                        _critique += (
+                            " Ce critère évoque un surrogate largement documenté dans la "
+                            "littérature (ex. HbA1c, LDL-C, pression artérielle) : si sa "
+                            "validation est établie pour cette indication et cette "
+                            "population précises, renseigner is_validated_surrogate=True "
+                            "sur l'endpoint plutôt que de laisser ce flag manuel non coché "
+                            "par défaut."
+                        )
                     gaps.append(ClaimStudyGap(
                         dimension="endpoint",
                         severity="HIGH",
@@ -806,14 +829,7 @@ def _endpoint_gaps(
                             "Critère principal = surrogate non validé réglementairement "
                             "dans cette indication."
                         ),
-                        has_critique=(
-                            "Un surrogate non formellement validé par FDA/EMA/HAS dans cette "
-                            "indication ne peut être présupposé prédictif du bénéfice clinique : "
-                            "la corrélation surrogate→outcome doit être démontrée par des essais "
-                            "randomisés dans l'indication précise. En l'absence de cette "
-                            "validation, le lien causal entre amélioration du surrogate et "
-                            "bénéfice patient reste une hypothèse non démontrée."
-                        ),
+                        has_critique=_critique,
                     ))
             elif bd.flag == BiasFlag.DETECTION_BIAS:
                 gaps.append(ClaimStudyGap(

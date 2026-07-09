@@ -34,6 +34,18 @@ ALL_CAUSE_DEATH_MARKERS = [
     "mortalité toutes causes", "décès toutes causes", "toutes causes de décès",
 ]
 
+# Surrogates dont la validation clinique/réglementaire est établie de longue date
+# dans leur indication usuelle (ex. HbA1c pour le diabète, LDL-C et pression
+# artérielle pour le risque cardiovasculaire). Ne suppriment PAS SURROGATE_RISK —
+# la validation reste conditionnée à endpoint.is_validated_surrogate — mais servent
+# à enrichir le message (cf. study_object._endpoint_gaps) pour orienter le reviewer
+# vers ce flag manuel plutôt que de le laisser deviner.
+KNOWN_VALIDATED_SURROGATE_MARKERS = [
+    "hba1c", "ldl-c", "ldl cholesterol", "ldl cholestérol",
+    "blood pressure", "pression artérielle",
+    "hémoglobine glyquée", "hemoglobine glyquee",
+]
+
 INSTRUMENTED_MARKERS = [
     "time-to-detection", "alert", "device-generated", "monitoring",
     "sensor", "automated", "ai-generated", "algorithm", "app-reported",
@@ -62,6 +74,14 @@ def _marker_pattern(marker: str) -> re.Pattern[str]:
 
 def _any_marker(markers: list[str], text: str) -> bool:
     return any(_marker_pattern(marker).search(text) for marker in markers)
+
+
+def is_known_validated_surrogate(endpoint: Endpoint) -> bool:
+    """Whether the endpoint name/description matches a well-established surrogate
+    (HbA1c, LDL-C, blood pressure...). Informational only — does not suppress
+    SURROGATE_RISK, which still requires endpoint.is_validated_surrogate."""
+    text = f"{endpoint.name} {endpoint.description}".lower()
+    return _any_marker(KNOWN_VALIDATED_SURROGATE_MARKERS, text)
 
 
 def _match_nature(endpoint: Endpoint) -> EndpointNature:
