@@ -2592,6 +2592,36 @@ class TestCASFullEvaluation(unittest.TestCase):
         org_risks = [r for r in result.risks if "organizational" in r.description.lower()]
         self.assertGreater(len(org_risks), 0)
 
+    def test_care_pathway_partial_adds_moderate_risk(self):
+        # cf. avis CNEDiMTS CONTINUUM CONNECT / SCEWO BRO 7425: even with
+        # context_match_type=SAME_HEALTHCARE_SYSTEM (d_context=0), a partially
+        # matching care pathway is a real, HAS-cited transposability concern
+        # (T09) that must not be silently dropped just because it isn't NO.
+        result = evaluate_cas(
+            "Claim", "DM", "domain",
+            _make_device(DeviceMatchType.EXACT_DEVICE),
+            _make_population(PopulationMatchType.EXACT_INDICATION),
+            _make_context(ContextMatchType.SAME_HEALTHCARE_SYSTEM,
+                         CarePathwayMatch.PARTIAL, OrganizationDependency.LOW, "France"),
+        )
+        pathway_risks = [r for r in result.risks
+                          if r.dimension == "CONTEXT" and "pathway" in r.description.lower()]
+        self.assertEqual(len(pathway_risks), 1)
+        self.assertEqual(pathway_risks[0].risk_level, "MODERATE")
+
+    def test_care_pathway_yes_adds_no_risk(self):
+        result = evaluate_cas(
+            "Claim", "DM", "domain",
+            _make_device(DeviceMatchType.EXACT_DEVICE),
+            _make_population(PopulationMatchType.EXACT_INDICATION),
+            _make_context(ContextMatchType.SAME_HEALTHCARE_SYSTEM,
+                         CarePathwayMatch.YES, OrganizationDependency.MEDIUM, "France"),
+        )
+        # cf. IMPLICITY IM009 (CNEDiMTS validation case #11): org_dependency=MEDIUM
+        # alone, with a fully matching pathway, is NOT a HAS-cited concern —
+        # confirms org_dependency stays HIGH-only and isn't loosened alongside pathway.
+        self.assertEqual(len(result.risks), 0)
+
 
 class TestCASDistanceTables(unittest.TestCase):
 

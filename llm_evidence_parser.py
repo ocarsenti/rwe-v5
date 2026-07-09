@@ -579,6 +579,17 @@ Par défaut : false.
 Comparer l'étude au dispositif et à l'indication revendiqués (fournis dans le message utilisateur).
 
 device_match_type : EXACT_DEVICE | SAME_FAMILY | PROXY_DEVICE | DIFFERENT_DEVICE | UNKNOWN
+- "EXACT_DEVICE" : le dispositif étudié est exactement le dispositif revendiqué
+- "SAME_FAMILY" : même famille (ex: COREVALVE EVOLUT R étudié, NAVITOR revendiqué)
+- "PROXY_DEVICE" : dispositif similaire mais différent (ex: autre CGM étudié, FreeStyle revendiqué)
+- "DIFFERENT_DEVICE" : dispositif fondamentalement différent
+IMPORTANT — cohérence avec justification : si la preuve clinique déterminante (l'étude
+pivot citée pour l'efficacité) porte en réalité sur un dispositif différent du dispositif
+nommément revendiqué — même si un dispositif "identique" est mentionné ailleurs dans le
+texte — classe EXACT_DEVICE est interdit ; utilise PROXY_DEVICE ou SAME_FAMILY selon le
+degré de similarité, et explique ce transfert de preuve dans la justification (ex: SCEWO
+BRO revendiqué, preuve clinique pivot = TOPCHAIR-S, dispositif différent → PROXY_DEVICE,
+pas EXACT_DEVICE).
 population_match_type : EXACT_INDICATION | NARROWER_SUBGROUP | BROADER_POPULATION | DIFFERENT_POPULATION | UNKNOWN
 eligibility_shift : NONE | MINOR | MAJOR
 context_match_type : SAME_HEALTHCARE_SYSTEM | PARTIALLY_COMPARABLE | DIFFERENT_SYSTEM | UNKNOWN

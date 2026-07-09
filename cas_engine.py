@@ -148,6 +148,13 @@ def identify_risks(
             risk_level="HIGH",
             description="Study care pathway does not match the target healthcare system pathway.",
         ))
+    elif context.care_pathway_match == CarePathwayMatch.PARTIAL:
+        risks.append(CASRisk(
+            dimension="CONTEXT",
+            risk_level="MODERATE",
+            description="Study care pathway only partially matches the target healthcare system "
+                        "pathway. Extrapolation may be limited.",
+        ))
 
     if context.organization_dependency == OrganizationDependency.HIGH:
         risks.append(CASRisk(
