@@ -68,6 +68,13 @@ def _match_nature(endpoint: Endpoint) -> EndpointNature:
     """Determine endpoint nature from name + description."""
     text = f"{endpoint.name} {endpoint.description}".lower()
 
+    # INSTRUMENTED checked first: it flags a collection-method concern (the
+    # endpoint is captured via a device/algorithm/monitoring tied to the
+    # intervention), which _match_causal_role escalates to CausalRole.CIRCULAR
+    # (detection/surveillance bias). That causal-validity risk applies
+    # regardless of whether the underlying content is subjective or objective
+    # (e.g. "digital biomarker" also matches OBJECTIVE's "biomarker"), so it
+    # must win over the content-based SUBJECTIVE/OBJECTIVE classification.
     if _any_marker(INSTRUMENTED_MARKERS, text):
         return EndpointNature.INSTRUMENTED
 
