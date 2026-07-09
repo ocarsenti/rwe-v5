@@ -136,6 +136,14 @@ def _detect_endpoint_flags(
     if role == CausalRole.CIRCULAR and endpoint.is_primary:
         flags.append(BiasFlag.CIRCULARITY_RISK)
 
+    # DETECTION_BIAS is checked independently of role/nature (unlike the flags
+    # below): it flags an ascertainment-mechanism concern (how the outcome is
+    # measured), which is orthogonal to CIRCULARITY_RISK/SURROGATE_RISK (what
+    # the endpoint's causal role means). It can therefore co-fire with either —
+    # this is intentional, not a duplicate: an endpoint can simultaneously be
+    # detected via a device-tied mechanism AND be an unvalidated surrogate.
+    # (Downstream, both land as HIGH severity gaps; be aware this can push
+    # _compute_overall_risk to CRITICAL off a single endpoint's dual labeling.)
     detection_markers = [
         "time-to-detection", "alert-based", "monitoring-triggered",
         "detection", "time-to-treatment",
