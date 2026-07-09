@@ -557,6 +557,10 @@ class EndpointAnalysis:
     nature: EndpointNature
     causal_role: CausalRole
     flags: list[BiasFlag] = field(default_factory=list)
+    # Traçabilité de la décision : marqueur exact (ou raison) qui a déterminé
+    # `nature`, et pour chaque flag de `flags` le marqueur/raison qui l'a déclenché.
+    nature_reason: Optional[str] = None
+    flag_reasons: dict[BiasFlag, str] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -725,6 +729,8 @@ class EngineOutput:
                     "nature": ea.nature.value,
                     "causal_role": ea.causal_role.value,
                     "flags": [f.value for f in ea.flags],
+                    "nature_reason": ea.nature_reason,
+                    "flag_reasons": {f.value: r for f, r in ea.flag_reasons.items()},
                 }
                 for ea in self.endpoint_analysis
             ],

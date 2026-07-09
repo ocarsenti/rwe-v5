@@ -72,8 +72,16 @@ def _marker_pattern(marker: str) -> re.Pattern[str]:
     return re.compile(rf"\b{re.escape(marker)}\b")
 
 
+def _first_marker_match(markers: list[str], text: str) -> str | None:
+    """Return the first marker (in list order) that matches text, or None."""
+    for marker in markers:
+        if _marker_pattern(marker).search(text):
+            return marker
+    return None
+
+
 def _any_marker(markers: list[str], text: str) -> bool:
-    return any(_marker_pattern(marker).search(text) for marker in markers)
+    return _first_marker_match(markers, text) is not None
 
 
 def is_known_validated_surrogate(endpoint: Endpoint) -> bool:
@@ -84,8 +92,12 @@ def is_known_validated_surrogate(endpoint: Endpoint) -> bool:
     return _any_marker(KNOWN_VALIDATED_SURROGATE_MARKERS, text)
 
 
-def _match_nature(endpoint: Endpoint) -> EndpointNature:
-    """Determine endpoint nature from name + description."""
+def _match_nature(endpoint: Endpoint) -> tuple[EndpointNature, str]:
+    """Determine endpoint nature from name + description.
+
+    Returns (nature, reason) where reason names the exact marker that decided
+    it, for decision traceability.
+    """
     text = f"{endpoint.name} {endpoint.description}".lower()
 
     # INSTRUMENTED checked first: it flags a collection-method concern (the
@@ -95,16 +107,19 @@ def _match_nature(endpoint: Endpoint) -> EndpointNature:
     # regardless of whether the underlying content is subjective or objective
     # (e.g. "digital biomarker" also matches OBJECTIVE's "biomarker"), so it
     # must win over the content-based SUBJECTIVE/OBJECTIVE classification.
-    if _any_marker(INSTRUMENTED_MARKERS, text):
-        return EndpointNature.INSTRUMENTED
+    marker = _first_marker_match(INSTRUMENTED_MARKERS, text)
+    if marker:
+        return EndpointNature.INSTRUMENTED, f"matched INSTRUMENTED marker '{marker}'"
 
-    if _any_marker(SUBJECTIVE_MARKERS, text):
-        return EndpointNature.SUBJECTIVE
+    marker = _first_marker_match(SUBJECTIVE_MARKERS, text)
+    if marker:
+        return EndpointNature.SUBJECTIVE, f"matched SUBJECTIVE marker '{marker}'"
 
-    if _any_marker(OBJECTIVE_MARKERS, text):
-        return EndpointNature.OBJECTIVE
+    marker = _first_marker_match(OBJECTIVE_MARKERS, text)
+    if marker:
+        return EndpointNature.OBJECTIVE, f"matched OBJECTIVE marker '{marker}'"
 
-    return endpoint.nature
+    return endpoint.nature, "no marker matched; defaulted to endpoint.nature"
 
 
 def _match_causal_role(endpoint: Endpoint, nature: EndpointNature) -> CausalRole:
@@ -127,14 +142,26 @@ def _match_causal_role(endpoint: Endpoint, nature: EndpointNature) -> CausalRole
 
 
 def _detect_endpoint_flags(
-    endpoint: Endpoint, nature: EndpointNature, role: CausalRole
-) -> list[BiasFlag]:
-    """Detect bias flags specific to this endpoint."""
-    flags = []
+    endpoint: Endpoint, nature: EndpointNature, nature_reason: str, role: CausalRole
+) -> tuple[list[BiasFlag], dict[BiasFlag, str]]:
+    """Detect bias flags specific to this endpoint.
+
+    Returns (flags, reasons) where reasons[flag] names the exact marker (or
+    the role/attribute state, when no single marker is responsible) that
+    triggered that flag, for decision traceability.
+    """
+    flags: list[BiasFlag] = []
+    reasons: dict[BiasFlag, str] = {}
     text = f"{endpoint.name} {endpoint.description}".lower()
 
     if role == CausalRole.CIRCULAR and endpoint.is_primary:
         flags.append(BiasFlag.CIRCULARITY_RISK)
+        if endpoint.causal_role == CausalRole.CIRCULAR:
+            reasons[BiasFlag.CIRCULARITY_RISK] = "causal_role=CIRCULAR (explicit on endpoint)"
+        else:
+            reasons[BiasFlag.CIRCULARITY_RISK] = (
+                f"causal_role=CIRCULAR via nature=INSTRUMENTED ({nature_reason})"
+            )
 
     # DETECTION_BIAS is checked independently of role/nature (unlike the flags
     # below): it flags an ascertainment-mechanism concern (how the outcome is
@@ -148,10 +175,13 @@ def _detect_endpoint_flags(
         "time-to-detection", "alert-based", "monitoring-triggered",
         "detection", "time-to-treatment",
     ]
-    if _any_marker(detection_markers, text):
+    marker = _first_marker_match(detection_markers, text)
+    if marker:
         flags.append(BiasFlag.DETECTION_BIAS)
+        reasons[BiasFlag.DETECTION_BIAS] = f"matched detection marker '{marker}'"
 
-    is_hard_clinical = _any_marker(HARD_CLINICAL_MARKERS, text)
+    hard_clinical_marker = _first_marker_match(HARD_CLINICAL_MARKERS, text)
+    is_hard_clinical = hard_clinical_marker is not None
     if (
         role == CausalRole.MEDIATED
         and endpoint.is_primary
@@ -160,8 +190,14 @@ def _detect_endpoint_flags(
         and nature != EndpointNature.SUBJECTIVE  # PROs are not surrogates — bias = PERCEPTION_BIAS
     ):
         flags.append(BiasFlag.SURROGATE_RISK)
+        reasons[BiasFlag.SURROGATE_RISK] = (
+            "causal_role=MEDIATED (explicit on endpoint), is_primary=True, "
+            f"is_validated_surrogate=False, no HARD_CLINICAL_MARKERS match, "
+            f"nature={nature.value} ({nature_reason})"
+        )
 
-    is_all_cause_death = _any_marker(ALL_CAUSE_DEATH_MARKERS, text)
+    all_cause_marker = _first_marker_match(ALL_CAUSE_DEATH_MARKERS, text)
+    is_all_cause_death = all_cause_marker is not None
     if (
         nature == EndpointNature.OBJECTIVE
         and role == CausalRole.INDEPENDENT
@@ -170,20 +206,26 @@ def _detect_endpoint_flags(
         and not is_all_cause_death
     ):
         flags.append(BiasFlag.ADJUDICATION_RISK)
+        reasons[BiasFlag.ADJUDICATION_RISK] = (
+            f"nature=OBJECTIVE ({nature_reason}), causal_role=INDEPENDENT, is_primary=True, "
+            "is_independently_adjudicated=False, no ALL_CAUSE_DEATH_MARKERS match"
+        )
 
-    return flags
+    return flags, reasons
 
 
 def classify_endpoint(endpoint: Endpoint) -> EndpointAnalysis:
     """Classify a single endpoint."""
-    nature = _match_nature(endpoint)
+    nature, nature_reason = _match_nature(endpoint)
     role = _match_causal_role(endpoint, nature)
-    flags = _detect_endpoint_flags(endpoint, nature, role)
+    flags, flag_reasons = _detect_endpoint_flags(endpoint, nature, nature_reason, role)
     return EndpointAnalysis(
         endpoint=endpoint,
         nature=nature,
         causal_role=role,
         flags=flags,
+        nature_reason=nature_reason,
+        flag_reasons=flag_reasons,
     )
 
 
