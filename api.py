@@ -41,7 +41,7 @@ from translations import translate_engine_output
 from study_object import enrich_claim_with_study_object, compare_claim_to_study
 from llm_evidence_parser import (
     _parse_study_object_result,
-    parse_study_object_with_llm,
+    parse_study_object_with_llm_consensus,
 )
 from gap_repair_engine import repair_comparison
 from llm_repair_summary import generate_repair_summary
@@ -633,7 +633,7 @@ async def diagnose_premium_endpoint(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
 
-        study = parse_study_object_with_llm(
+        study, unstable_fields = parse_study_object_with_llm_consensus(
             study_text=pdf_text,
             claim_device=intervention or claim_text[:80],
             claim_indication=claim_text,
@@ -667,6 +667,7 @@ async def diagnose_premium_endpoint(
 
     result = _build_gap_response(report, repair, claim, epistemic)
     result["epistemic"] = epistemic_dict
+    result["needs_manual_review"] = bool(unstable_fields)
     result["_parse_info"] = {
         "intervention": claim.intervention,
         "domain": claim.domain,
@@ -675,6 +676,7 @@ async def diagnose_premium_endpoint(
         "study_design": study.study_design.value if study.study_design else None,
         "n_patients": study.n_patients,
         "pdf": pdf_info,
+        "unstable_fields": unstable_fields,
         "endpoints": [
             {
                 "name": ep.name,

@@ -8,6 +8,9 @@ Mode 2 (full): parse_study_object_with_llm() → StudyObject
   Takes full protocol / PDF text, returns complete StudyObject with
   blinding, comparator, inclusion criteria, per-endpoint results, etc.
   Uses ~2000 tokens. Premium tier.
+  parse_study_object_with_llm_consensus() runs it n_calls times in parallel and
+  majority-votes per field — use this one in production, single-call is not stable
+  run-to-run even at temperature=0.
 
 load_pdf(path) → str   : PDF text extractor (pdfplumber or pypdf)
 """
@@ -15,6 +18,8 @@ load_pdf(path) → str   : PDF text extractor (pdfplumber or pypdf)
 from __future__ import annotations
 
 import json
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 import anthropic
@@ -804,12 +809,13 @@ def _repair_truncated_json(raw: str) -> dict:
         return {}
 
 
-def parse_study_object_with_llm(
+def _call_llm_for_study_object_raw(
     study_text: str,
     claim_device: str,
     claim_indication: str,
-) -> StudyObject:
-    """Parse a full study text (protocol / article / CER) into a complete StudyObject."""
+) -> dict:
+    """Single LLM call → raw parsed JSON dict. No mapping to StudyObject. Thread-safe
+    (each call gets its own response; the shared client is a plain HTTP wrapper)."""
     client = _get_client()
 
     response = client.messages.create(
@@ -832,12 +838,102 @@ def parse_study_object_with_llm(
         raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
     try:
-        data = json.loads(raw)
+        return json.loads(raw)
     except json.JSONDecodeError:
         # LLM response was truncated — try to recover the largest valid prefix
-        data = _repair_truncated_json(raw)
+        return _repair_truncated_json(raw)
 
-    return _parse_study_object_result(data, claim_device, claim_indication)
+
+def parse_study_object_with_llm(
+    study_text: str,
+    claim_device: str,
+    claim_indication: str,
+    return_raw: bool = False,
+) -> StudyObject | tuple[StudyObject, dict]:
+    """Parse a full study text (protocol / article / CER) into a complete StudyObject.
+
+    Single LLM call — subject to run-to-run instability even at temperature=0 (GPU
+    batching makes floating-point results non-associative, and the Anthropic API has
+    no `seed` param to force determinism; see project_rwe_v5 memory). For
+    production-facing analyses where stability matters, prefer
+    parse_study_object_with_llm_consensus() instead.
+
+    If return_raw=True, also returns the raw parsed LLM JSON (dict) alongside the
+    StudyObject — useful for archiving to detect that instability across runs.
+    """
+    data = _call_llm_for_study_object_raw(study_text, claim_device, claim_indication)
+    study = _parse_study_object_result(data, claim_device, claim_indication)
+    if return_raw:
+        return study, data
+    return study
+
+
+# Leaf key names whose wording naturally varies between LLM calls without indicating
+# judgment instability (free-text justification/description fields). Excluded from the
+# unstable_fields report so it only flags fields that actually drive downstream logic
+# (device_match_type, is_randomized, endpoints[].nature, etc.).
+_FREE_TEXT_LEAF_KEYS = {
+    "justification", "title", "device_description_study", "population_description_study",
+    "comparator_description", "concomitant_treatments_description", "study_country",
+}
+
+
+def _majority_vote(values: list, path: str, unstable_paths: list[str]):
+    """Recursively merge N raw LLM JSON parses (same shape, sampled at the same dotted
+    path) into a single consensus value via per-leaf majority vote.
+
+    Dicts are recursed into key-by-key. Anything else (scalar, list, or a leaf where the
+    N values aren't all dicts) is treated as an atomic unit and voted on directly — list
+    fields like `endpoints` are compared whole rather than diffed element-by-element,
+    since LLM-generated list ordering/wording isn't reliable enough to align by index.
+    Appends the dotted path to unstable_paths whenever the N values didn't unanimously
+    agree, unless the leaf is a known free-text field (see _FREE_TEXT_LEAF_KEYS).
+    """
+    if all(isinstance(v, dict) for v in values):
+        keys: set[str] = set()
+        for v in values:
+            keys.update(v.keys())
+        return {
+            k: _majority_vote([v.get(k) for v in values], f"{path}.{k}" if path else k, unstable_paths)
+            for k in keys
+        }
+
+    canonical = [json.dumps(v, sort_keys=True, ensure_ascii=False) for v in values]
+    counts = Counter(canonical)
+    winner, winner_count = counts.most_common(1)[0]
+    leaf_key = path.rsplit(".", 1)[-1] if path else path
+    if winner_count < len(values) and leaf_key not in _FREE_TEXT_LEAF_KEYS:
+        unstable_paths.append(path)
+    return values[canonical.index(winner)]
+
+
+def parse_study_object_with_llm_consensus(
+    study_text: str,
+    claim_device: str,
+    claim_indication: str,
+    n_calls: int = 3,
+) -> tuple[StudyObject, list[str]]:
+    """Run n_calls parallel LLM parses of the same study and merge them via per-field
+    majority vote — the production fix for temperature=0 instability (see
+    parse_study_object_with_llm's docstring for why a single call isn't enough).
+
+    Returns (consensus StudyObject, unstable_fields): unstable_fields lists the dotted
+    JSON field paths where the n_calls parses did not unanimously agree (excluding
+    free-text wording) — surface these to the caller as "needs manual review" rather
+    than silently trusting whichever value won 2-1.
+    """
+    _get_client()  # initialize before spawning threads, avoid a lazy-init race
+    with ThreadPoolExecutor(max_workers=n_calls) as pool:
+        futures = [
+            pool.submit(_call_llm_for_study_object_raw, study_text, claim_device, claim_indication)
+            for _ in range(n_calls)
+        ]
+        raw_results = [f.result() for f in futures]
+
+    unstable_fields: list[str] = []
+    consensus_data = _majority_vote(raw_results, "", unstable_fields)
+    study = _parse_study_object_result(consensus_data, claim_device, claim_indication)
+    return study, unstable_fields
 
 
 def _parse_study_object_result(
