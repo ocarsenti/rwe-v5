@@ -116,8 +116,7 @@ def _detect_endpoint_flags(
     if _any_marker(detection_markers, text):
         flags.append(BiasFlag.DETECTION_BIAS)
 
-    name_text = endpoint.name.lower()
-    is_hard_clinical = _any_marker(HARD_CLINICAL_MARKERS, name_text)
+    is_hard_clinical = _any_marker(HARD_CLINICAL_MARKERS, text)
     if (
         role == CausalRole.MEDIATED
         and endpoint.is_primary
