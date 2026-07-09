@@ -3143,29 +3143,47 @@ class TestOverallVerdict(unittest.TestCase):
         v = determine_overall_verdict(CausalStructure.DIRECT, [], None)
         self.assertEqual(v, CASVerdict.ACCEPTABLE)
 
-    def test_circular_structure_alone_rejects(self):
+    def test_circular_structure_alone_is_weak_evidence(self):
+        """Broken structure alone (no HIGH bias flag) is a caution, not a hard
+        reject — recalibrated 2026-07-09, see module comment: REJECTED now
+        requires structure + a HIGH flag together."""
         v = determine_overall_verdict(CausalStructure.CIRCULAR, [], None)
-        self.assertEqual(v, CASVerdict.REJECTED)
-
-    def test_invalid_structure_alone_rejects(self):
-        v = determine_overall_verdict(CausalStructure.INVALID, [], None)
-        self.assertEqual(v, CASVerdict.REJECTED)
-
-    def test_high_severity_bias_alone_rejects(self):
-        v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("HIGH")], None)
-        self.assertEqual(v, CASVerdict.REJECTED)
-
-    def test_medium_severity_bias_alone_is_weak_evidence(self):
-        v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("MEDIUM")], None)
         self.assertEqual(v, CASVerdict.WEAK_EVIDENCE)
+
+    def test_invalid_structure_alone_is_weak_evidence(self):
+        v = determine_overall_verdict(CausalStructure.INVALID, [], None)
+        self.assertEqual(v, CASVerdict.WEAK_EVIDENCE)
+
+    def test_circular_structure_with_high_bias_rejects(self):
+        v = determine_overall_verdict(CausalStructure.CIRCULAR, [_bias("HIGH")], None)
+        self.assertEqual(v, CASVerdict.REJECTED)
+
+    def test_high_severity_bias_alone_is_weak_evidence(self):
+        """A lone HIGH bias flag without a broken causal structure is a caution,
+        not a hard reject — recalibrated 2026-07-09 (see module comment):
+        SURROGATE_RISK fired alone on an accepted dossier (7947) as often as on
+        a real HAS rejection (7425) in the 34-dossier audit."""
+        v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("HIGH")], None)
+        self.assertEqual(v, CASVerdict.WEAK_EVIDENCE)
+
+    def test_medium_severity_bias_alone_is_acceptable(self):
+        """A lone MEDIUM bias flag is deliberately NOT enough to downgrade —
+        recalibrated 2026-07-09: ~18% precision (2 real rejects vs 9 accepted
+        dossiers) in the 34-dossier CNEDiMTS audit, too noisy to act on alone."""
+        v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("MEDIUM")], None)
+        self.assertEqual(v, CASVerdict.ACCEPTABLE)
 
     def test_low_severity_bias_alone_is_acceptable(self):
         v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("LOW")], None)
         self.assertEqual(v, CASVerdict.ACCEPTABLE)
 
-    def test_worst_of_several_bias_flags_wins(self):
+    def test_two_medium_bias_flags_is_weak_evidence(self):
+        v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("MEDIUM"), _bias("MEDIUM")], None)
+        self.assertEqual(v, CASVerdict.WEAK_EVIDENCE)
+
+    def test_worst_of_several_bias_flags_without_broken_structure_is_weak_evidence(self):
         v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("LOW"), _bias("HIGH"), _bias("MEDIUM")], None)
-        self.assertEqual(v, CASVerdict.REJECTED)
+        self.assertEqual(v, CASVerdict.WEAK_EVIDENCE)
 
     def test_cas_rejected_alone_rejects(self):
         claim = ClinicalClaim(
@@ -3178,12 +3196,14 @@ class TestOverallVerdict(unittest.TestCase):
         output = analyze(claim)
         self.assertEqual(output.overall_verdict, CASVerdict.REJECTED)
 
-    def test_clean_cas_does_not_mask_circular_structure(self):
+    def test_clean_cas_does_not_mask_circular_structure_with_high_bias(self):
         """A dossier with perfect CAS alignment but a CIRCULAR causal structure
-        must not be reported ACCEPTABLE overall — this is exactly the WALRUS
-        7182 / TRIPLE ACTION 7620 failure mode from the CNEDiMTS audit."""
+        plus a HIGH-severity bias flag must not be reported ACCEPTABLE overall
+        — this is the actual WALRUS 7182 / TRIPLE ACTION 7620 shape (both carry
+        CIRCULARITY_RISK/SURROGATE_RISK alongside the CIRCULAR structure, not
+        a bare structure with no flags)."""
         v = determine_overall_verdict(
-            CausalStructure.CIRCULAR, [],
+            CausalStructure.CIRCULAR, [_bias("HIGH")],
             cas_output=None,
         )
         self.assertEqual(v, CASVerdict.REJECTED)

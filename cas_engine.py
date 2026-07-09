@@ -357,19 +357,26 @@ def evaluate_cas(
 # could have a broken causal structure or a HIGH-severity bias flag and still be
 # reported "CAS: ACCEPTABLE" purely because its device/population/context lined
 # up. Audited against 7 real CNEDiMTS rejections in the 34-dossier corpus
-# (2026-07-08): CAS alone caught 0/7. This combined verdict catches 4/7 outright
-# (broken causal structure or a HIGH bias flag) and downgrades 2 more to
-# WEAK_EVIDENCE (a confirmed MEDIUM bias flag) instead of leaving them at a false
-# ACCEPTABLE. It does not fix every case — a rejection driven purely by a
-# NARROWER_SUBGROUP population distance too small to cross CAS's own 0.7
-# threshold, or by a generic "insufficient evidence quality" HAS critique with no
-# corresponding bias flag at all, still won't be caught by this combination; that
-# would require changing CAS's own weights/thresholds (all covered by tests) or a
-# new bias-detection rule, not this combining step.
+# (2026-07-08): CAS alone caught 0/7. A first version of this function combined
+# causal structure + bias severity too aggressively: it flagged a single
+# MEDIUM-severity bias (e.g. one lone ADJUDICATION_RISK or PERCEPTION_BIAS,
+# with nothing else wrong) as enough to drop a dossier below ACCEPTABLE.
+# Re-audited against the 27 primo-inscription dossiers HAS actually accepted
+# (2026-07-09, cnedimts_analysis 34-dossier corpus): a lone MEDIUM flag was
+# ~18% precision for predicting rejection (2 real rejects vs 9 accepted
+# dossiers carried exactly one MEDIUM flag and nothing else) — too noisy to
+# act on alone, and it was pulling 19/27 accepted dossiers down to
+# WEAK_EVIDENCE/REJECTED. Recalibrated: only a HIGH-severity flag, a broken
+# causal structure, or ≥2 co-occurring flags now downgrades at all, and
+# REJECTED requires a broken structure *and* a HIGH flag together (this still
+# catches 3/7 real rejects with a CIRCULAR structure: 7182/7620/8145) rather
+# than either alone. Known residual false positive: DURAWALK 7793 (accepted
+# by HAS) has causal_structure misclassified CIRCULAR + 2 HIGH flags — a
+# structure-classification bug upstream of this function, not fixed here.
 # ---------------------------------------------------------------------------
 
 _VERDICT_RANK = {CASVerdict.ACCEPTABLE: 0, CASVerdict.WEAK_EVIDENCE: 1, CASVerdict.REJECTED: 2}
-_BIAS_SEVERITY_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
+_HIGH_SEVERITY_BIAS = {"HIGH"}
 
 
 def determine_overall_verdict(
@@ -378,22 +385,18 @@ def determine_overall_verdict(
     cas_output: CASOutput | None,
 ) -> CASVerdict:
     """Worst-of(CAS alignment, causal structure integrity, bias severity). Never
-    better than any of the three signals alone."""
+    better than any of the three signals alone. A lone MEDIUM-severity bias flag
+    is deliberately not enough on its own — see module comment above."""
     cas_verdict = cas_output.verdict if cas_output is not None else CASVerdict.ACCEPTABLE
 
-    if causal_structure in (CausalStructure.CIRCULAR, CausalStructure.INVALID):
-        causal_verdict = CASVerdict.REJECTED
-    else:
-        causal_verdict = CASVerdict.ACCEPTABLE
+    structure_broken = causal_structure in (CausalStructure.CIRCULAR, CausalStructure.INVALID)
+    has_high_bias = any(bd.severity in _HIGH_SEVERITY_BIAS for bd in bias_flags)
 
-    worst_bias_severity = max(
-        (_BIAS_SEVERITY_RANK.get(bd.severity, 0) for bd in bias_flags), default=-1,
-    )
-    if worst_bias_severity == _BIAS_SEVERITY_RANK["HIGH"]:
-        bias_verdict = CASVerdict.REJECTED
-    elif worst_bias_severity == _BIAS_SEVERITY_RANK["MEDIUM"]:
-        bias_verdict = CASVerdict.WEAK_EVIDENCE
+    if structure_broken and has_high_bias:
+        causal_bias_verdict = CASVerdict.REJECTED
+    elif structure_broken or has_high_bias or len(bias_flags) >= 2:
+        causal_bias_verdict = CASVerdict.WEAK_EVIDENCE
     else:
-        bias_verdict = CASVerdict.ACCEPTABLE
+        causal_bias_verdict = CASVerdict.ACCEPTABLE
 
-    return max((cas_verdict, causal_verdict, bias_verdict), key=lambda v: _VERDICT_RANK[v])
+    return max((cas_verdict, causal_bias_verdict), key=lambda v: _VERDICT_RANK[v])
