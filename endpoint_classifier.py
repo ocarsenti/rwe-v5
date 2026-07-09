@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from models import (
     BiasFlag,
     CausalRole,
@@ -53,21 +55,27 @@ OBJECTIVE_MARKERS = [
 ]
 
 
+def _marker_pattern(marker: str) -> re.Pattern[str]:
+    """Compile a marker into a word-boundary regex (avoids false positives like "lab" in "label")."""
+    return re.compile(rf"\b{re.escape(marker)}\b")
+
+
+def _any_marker(markers: list[str], text: str) -> bool:
+    return any(_marker_pattern(marker).search(text) for marker in markers)
+
+
 def _match_nature(endpoint: Endpoint) -> EndpointNature:
     """Determine endpoint nature from name + description."""
     text = f"{endpoint.name} {endpoint.description}".lower()
 
-    for marker in INSTRUMENTED_MARKERS:
-        if marker in text:
-            return EndpointNature.INSTRUMENTED
+    if _any_marker(INSTRUMENTED_MARKERS, text):
+        return EndpointNature.INSTRUMENTED
 
-    for marker in SUBJECTIVE_MARKERS:
-        if marker in text:
-            return EndpointNature.SUBJECTIVE
+    if _any_marker(SUBJECTIVE_MARKERS, text):
+        return EndpointNature.SUBJECTIVE
 
-    for marker in OBJECTIVE_MARKERS:
-        if marker in text:
-            return EndpointNature.OBJECTIVE
+    if _any_marker(OBJECTIVE_MARKERS, text):
+        return EndpointNature.OBJECTIVE
 
     return endpoint.nature
 
@@ -105,11 +113,11 @@ def _detect_endpoint_flags(
         "time-to-detection", "alert-based", "monitoring-triggered",
         "detection", "time-to-treatment",
     ]
-    if any(m in text for m in detection_markers):
+    if _any_marker(detection_markers, text):
         flags.append(BiasFlag.DETECTION_BIAS)
 
     name_text = endpoint.name.lower()
-    is_hard_clinical = any(m in name_text for m in HARD_CLINICAL_MARKERS)
+    is_hard_clinical = _any_marker(HARD_CLINICAL_MARKERS, name_text)
     if (
         role == CausalRole.MEDIATED
         and endpoint.is_primary
@@ -119,7 +127,7 @@ def _detect_endpoint_flags(
     ):
         flags.append(BiasFlag.SURROGATE_RISK)
 
-    is_all_cause_death = any(m in text for m in ALL_CAUSE_DEATH_MARKERS)
+    is_all_cause_death = _any_marker(ALL_CAUSE_DEATH_MARKERS, text)
     if (
         nature == EndpointNature.OBJECTIVE
         and role == CausalRole.INDEPENDENT
