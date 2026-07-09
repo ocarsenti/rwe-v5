@@ -357,22 +357,24 @@ def evaluate_cas(
 # could have a broken causal structure or a HIGH-severity bias flag and still be
 # reported "CAS: ACCEPTABLE" purely because its device/population/context lined
 # up. Audited against 7 real CNEDiMTS rejections in the 34-dossier corpus
-# (2026-07-08): CAS alone caught 0/7. A first version of this function combined
-# causal structure + bias severity too aggressively: it flagged a single
-# MEDIUM-severity bias (e.g. one lone ADJUDICATION_RISK or PERCEPTION_BIAS,
-# with nothing else wrong) as enough to drop a dossier below ACCEPTABLE.
-# Re-audited against the 27 primo-inscription dossiers HAS actually accepted
-# (2026-07-09, cnedimts_analysis 34-dossier corpus): a lone MEDIUM flag was
-# ~18% precision for predicting rejection (2 real rejects vs 9 accepted
-# dossiers carried exactly one MEDIUM flag and nothing else) — too noisy to
-# act on alone, and it was pulling 19/27 accepted dossiers down to
-# WEAK_EVIDENCE/REJECTED. Recalibrated: only a HIGH-severity flag, a broken
-# causal structure, or ≥2 co-occurring flags now downgrades at all, and
-# REJECTED requires a broken structure *and* a HIGH flag together (this still
-# catches 3/7 real rejects with a CIRCULAR structure: 7182/7620/8145) rather
-# than either alone. Known residual false positive: DURAWALK 7793 (accepted
-# by HAS) has causal_structure misclassified CIRCULAR + 2 HIGH flags — a
-# structure-classification bug upstream of this function, not fixed here.
+# (2026-07-08): CAS alone caught 0/7. Two earlier, looser versions of this
+# function were tried and rejected after re-auditing against the 27
+# primo-inscription dossiers HAS actually accepted (2026-07-09, same corpus):
+# (1) a lone MEDIUM-severity bias flag alone (~18% precision: 2 real rejects
+# vs 9 accepted dossiers carried exactly one), and (2) a lone HIGH-severity
+# flag or any ≥2 co-occurring flags without a broken causal structure
+# (~17% precision: 1 real reject vs 5-9 accepted dossiers, depending on the
+# exact variant) — both too noisy standalone signals in this sample, between
+# them responsible for pulling 19/27 and then 8-9/27 accepted dossiers down
+# from ACCEPTABLE. The only signal that held up cleanly: causal_structure
+# CIRCULAR/INVALID, true in 3/3 CIRCULAR dossiers in the reject sample and in
+# 0 of the 27 accepted ones (the sole CIRCULAR-and-accepted case, DURAWALK
+# 7793, is a known structure-classification bug upstream of this function,
+# not a genuine counterexample). So bias severity is now used only to decide
+# how bad a broken structure is (REJECTED vs WEAK_EVIDENCE), never to trigger
+# a downgrade on its own — trades one real reject (VIS-RX 7425, caught only
+# by a lone NO_COMPARATOR) for eliminating every bias-flag-driven false
+# positive on the 27 accepted dossiers.
 # ---------------------------------------------------------------------------
 
 _VERDICT_RANK = {CASVerdict.ACCEPTABLE: 0, CASVerdict.WEAK_EVIDENCE: 1, CASVerdict.REJECTED: 2}
@@ -384,9 +386,10 @@ def determine_overall_verdict(
     bias_flags: list[BiasDetection],
     cas_output: CASOutput | None,
 ) -> CASVerdict:
-    """Worst-of(CAS alignment, causal structure integrity, bias severity). Never
-    better than any of the three signals alone. A lone MEDIUM-severity bias flag
-    is deliberately not enough on its own — see module comment above."""
+    """Worst-of(CAS alignment, causal structure integrity). Bias severity only
+    escalates an already-broken causal structure to REJECTED — a bias flag on
+    its own, of any severity or count, never downgrades alone. See module
+    comment above for why."""
     cas_verdict = cas_output.verdict if cas_output is not None else CASVerdict.ACCEPTABLE
 
     structure_broken = causal_structure in (CausalStructure.CIRCULAR, CausalStructure.INVALID)
@@ -394,7 +397,7 @@ def determine_overall_verdict(
 
     if structure_broken and has_high_bias:
         causal_bias_verdict = CASVerdict.REJECTED
-    elif structure_broken or has_high_bias or len(bias_flags) >= 2:
+    elif structure_broken:
         causal_bias_verdict = CASVerdict.WEAK_EVIDENCE
     else:
         causal_bias_verdict = CASVerdict.ACCEPTABLE

@@ -3158,13 +3158,15 @@ class TestOverallVerdict(unittest.TestCase):
         v = determine_overall_verdict(CausalStructure.CIRCULAR, [_bias("HIGH")], None)
         self.assertEqual(v, CASVerdict.REJECTED)
 
-    def test_high_severity_bias_alone_is_weak_evidence(self):
-        """A lone HIGH bias flag without a broken causal structure is a caution,
-        not a hard reject — recalibrated 2026-07-09 (see module comment):
-        SURROGATE_RISK fired alone on an accepted dossier (7947) as often as on
-        a real HAS rejection (7425) in the 34-dossier audit."""
+    def test_high_severity_bias_alone_is_acceptable(self):
+        """A lone HIGH bias flag without a broken causal structure is deliberately
+        NOT enough to downgrade — recalibrated 2026-07-09 (2nd pass, see module
+        comment): SURROGATE_RISK fired alone on an accepted dossier (7947) as
+        often as on a real HAS rejection (7425) in the 34-dossier audit (~17%
+        precision) — bias severity alone, of any tier, is too noisy a signal;
+        only a broken causal structure is used to trigger a downgrade."""
         v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("HIGH")], None)
-        self.assertEqual(v, CASVerdict.WEAK_EVIDENCE)
+        self.assertEqual(v, CASVerdict.ACCEPTABLE)
 
     def test_medium_severity_bias_alone_is_acceptable(self):
         """A lone MEDIUM bias flag is deliberately NOT enough to downgrade —
@@ -3177,13 +3179,14 @@ class TestOverallVerdict(unittest.TestCase):
         v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("LOW")], None)
         self.assertEqual(v, CASVerdict.ACCEPTABLE)
 
-    def test_two_medium_bias_flags_is_weak_evidence(self):
-        v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("MEDIUM"), _bias("MEDIUM")], None)
-        self.assertEqual(v, CASVerdict.WEAK_EVIDENCE)
-
-    def test_worst_of_several_bias_flags_without_broken_structure_is_weak_evidence(self):
+    def test_several_bias_flags_without_broken_structure_is_acceptable(self):
+        """Even several co-occurring flags (any severity mix) don't downgrade on
+        their own without a broken causal structure — recalibrated 2026-07-09
+        (2nd pass): pairs like MEDIATION_GAP+ADJUDICATION_RISK fired on several
+        accepted dossiers (7717/7851/7990/8011) and never on a real reject in
+        this combination."""
         v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("LOW"), _bias("HIGH"), _bias("MEDIUM")], None)
-        self.assertEqual(v, CASVerdict.WEAK_EVIDENCE)
+        self.assertEqual(v, CASVerdict.ACCEPTABLE)
 
     def test_cas_rejected_alone_rejects(self):
         claim = ClinicalClaim(
