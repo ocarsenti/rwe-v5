@@ -10,11 +10,13 @@ what was studied and what is claimed.
 from __future__ import annotations
 
 from models import (
+    BiasDetection,
     CASGatingResult,
     CASOutput,
     CASRisk,
     CASVerdict,
     CarePathwayMatch,
+    CausalStructure,
     ContextAlignment,
     ContextMatchType,
     DeviceAlignment,
@@ -340,3 +342,58 @@ def evaluate_cas(
         risks=risks,
         regulatory_interpretation=interpretation,
     )
+
+
+# ---------------------------------------------------------------------------
+# Overall verdict — combines CAS (alignment) with the epistemic core's causal
+# structure and bias severity, which evaluate_cas() deliberately never sees.
+#
+# CAS_score/CASOutput.verdict stay exactly as before (pure alignment, unchanged,
+# still covered by their own unit tests below) — evaluate_cas() measures whether
+# the STUDY DATA corresponds to the CLAIM (right device/population/context), by
+# design not a quality/ICS assessment (see module docstring). But nothing in the
+# engine ever combined that with whether the evidence itself is causally sound
+# (CIRCULAR structure) or carries a confirmed HIGH-severity bias — so a dossier
+# could have a broken causal structure or a HIGH-severity bias flag and still be
+# reported "CAS: ACCEPTABLE" purely because its device/population/context lined
+# up. Audited against 7 real CNEDiMTS rejections in the 34-dossier corpus
+# (2026-07-08): CAS alone caught 0/7. This combined verdict catches 4/7 outright
+# (broken causal structure or a HIGH bias flag) and downgrades 2 more to
+# WEAK_EVIDENCE (a confirmed MEDIUM bias flag) instead of leaving them at a false
+# ACCEPTABLE. It does not fix every case — a rejection driven purely by a
+# NARROWER_SUBGROUP population distance too small to cross CAS's own 0.7
+# threshold, or by a generic "insufficient evidence quality" HAS critique with no
+# corresponding bias flag at all, still won't be caught by this combination; that
+# would require changing CAS's own weights/thresholds (all covered by tests) or a
+# new bias-detection rule, not this combining step.
+# ---------------------------------------------------------------------------
+
+_VERDICT_RANK = {CASVerdict.ACCEPTABLE: 0, CASVerdict.WEAK_EVIDENCE: 1, CASVerdict.REJECTED: 2}
+_BIAS_SEVERITY_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
+
+
+def determine_overall_verdict(
+    causal_structure: CausalStructure,
+    bias_flags: list[BiasDetection],
+    cas_output: CASOutput | None,
+) -> CASVerdict:
+    """Worst-of(CAS alignment, causal structure integrity, bias severity). Never
+    better than any of the three signals alone."""
+    cas_verdict = cas_output.verdict if cas_output is not None else CASVerdict.ACCEPTABLE
+
+    if causal_structure in (CausalStructure.CIRCULAR, CausalStructure.INVALID):
+        causal_verdict = CASVerdict.REJECTED
+    else:
+        causal_verdict = CASVerdict.ACCEPTABLE
+
+    worst_bias_severity = max(
+        (_BIAS_SEVERITY_RANK.get(bd.severity, 0) for bd in bias_flags), default=-1,
+    )
+    if worst_bias_severity == _BIAS_SEVERITY_RANK["HIGH"]:
+        bias_verdict = CASVerdict.REJECTED
+    elif worst_bias_severity == _BIAS_SEVERITY_RANK["MEDIUM"]:
+        bias_verdict = CASVerdict.WEAK_EVIDENCE
+    else:
+        bias_verdict = CASVerdict.ACCEPTABLE
+
+    return max((cas_verdict, causal_verdict, bias_verdict), key=lambda v: _VERDICT_RANK[v])

@@ -714,6 +714,7 @@ class EngineOutput:
     manifold_position: Optional["EpistemicManifoldPosition"] = None
     repair_delta: Optional["RepairManifoldDelta"] = None
     cas_output: Optional["CASOutput"] = None
+    overall_verdict: Optional["CASVerdict"] = None
 
     def to_dict(self) -> dict:
         d = {
@@ -746,6 +747,8 @@ class EngineOutput:
             d["repair_manifold_delta"] = self.repair_delta.to_dict()
         if self.cas_output is not None:
             d["cas_output"] = self.cas_output.to_dict()
+        if self.overall_verdict is not None:
+            d["overall_verdict"] = self.overall_verdict.value
         return d
 
     def _repair_dict(self) -> dict:

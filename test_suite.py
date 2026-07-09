@@ -3123,6 +3123,90 @@ class TestCASWiring(unittest.TestCase):
 
 
 # ===================================================================
+# Overall verdict — combines CAS alignment with causal structure + bias
+# severity (2026-07-08 CNEDiMTS audit: CAS alone caught 0/7 real HAS
+# rejections in a 34-dossier corpus because it never saw causal_structure
+# or bias_flags at all; see cas_engine.determine_overall_verdict).
+# ===================================================================
+
+from cas_engine import determine_overall_verdict
+from models import BiasDetection, CausalStructure
+
+
+def _bias(flag_severity: str) -> BiasDetection:
+    return BiasDetection(flag=BiasFlag.NO_COMPARATOR, severity=flag_severity, detail="test")
+
+
+class TestOverallVerdict(unittest.TestCase):
+
+    def test_all_clean_is_acceptable(self):
+        v = determine_overall_verdict(CausalStructure.DIRECT, [], None)
+        self.assertEqual(v, CASVerdict.ACCEPTABLE)
+
+    def test_circular_structure_alone_rejects(self):
+        v = determine_overall_verdict(CausalStructure.CIRCULAR, [], None)
+        self.assertEqual(v, CASVerdict.REJECTED)
+
+    def test_invalid_structure_alone_rejects(self):
+        v = determine_overall_verdict(CausalStructure.INVALID, [], None)
+        self.assertEqual(v, CASVerdict.REJECTED)
+
+    def test_high_severity_bias_alone_rejects(self):
+        v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("HIGH")], None)
+        self.assertEqual(v, CASVerdict.REJECTED)
+
+    def test_medium_severity_bias_alone_is_weak_evidence(self):
+        v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("MEDIUM")], None)
+        self.assertEqual(v, CASVerdict.WEAK_EVIDENCE)
+
+    def test_low_severity_bias_alone_is_acceptable(self):
+        v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("LOW")], None)
+        self.assertEqual(v, CASVerdict.ACCEPTABLE)
+
+    def test_worst_of_several_bias_flags_wins(self):
+        v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("LOW"), _bias("HIGH"), _bias("MEDIUM")], None)
+        self.assertEqual(v, CASVerdict.REJECTED)
+
+    def test_cas_rejected_alone_rejects(self):
+        claim = ClinicalClaim(
+            text="Valve NAVITOR réduit la mortalité cardiovasculaire",
+            intervention="NAVITOR", domain="cardiology",
+            device_alignment=_make_device(DeviceMatchType.DIFFERENT_DEVICE, "NAVITOR", "EDWARDS SAPIEN 3"),
+            population_alignment=_make_population(PopulationMatchType.EXACT_INDICATION, "RA sévère", "RA sévère"),
+            context_alignment=_make_context(ContextMatchType.SAME_HEALTHCARE_SYSTEM),
+        )
+        output = analyze(claim)
+        self.assertEqual(output.overall_verdict, CASVerdict.REJECTED)
+
+    def test_clean_cas_does_not_mask_circular_structure(self):
+        """A dossier with perfect CAS alignment but a CIRCULAR causal structure
+        must not be reported ACCEPTABLE overall — this is exactly the WALRUS
+        7182 / TRIPLE ACTION 7620 failure mode from the CNEDiMTS audit."""
+        v = determine_overall_verdict(
+            CausalStructure.CIRCULAR, [],
+            cas_output=None,
+        )
+        self.assertEqual(v, CASVerdict.REJECTED)
+
+    def test_overall_verdict_wired_into_analyze_output(self):
+        claim = ClinicalClaim(
+            text="Le stimulateur INSPIRE IV réduit l'IAH chez les patients SAOS",
+            intervention="INSPIRE IV", domain="pulmonology",
+        )
+        output = analyze(claim)
+        self.assertIsNotNone(output.overall_verdict)
+
+    def test_overall_verdict_in_to_dict(self):
+        claim = ClinicalClaim(
+            text="Le stimulateur INSPIRE IV réduit l'IAH chez les patients SAOS",
+            intervention="INSPIRE IV", domain="pulmonology",
+        )
+        output = analyze(claim)
+        d = output.to_dict()
+        self.assertIn("overall_verdict", d)
+
+
+# ===================================================================
 # NO_COMPARATOR BiasFlag (T01)
 # ===================================================================
 
