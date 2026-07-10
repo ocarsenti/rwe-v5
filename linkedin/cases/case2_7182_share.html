@@ -1,0 +1,588 @@
+<title>Cas réel 2/N — WALRUS vs avis HAS</title>
+<style>
+  :root {
+    --bg: #faf9f6;
+    --surface: #ffffff;
+    --border: #e2e2dc;
+    --ink: #16233a;
+    --ink-soft: #445064;
+    --muted: #6b7688;
+    --accent: #17457d;
+    --accent-soft: #6f9bc8;
+    --accent-wash: #eef3f8;
+    --tag: #4a5872;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1620;
+      --surface: #161f2c;
+      --border: #263145;
+      --ink: #eef2f7;
+      --ink-soft: #c3ccdb;
+      --muted: #8b96a9;
+      --accent: #7fadde;
+      --accent-soft: #3f5a7d;
+      --accent-wash: #1a2432;
+      --tag: #9fb0c9;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1620;
+    --surface: #161f2c;
+    --border: #263145;
+    --ink: #eef2f7;
+    --ink-soft: #c3ccdb;
+    --muted: #8b96a9;
+    --accent: #7fadde;
+    --accent-soft: #3f5a7d;
+    --accent-wash: #1a2432;
+    --tag: #9fb0c9;
+  }
+  :root[data-theme="light"] {
+    --bg: #faf9f6;
+    --surface: #ffffff;
+    --border: #e2e2dc;
+    --ink: #16233a;
+    --ink-soft: #445064;
+    --muted: #6b7688;
+    --accent: #17457d;
+    --accent-soft: #6f9bc8;
+    --accent-wash: #eef3f8;
+    --tag: #4a5872;
+  }
+
+  @font-face {
+    font-family: "IBM Plex Sans";
+    src: local("IBM Plex Sans");
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Iowan Old Style", "Palatino Linotype", Georgia, "IBM Plex Sans", serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 5rem;
+  }
+
+  .eyebrow {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 0.4rem;
+  }
+
+  h1 {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 0 0 0.35rem;
+    color: var(--ink);
+  }
+
+  .meta {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin: 0 0 2rem;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.75rem 1.75rem 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .post-text {
+    font-size: 1.02rem;
+    color: var(--ink-soft);
+    max-width: 62ch;
+  }
+
+  .post-text p {
+    margin: 0 0 1.1em;
+  }
+
+  .post-text p:last-of-type {
+    margin-bottom: 0;
+  }
+
+  .arrow-line {
+    color: var(--ink);
+  }
+
+  .tags {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.88rem;
+    color: var(--tag);
+    margin-top: 1.3rem;
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--border);
+    letter-spacing: 0.01em;
+  }
+
+  .img-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem;
+  }
+
+  .img-wrap img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 6px;
+  }
+
+  .toolbar {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-top: 1.25rem;
+  }
+
+  button, .btn {
+    font-family: inherit;
+    font-size: 0.86rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    border-radius: 7px;
+    padding: 0.6rem 1rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+
+  button:hover, .btn:hover {
+    border-color: var(--accent-soft);
+    background: var(--accent-wash);
+  }
+
+  button:focus-visible, .btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fbfcfe;
+  }
+
+  .btn.primary:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent-soft);
+  }
+
+  .status {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 0.5rem;
+    min-height: 1.1em;
+  }
+
+  .section-label {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 2rem 0 0.6rem;
+  }
+
+  footer {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 2.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+
+  blockquote {
+    margin: 0 0 1.1em;
+    padding: 0.15rem 0 0.15rem 1rem;
+    border-left: 3px solid var(--accent-soft);
+    font-style: italic;
+    color: var(--ink);
+  }
+
+  blockquote .cite {
+    display: block;
+    margin-top: 0.25rem;
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-style: normal;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+
+  ol.relations {
+    margin: 0 0 1.1em;
+    padding-left: 1.3em;
+  }
+
+  ol.relations li {
+    margin-bottom: 0.7em;
+  }
+
+  ol.relations .q {
+    font-style: italic;
+  }
+
+  ol.relations .mech {
+    display: block;
+    margin-top: 0.15rem;
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.85rem;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .device-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem 1.5rem 1.75rem;
+  }
+
+  .device-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.6rem;
+  }
+
+  .device-head h2 {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--ink);
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  .device-type {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--tag);
+    display: block;
+    margin-top: 0.15rem;
+  }
+
+  .has-badge {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--ink-soft);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+    white-space: nowrap;
+  }
+
+  .device-desc {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    margin: 0 0 1.5rem;
+    max-width: 60ch;
+  }
+
+  .scope-note {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin: 1.1rem 0 0;
+  }
+
+  .mech-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0 0.9rem;
+    padding: 0.9rem 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .mech-row:first-of-type { border-top: 1px solid var(--border); }
+
+  .mech-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    font-size: 1.05rem;
+    font-weight: 800;
+    grid-row: span 2;
+    align-self: start;
+  }
+
+  .mech-status.ok { background: var(--accent-wash); color: var(--accent); }
+  .mech-status.miss { background: #fbeaea; color: #a13b3b; }
+  .mech-status.partial { background: #fbf3e2; color: #9a6b1f; }
+
+  @media (prefers-color-scheme: dark) {
+    .mech-status.miss { background: #3a2323; color: #e0a3a3; }
+    .mech-status.partial { background: #3a3123; color: #e0c28a; }
+  }
+  :root[data-theme="dark"] .mech-status.miss { background: #3a2323; color: #e0a3a3; }
+  :root[data-theme="dark"] .mech-status.partial { background: #3a3123; color: #e0c28a; }
+
+  .mech-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .mech-head .mf-code {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-weight: 800;
+    font-size: 0.95rem;
+    color: var(--ink);
+  }
+
+  .mech-head .mf-label {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .mech-head .mf-verdict {
+    margin-left: auto;
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-weight: 700;
+    font-size: 0.76rem;
+  }
+
+  .mech-head .mf-verdict.ok { color: var(--accent); }
+  .mech-head .mf-verdict.miss { color: #a13b3b; }
+  .mech-head .mf-verdict.partial { color: #9a6b1f; }
+
+  @media (prefers-color-scheme: dark) {
+    .mech-head .mf-verdict.miss { color: #e0a3a3; }
+    .mech-head .mf-verdict.partial { color: #e0c28a; }
+  }
+  :root[data-theme="dark"] .mech-head .mf-verdict.miss { color: #e0a3a3; }
+  :root[data-theme="dark"] .mech-head .mf-verdict.partial { color: #e0c28a; }
+
+  .mech-detail {
+    grid-column: 2;
+    margin-top: 0.35rem;
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.83rem;
+    line-height: 1.5;
+  }
+
+  .mech-detail .line {
+    display: block;
+    margin-bottom: 0.3rem;
+  }
+
+  .mech-detail .tag {
+    font-weight: 700;
+    color: var(--muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-right: 0.4rem;
+  }
+
+  .mech-detail .moteur-val { color: var(--ink); font-weight: 600; }
+  .mech-detail .has-val { color: var(--ink-soft); font-style: italic; }
+
+  .screenshot-hint {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin: 0.6rem 0 0;
+  }
+
+  .verdict-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    background: var(--accent-wash);
+    border: 1px solid var(--accent-soft);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin: 0 0 1.25rem;
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+  }
+
+  .verdict-banner .vb-side {
+    flex: 1;
+  }
+
+  .verdict-banner .vb-label {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .verdict-banner .vb-value {
+    display: block;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--ink);
+    margin-top: 0.1rem;
+  }
+
+  .verdict-banner .vb-eq {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--accent);
+  }
+</style>
+
+<div class="page">
+  <p class="eyebrow">S&eacute;rie LinkedIn CNEDiMTS &middot; Cas r&eacute;el 2 sur N</p>
+  <h1>WALRUS&nbsp;: structure cass&eacute;e, verdict qui matche</h1>
+  <p class="meta">Texte pr&ecirc;t &agrave; copier &middot; image pr&ecirc;te &agrave; capturer</p>
+
+  <div class="card">
+    <div class="post-text" id="post-text">
+      <p>Un cas un peu plus &laquo;&nbsp;d'&eacute;cole&nbsp;&raquo; cette semaine, dans la m&ecirc;me s&eacute;rie&nbsp;: un dossier o&ugrave; c'est la structure causale elle-m&ecirc;me qui est en cause &mdash; pas juste un biais isol&eacute; parmi d'autres.</p>
+      <p>Le dossier&nbsp;: <strong>WALRUS</strong>, un cath&eacute;ter-guide &agrave; ballonnet utilis&eacute; en thrombectomie m&eacute;canique lors de la prise en charge des AVC isch&eacute;miques &agrave; la phase aigu&euml;. Le moteur re&ccedil;oit uniquement la revendication clinique &mdash; jamais l'avis, jamais la conclusion.</p>
+      <p>Le moteur classe la structure causale <strong>circulaire</strong>&nbsp;: les &eacute;tudes soumises ne permettent pas d'identifier proprement l'effet du dispositif. Son verdict global&nbsp;: <strong>REJET&Eacute;</strong>. Exactement la d&eacute;cision r&eacute;elle de la HAS (Service Attendu <strong>Insuffisant</strong>).</p>
+      <p>Le d&eacute;tail m&eacute;canisme par m&eacute;canisme est plus nuanc&eacute;&nbsp;: un des biais individuels ne se retrouve pas clairement dans le texte de l'avis, et l'alignement dispositif/population n'&eacute;tait pas assez alarmant pour peser seul sur le score. C'est pr&eacute;cis&eacute;ment pour &ccedil;a que le verdict global ne repose jamais sur un seul flag isol&eacute;&nbsp;: il regarde d'abord si la structure elle-m&ecirc;me tient debout.</p>
+      <p>2/N &mdash; toujours la m&ecirc;me grille, sur un nouveau dossier.</p>
+    </div>
+    <div class="tags">#DispositifsM&eacute;dicaux #HAS #CNEDiMTS #Acc&egravesAuMarch&eacute; #RWE #MedTech</div>
+    <div class="toolbar">
+      <button class="btn primary" id="copy-btn" type="button">Copier le texte</button>
+    </div>
+    <div class="status" id="copy-status" role="status" aria-live="polite"></div>
+  </div>
+
+  <p class="section-label">Image du post</p>
+  <div class="device-card" id="device-card">
+    <div class="device-head">
+      <div>
+        <h2>WALRUS</h2>
+        <span class="device-type">CATH&Eacute;TER-GUIDE &Agrave; BALLONNET (THROMBECTOMIE) &middot; DOSSIER 7182 &middot; AVIS DU 23 AVRIL 2024</span>
+      </div>
+      <span class="has-badge">HAS&nbsp;: SA Insuffisant</span>
+    </div>
+    <p class="device-desc">Cath&eacute;ter-guide &agrave; ballonnet utilis&eacute; lors de la prise en charge des AVC isch&eacute;miques &agrave; la phase aigu&euml;, pour faciliter le retrait m&eacute;canique du caillot (stent retriever ou thromboaspiration).</p>
+    <div class="verdict-banner">
+    <div class="vb-side">
+      <span class="vb-label">Verdict global du moteur</span>
+      <span class="vb-value">REJET&Eacute;</span>
+    </div>
+    <span class="vb-eq">=</span>
+    <div class="vb-side">
+      <span class="vb-label">D&eacute;cision r&eacute;elle HAS</span>
+      <span class="vb-value">Service Attendu Insuffisant</span>
+    </div>
+  </div>
+
+    <div class="mech-row">
+      <div class="mech-status ok">&#10003;</div>
+      <div>
+        <div class="mech-head">
+          <span class="mf-code">MF_A</span>
+          <span class="mf-label">identification causale</span>
+          <span class="mf-verdict ok">Confirm&eacute;</span>
+        </div>
+        <div class="mech-detail">
+          <span class="line"><span class="tag">Moteur</span><span class="moteur-val">Structure causale CIRCULAIRE &mdash; effet non identifiable</span></span>
+          <span class="line"><span class="tag">HAS</span><span class="has-val">&laquo;&nbsp;Huit des quinze &eacute;tudes retenues sont des &eacute;tudes r&eacute;trospectives et aucune n'&eacute;tait contr&ocirc;l&eacute;e randomis&eacute;e.&nbsp;&raquo;</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mech-row">
+      <div class="mech-status miss">&times;</div>
+      <div>
+        <div class="mech-head">
+          <span class="mf-code">MF_B</span>
+          <span class="mf-label">mesure de l'effet</span>
+          <span class="mf-verdict miss">Non confirm&eacute;</span>
+        </div>
+        <div class="mech-detail">
+          <span class="line"><span class="tag">Moteur</span><span class="moteur-val">SURROGATE_RISK d&eacute;tect&eacute;</span></span>
+          <span class="line"><span class="tag">HAS</span><span class="has-val">aucune critique isol&eacute;e et v&eacute;rifiable sur ce point pr&eacute;cis dans le texte de l'avis</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mech-row">
+      <div class="mech-status miss">&times;</div>
+      <div>
+        <div class="mech-head">
+          <span class="mf-code">MF_D</span>
+          <span class="mf-label">pertinence de l'&eacute;vidence</span>
+          <span class="mf-verdict miss">Manqu&eacute;</span>
+        </div>
+        <div class="mech-detail">
+          <span class="line"><span class="tag">Moteur</span><span class="moteur-val">Alignement jug&eacute; correct (score 0,9), aucune alerte forte</span></span>
+          <span class="line"><span class="tag">HAS</span><span class="has-val">&laquo;&nbsp;Aucune individualisation des r&eacute;sultats en fonction de la localisation de l'AVC [&hellip;] l'utilisation du cath&eacute;ter dans l'art&egrave;re vert&eacute;brale ne correspond pas &agrave; l'indication du marquage CE.&nbsp;&raquo;</span></span>
+        </div>
+      </div>
+    </div>
+
+    <p class="scope-note">MF_C (puissance statistique) et MF_E (fiabilit&eacute; du corpus) sont hors p&eacute;rim&egrave;tre du moteur par construction &mdash; volontairement absents de cette grille.</p>
+  </div>
+  <p class="screenshot-hint">Faire une capture d'&eacute;cran du bloc ci-dessus pour l'image du post.</p>
+
+
+</div>
+
+<script>
+  (function () {
+    var copyBtn = document.getElementById("copy-btn");
+    var status = document.getElementById("copy-status");
+    var textEl = document.getElementById("post-text");
+
+    copyBtn.addEventListener("click", function () {
+      var text = textEl.innerText.trim();
+      navigator.clipboard.writeText(text).then(function () {
+        status.textContent = "Texte copi\u00e9 dans le presse-papiers.";
+        setTimeout(function () { status.textContent = ""; }, 3000);
+      }, function () {
+        status.textContent = "Impossible de copier automatiquement — s\u00e9lectionnez le texte manuellement.";
+      });
+    });
+  })();
+</script>

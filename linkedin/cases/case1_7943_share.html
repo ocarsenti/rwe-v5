@@ -1,0 +1,537 @@
+<title>Cas réel 1/N — DIZG DBM vs avis HAS</title>
+<style>
+  :root {
+    --bg: #faf9f6;
+    --surface: #ffffff;
+    --border: #e2e2dc;
+    --ink: #16233a;
+    --ink-soft: #445064;
+    --muted: #6b7688;
+    --accent: #17457d;
+    --accent-soft: #6f9bc8;
+    --accent-wash: #eef3f8;
+    --tag: #4a5872;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1620;
+      --surface: #161f2c;
+      --border: #263145;
+      --ink: #eef2f7;
+      --ink-soft: #c3ccdb;
+      --muted: #8b96a9;
+      --accent: #7fadde;
+      --accent-soft: #3f5a7d;
+      --accent-wash: #1a2432;
+      --tag: #9fb0c9;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1620;
+    --surface: #161f2c;
+    --border: #263145;
+    --ink: #eef2f7;
+    --ink-soft: #c3ccdb;
+    --muted: #8b96a9;
+    --accent: #7fadde;
+    --accent-soft: #3f5a7d;
+    --accent-wash: #1a2432;
+    --tag: #9fb0c9;
+  }
+  :root[data-theme="light"] {
+    --bg: #faf9f6;
+    --surface: #ffffff;
+    --border: #e2e2dc;
+    --ink: #16233a;
+    --ink-soft: #445064;
+    --muted: #6b7688;
+    --accent: #17457d;
+    --accent-soft: #6f9bc8;
+    --accent-wash: #eef3f8;
+    --tag: #4a5872;
+  }
+
+  @font-face {
+    font-family: "IBM Plex Sans";
+    src: local("IBM Plex Sans");
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Iowan Old Style", "Palatino Linotype", Georgia, "IBM Plex Sans", serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 5rem;
+  }
+
+  .eyebrow {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 0.4rem;
+  }
+
+  h1 {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 0 0 0.35rem;
+    color: var(--ink);
+  }
+
+  .meta {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin: 0 0 2rem;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.75rem 1.75rem 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .post-text {
+    font-size: 1.02rem;
+    color: var(--ink-soft);
+    max-width: 62ch;
+  }
+
+  .post-text p {
+    margin: 0 0 1.1em;
+  }
+
+  .post-text p:last-of-type {
+    margin-bottom: 0;
+  }
+
+  .arrow-line {
+    color: var(--ink);
+  }
+
+  .tags {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.88rem;
+    color: var(--tag);
+    margin-top: 1.3rem;
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--border);
+    letter-spacing: 0.01em;
+  }
+
+  .img-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem;
+  }
+
+  .img-wrap img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 6px;
+  }
+
+  .toolbar {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-top: 1.25rem;
+  }
+
+  button, .btn {
+    font-family: inherit;
+    font-size: 0.86rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    border-radius: 7px;
+    padding: 0.6rem 1rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+
+  button:hover, .btn:hover {
+    border-color: var(--accent-soft);
+    background: var(--accent-wash);
+  }
+
+  button:focus-visible, .btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fbfcfe;
+  }
+
+  .btn.primary:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent-soft);
+  }
+
+  .status {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 0.5rem;
+    min-height: 1.1em;
+  }
+
+  .section-label {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 2rem 0 0.6rem;
+  }
+
+  footer {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 2.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+
+  blockquote {
+    margin: 0 0 1.1em;
+    padding: 0.15rem 0 0.15rem 1rem;
+    border-left: 3px solid var(--accent-soft);
+    font-style: italic;
+    color: var(--ink);
+  }
+
+  blockquote .cite {
+    display: block;
+    margin-top: 0.25rem;
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-style: normal;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+
+  ol.relations {
+    margin: 0 0 1.1em;
+    padding-left: 1.3em;
+  }
+
+  ol.relations li {
+    margin-bottom: 0.7em;
+  }
+
+  ol.relations .q {
+    font-style: italic;
+  }
+
+  ol.relations .mech {
+    display: block;
+    margin-top: 0.15rem;
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.85rem;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .device-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem 1.5rem 1.75rem;
+  }
+
+  .device-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.6rem;
+  }
+
+  .device-head h2 {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--ink);
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  .device-type {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--tag);
+    display: block;
+    margin-top: 0.15rem;
+  }
+
+  .has-badge {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--ink-soft);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+    white-space: nowrap;
+  }
+
+  .device-desc {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    margin: 0 0 1.5rem;
+    max-width: 60ch;
+  }
+
+  .scope-note {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin: 1.1rem 0 0;
+  }
+
+  .mech-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0 0.9rem;
+    padding: 0.9rem 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .mech-row:first-of-type { border-top: 1px solid var(--border); }
+
+  .mech-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    font-size: 1.05rem;
+    font-weight: 800;
+    grid-row: span 2;
+    align-self: start;
+  }
+
+  .mech-status.ok { background: var(--accent-wash); color: var(--accent); }
+  .mech-status.miss { background: #fbeaea; color: #a13b3b; }
+  .mech-status.partial { background: #fbf3e2; color: #9a6b1f; }
+
+  @media (prefers-color-scheme: dark) {
+    .mech-status.miss { background: #3a2323; color: #e0a3a3; }
+    .mech-status.partial { background: #3a3123; color: #e0c28a; }
+  }
+  :root[data-theme="dark"] .mech-status.miss { background: #3a2323; color: #e0a3a3; }
+  :root[data-theme="dark"] .mech-status.partial { background: #3a3123; color: #e0c28a; }
+
+  .mech-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .mech-head .mf-code {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-weight: 800;
+    font-size: 0.95rem;
+    color: var(--ink);
+  }
+
+  .mech-head .mf-label {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .mech-head .mf-verdict {
+    margin-left: auto;
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-weight: 700;
+    font-size: 0.76rem;
+  }
+
+  .mech-head .mf-verdict.ok { color: var(--accent); }
+  .mech-head .mf-verdict.miss { color: #a13b3b; }
+  .mech-head .mf-verdict.partial { color: #9a6b1f; }
+
+  @media (prefers-color-scheme: dark) {
+    .mech-head .mf-verdict.miss { color: #e0a3a3; }
+    .mech-head .mf-verdict.partial { color: #e0c28a; }
+  }
+  :root[data-theme="dark"] .mech-head .mf-verdict.miss { color: #e0a3a3; }
+  :root[data-theme="dark"] .mech-head .mf-verdict.partial { color: #e0c28a; }
+
+  .mech-detail {
+    grid-column: 2;
+    margin-top: 0.35rem;
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.83rem;
+    line-height: 1.5;
+  }
+
+  .mech-detail .line {
+    display: block;
+    margin-bottom: 0.3rem;
+  }
+
+  .mech-detail .tag {
+    font-weight: 700;
+    color: var(--muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-right: 0.4rem;
+  }
+
+  .mech-detail .moteur-val { color: var(--ink); font-weight: 600; }
+  .mech-detail .has-val { color: var(--ink-soft); font-style: italic; }
+
+  .screenshot-hint {
+    font-family: -apple-system, "Segoe UI", "IBM Plex Sans", sans-serif;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin: 0.6rem 0 0;
+  }
+</style>
+
+<div class="page">
+  <p class="eyebrow">S&eacute;rie LinkedIn CNEDiMTS &middot; Cas r&eacute;el 1 sur N</p>
+  <h1>DIZG DBM&nbsp;: le moteur face &agrave; l'avis HAS</h1>
+  <p class="meta">Texte pr&ecirc;t &agrave; copier &middot; image pr&ecirc;te &agrave; capturer</p>
+
+  <div class="card">
+    <div class="post-text" id="post-text">
+      <p>Nouveau format cette semaine&nbsp;: un dossier r&eacute;el, et une grille de lecture fixe &mdash; toujours la m&ecirc;me &mdash; pour comparer ce que sort notre moteur &agrave; ce que dit vraiment la HAS. On ne compare que sur les m&eacute;canismes que le moteur revendique de couvrir (identification causale, mesure de l'effet, pertinence de l'&eacute;vidence) &mdash; jamais sur ceux qu'il ne couvre pas.</p>
+      <p>Le dossier&nbsp;: <strong>DIZG DBM</strong>, une allogreffe osseuse d&eacute;min&eacute;ralis&eacute;e utilis&eacute;e pour combler des pertes de substance osseuse en chirurgie orthop&eacute;dique, oncologie, neurochirurgie, stomatologie et maxillo-faciale. Le moteur re&ccedil;oit uniquement la revendication clinique &mdash; jamais l'avis, jamais la conclusion.</p>
+      <p>R&eacute;sultat sur les 3 m&eacute;canismes couverts&nbsp;: 1 confirm&eacute; mot pour mot, 1 manqu&eacute; par le moteur, 1 d&eacute;tect&eacute; en interne mais pas encore assez fort pour faire bouger le verdict global. Le d&eacute;tail en image.</p>
+      <p>Le dossier a finalement &eacute;t&eacute; accept&eacute; par la HAS (Service Attendu Suffisant, Am&eacute;lioration niveau V)&nbsp;: ce n'&eacute;tait pas un motif de rejet, seulement des limites m&eacute;thodologiques parmi d'autres relev&eacute;es par la commission.</p>
+      <p>1/N &mdash; la suite de la s&eacute;rie&nbsp;: d'autres dossiers, avec la m&ecirc;me grille, dans les deux sens.</p>
+    </div>
+    <div class="tags">#DispositifsM&eacute;dicaux #HAS #CNEDiMTS #Acc&egravesAuMarch&eacute; #RWE #MedTech</div>
+    <div class="toolbar">
+      <button class="btn primary" id="copy-btn" type="button">Copier le texte</button>
+    </div>
+    <div class="status" id="copy-status" role="status" aria-live="polite"></div>
+  </div>
+
+  <p class="section-label">Image du post</p>
+  <div class="device-card" id="device-card">
+    <div class="device-head">
+      <div>
+        <h2>DIZG DBM</h2>
+        <span class="device-type">ALLOGREFFE OSSEUSE D&Eacute;MIN&Eacute;RALIS&Eacute;E &middot; DOSSIER 7943 &middot; AVIS DU 3 MARS 2026</span>
+      </div>
+      <span class="has-badge">HAS&nbsp;: SA Suffisant &middot; ASA V</span>
+    </div>
+    <p class="device-desc">Greffon osseux d'origine humaine, viro-inactiv&eacute; et d&eacute;calcifi&eacute;, utilis&eacute; pour combler des pertes de substance osseuse en chirurgie orthop&eacute;dique, oncologie, neurochirurgie, stomatologie et maxillo-faciale. Environ 39&nbsp;000 interventions par an en France utilisent ce type d'allogreffe.</p>
+
+    <div class="mech-row">
+      <div class="mech-status miss">&times;</div>
+      <div>
+        <div class="mech-head">
+          <span class="mf-code">MF_A</span>
+          <span class="mf-label">identification causale</span>
+          <span class="mf-verdict miss">Manqu&eacute;</span>
+        </div>
+        <div class="mech-detail">
+          <span class="line"><span class="tag">Moteur</span><span class="moteur-val">Structure causale directe &mdash; rien d&eacute;tect&eacute;</span></span>
+          <span class="line"><span class="tag">HAS</span><span class="has-val">&laquo;&nbsp;caract&egrave;re monocentrique&nbsp;; absence d'information sur le caract&egrave;re aveugle ou ouvert [&hellip;]&nbsp;&raquo;</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mech-row">
+      <div class="mech-status ok">&#10003;</div>
+      <div>
+        <div class="mech-head">
+          <span class="mf-code">MF_B</span>
+          <span class="mf-label">mesure de l'effet</span>
+          <span class="mf-verdict ok">Confirm&eacute;</span>
+        </div>
+        <div class="mech-detail">
+          <span class="line"><span class="tag">Moteur</span><span class="moteur-val">ADJUDICATION_RISK &mdash; absence d'&eacute;valuation en aveugle</span></span>
+          <span class="line"><span class="tag">HAS</span><span class="has-val">&laquo;&nbsp;[&hellip;] absence d'information sur le caract&egrave;re aveugle ou ouvert de l'&eacute;tude [&hellip;]&nbsp;&raquo;</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mech-row">
+      <div class="mech-status partial">~</div>
+      <div>
+        <div class="mech-head">
+          <span class="mf-code">MF_D</span>
+          <span class="mf-label">pertinence de l'&eacute;vidence</span>
+          <span class="mf-verdict partial">Partiel</span>
+        </div>
+        <div class="mech-detail">
+          <span class="line"><span class="tag">Moteur</span><span class="moteur-val">Risque d'alignement population g&eacute;n&eacute;r&eacute; en interne, verdict global reste &laquo;&nbsp;acceptable&nbsp;&raquo; (0,9)</span></span>
+          <span class="line"><span class="tag">HAS</span><span class="has-val">&laquo;&nbsp;Les donn&eacute;es cliniques disponibles ne permettent pas la comparaison de DIZG DBM avec les autres allogreffes [&hellip;]&nbsp;&raquo;</span></span>
+        </div>
+      </div>
+    </div>
+
+    <p class="scope-note">MF_C (puissance statistique) et MF_E (fiabilit&eacute; du corpus) sont hors p&eacute;rim&egrave;tre du moteur par construction &mdash; volontairement absents de cette grille.</p>
+  </div>
+  <p class="screenshot-hint">Faire une capture d'&eacute;cran du bloc ci-dessus pour l'image du post.</p>
+
+</div>
+
+<script>
+  (function () {
+    var copyBtn = document.getElementById("copy-btn");
+    var status = document.getElementById("copy-status");
+    var textEl = document.getElementById("post-text");
+
+    copyBtn.addEventListener("click", function () {
+      var text = textEl.innerText.trim();
+      navigator.clipboard.writeText(text).then(function () {
+        status.textContent = "Texte copi\u00e9 dans le presse-papiers.";
+        setTimeout(function () { status.textContent = ""; }, 3000);
+      }, function () {
+        status.textContent = "Impossible de copier automatiquement — s\u00e9lectionnez le texte manuellement.";
+      });
+    });
+  })();
+</script>
