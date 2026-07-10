@@ -44,9 +44,7 @@ function Navbar() {
   const { lang, setLang } = useLang()
 
   const NAV_ITEMS = [
-    { path: '/', label: lang === 'fr' ? 'Accueil' : 'Home' },
     { path: '/repair', label: 'Diag + Repair', premium: true },
-    { path: '/gold', label: lang === 'fr' ? 'Cas référence' : 'Reference cases' },
   ]
 
   return (
