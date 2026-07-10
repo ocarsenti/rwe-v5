@@ -3819,6 +3819,7 @@ class TestStudyObject(unittest.TestCase):
         from study_object import compare_claim_to_study, OverallRisk, BlindingLevel
         study = self._make_study(
             blinding_level=BlindingLevel.DOUBLE_BLIND,
+            is_multicentric=True,
             device_alignment=DeviceAlignment(
                 device_match_type=DeviceMatchType.EXACT_DEVICE,
                 device_description_claim="MyDevice",

@@ -159,6 +159,7 @@ class StudyObject:
     who_is_blinded: list[str] = field(default_factory=list)
     allocation_concealment: Optional[bool] = None
     protocol_registered_before_enrollment: Optional[bool] = None
+    is_multicentric: Optional[bool] = None
 
     # Comparator
     has_comparator: Optional[bool] = None
@@ -233,6 +234,7 @@ class StudyObject:
             "who_is_blinded": self.who_is_blinded,
             "allocation_concealment": self.allocation_concealment,
             "protocol_registered_before_enrollment": self.protocol_registered_before_enrollment,
+            "is_multicentric": self.is_multicentric,
             "has_comparator": self.has_comparator,
             "comparator_type": self.comparator_type.value,
             "comparator_description": self.comparator_description,
@@ -547,6 +549,33 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                     "doit être observé."
                 ),
             ))
+
+    # Single-center (or unknown centricity) study for an outcome claim — effects
+    # observed at a single site may reflect local factors (expertise de l'opérateur,
+    # sélection des patients, adhérence au protocole propre au centre) rather than
+    # an effect generalizable to d'autres centres. Same style as the has_comparator
+    # rule above: flagged only for outcome-level claims (C/D).
+    if (
+        study.is_multicentric is False or study.is_multicentric is None
+    ) and claim.level in (ClaimLevel.C, ClaimLevel.D):
+        gaps.append(ClaimStudyGap(
+            dimension="design",
+            severity="MEDIUM",
+            description=(
+                "Étude mono-centrique ou centricité non renseignée pour une "
+                "revendication d'outcome (niveau C/D)."
+            ),
+            has_critique=(
+                "Une étude menée dans un seul centre (ou dont le caractère "
+                "multicentrique n'est pas documenté) expose à un risque de biais lié "
+                "au site : l'expertise de l'opérateur, la sélection des patients et "
+                "l'adhérence au protocole propres à ce centre peuvent expliquer tout "
+                "ou partie du bénéfice observé, sans que celui-ci soit généralisable "
+                "à d'autres centres. Une étude multicentrique, ou à défaut une "
+                "justification explicite de la représentativité du centre unique, est "
+                "requise pour soutenir une revendication d'outcome."
+            ),
+        ))
 
     # Confounding / uncontrolled co-intervention — the observed effect may not be
     # attributable to the device if concomitant treatments are present and neither
