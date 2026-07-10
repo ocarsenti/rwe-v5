@@ -1,6 +1,13 @@
 """
 Comparaison pipeline RWE-v5 vs critiques réelles CNEDiMTS
 15 avis représentatifs — LPPR + LATM + PECAN
+
+Outil de calibration INTERNE du moteur (audit rétrospectif contre des avis HAS
+déjà publiés) — voir PROMPT_FIX_CLASSIFIER_ET_VERDICT.md, Part 2, item 10. Ne
+pas exposer cette comparaison, ni son vocabulaire (décision HAS, alignement
+algo/HAS...), comme sortie affichée à l'utilisateur sur un nouveau dossier :
+l'outil n'a pas vocation à prédire une décision HAS, seulement à repérer des
+problèmes méthodologiques (cf. cas_engine.assess_methodological_risk).
 """
 
 from __future__ import annotations
