@@ -3153,72 +3153,86 @@ class TestCASWiring(unittest.TestCase):
 
 
 # ===================================================================
-# Overall verdict — combines CAS alignment with causal structure + bias
-# severity (2026-07-08 CNEDiMTS audit: CAS alone caught 0/7 real HAS
+# Methodological risk trend — combines CAS alignment with causal structure +
+# bias severity (2026-07-08 CNEDiMTS audit: CAS alone caught 0/7 real HAS
 # rejections in a 34-dossier corpus because it never saw causal_structure
-# or bias_flags at all; see cas_engine.determine_overall_verdict).
+# or bias_flags at all; see cas_engine.assess_methodological_risk()).
+#
+# Renamed 2026-07-10 from determine_overall_verdict()/CASVerdict
+# (ACCEPTABLE/WEAK_EVIDENCE/REJECTED) to assess_methodological_risk()/
+# MethodologicalRiskLevel (LOW/MODERATE/HIGH) — see
+# PROMPT_FIX_CLASSIFIER_ET_VERDICT.md, Part 2: the tool flags methodological
+# problems, it does not predict a HAS decision. Escalation logic unchanged.
 # ===================================================================
 
-from cas_engine import determine_overall_verdict
-from models import BiasDetection, CausalStructure
+from cas_engine import assess_methodological_risk
+from models import BiasDetection, CausalStructure, MethodologicalRiskLevel
 
 
 def _bias(flag_severity: str) -> BiasDetection:
     return BiasDetection(flag=BiasFlag.NO_COMPARATOR, severity=flag_severity, detail="test")
 
 
-class TestOverallVerdict(unittest.TestCase):
+class TestMethodologicalRisk(unittest.TestCase):
 
-    def test_all_clean_is_acceptable(self):
-        v = determine_overall_verdict(CausalStructure.DIRECT, [], None)
-        self.assertEqual(v, CASVerdict.ACCEPTABLE)
+    def test_all_clean_is_low(self):
+        a = assess_methodological_risk(CausalStructure.DIRECT, [], None)
+        self.assertEqual(a.risk_level, MethodologicalRiskLevel.LOW)
+        self.assertEqual(a.severity_counts, {})
 
-    def test_circular_structure_alone_is_weak_evidence(self):
+    def test_circular_structure_alone_is_moderate(self):
         """Broken structure alone (no HIGH bias flag) is a caution, not a hard
-        reject — recalibrated 2026-07-09, see module comment: REJECTED now
+        escalation — recalibrated 2026-07-09, see module comment: HIGH now
         requires structure + a HIGH flag together."""
-        v = determine_overall_verdict(CausalStructure.CIRCULAR, [], None)
-        self.assertEqual(v, CASVerdict.WEAK_EVIDENCE)
+        a = assess_methodological_risk(CausalStructure.CIRCULAR, [], None)
+        self.assertEqual(a.risk_level, MethodologicalRiskLevel.MODERATE)
+        self.assertEqual(a.severity_counts, {"CRITICAL": 1})
 
-    def test_invalid_structure_alone_is_weak_evidence(self):
-        v = determine_overall_verdict(CausalStructure.INVALID, [], None)
-        self.assertEqual(v, CASVerdict.WEAK_EVIDENCE)
+    def test_invalid_structure_alone_is_moderate(self):
+        a = assess_methodological_risk(CausalStructure.INVALID, [], None)
+        self.assertEqual(a.risk_level, MethodologicalRiskLevel.MODERATE)
 
-    def test_circular_structure_with_high_bias_rejects(self):
-        v = determine_overall_verdict(CausalStructure.CIRCULAR, [_bias("HIGH")], None)
-        self.assertEqual(v, CASVerdict.REJECTED)
+    def test_circular_structure_with_high_bias_is_high(self):
+        a = assess_methodological_risk(CausalStructure.CIRCULAR, [_bias("HIGH")], None)
+        self.assertEqual(a.risk_level, MethodologicalRiskLevel.HIGH)
+        self.assertEqual(a.severity_counts, {"CRITICAL": 1, "HIGH": 1})
 
-    def test_high_severity_bias_alone_is_acceptable(self):
+    def test_high_severity_bias_alone_is_low(self):
         """A lone HIGH bias flag without a broken causal structure is deliberately
-        NOT enough to downgrade — recalibrated 2026-07-09 (2nd pass, see module
-        comment): SURROGATE_RISK fired alone on an accepted dossier (7947) as
-        often as on a real HAS rejection (7425) in the 34-dossier audit (~17%
+        NOT enough to escalate the trend — recalibrated 2026-07-09 (2nd pass, see
+        module comment): SURROGATE_RISK fired alone on an accepted dossier (7947)
+        as often as on a real HAS rejection (7425) in the 34-dossier audit (~17%
         precision) — bias severity alone, of any tier, is too noisy a signal;
-        only a broken causal structure is used to trigger a downgrade."""
-        v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("HIGH")], None)
-        self.assertEqual(v, CASVerdict.ACCEPTABLE)
+        only a broken causal structure moves the trend. The HIGH flag still shows
+        up in severity_counts — it just doesn't move risk_level alone."""
+        a = assess_methodological_risk(CausalStructure.DIRECT, [_bias("HIGH")], None)
+        self.assertEqual(a.risk_level, MethodologicalRiskLevel.LOW)
+        self.assertEqual(a.severity_counts, {"HIGH": 1})
 
-    def test_medium_severity_bias_alone_is_acceptable(self):
-        """A lone MEDIUM bias flag is deliberately NOT enough to downgrade —
+    def test_medium_severity_bias_alone_is_low(self):
+        """A lone MEDIUM bias flag is deliberately NOT enough to escalate —
         recalibrated 2026-07-09: ~18% precision (2 real rejects vs 9 accepted
         dossiers) in the 34-dossier CNEDiMTS audit, too noisy to act on alone."""
-        v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("MEDIUM")], None)
-        self.assertEqual(v, CASVerdict.ACCEPTABLE)
+        a = assess_methodological_risk(CausalStructure.DIRECT, [_bias("MEDIUM")], None)
+        self.assertEqual(a.risk_level, MethodologicalRiskLevel.LOW)
 
-    def test_low_severity_bias_alone_is_acceptable(self):
-        v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("LOW")], None)
-        self.assertEqual(v, CASVerdict.ACCEPTABLE)
+    def test_low_severity_bias_alone_is_low(self):
+        a = assess_methodological_risk(CausalStructure.DIRECT, [_bias("LOW")], None)
+        self.assertEqual(a.risk_level, MethodologicalRiskLevel.LOW)
 
-    def test_several_bias_flags_without_broken_structure_is_acceptable(self):
-        """Even several co-occurring flags (any severity mix) don't downgrade on
-        their own without a broken causal structure — recalibrated 2026-07-09
-        (2nd pass): pairs like MEDIATION_GAP+ADJUDICATION_RISK fired on several
-        accepted dossiers (7717/7851/7990/8011) and never on a real reject in
-        this combination."""
-        v = determine_overall_verdict(CausalStructure.DIRECT, [_bias("LOW"), _bias("HIGH"), _bias("MEDIUM")], None)
-        self.assertEqual(v, CASVerdict.ACCEPTABLE)
+    def test_several_bias_flags_without_broken_structure_is_low(self):
+        """Even several co-occurring flags (any severity mix) don't escalate the
+        trend on their own without a broken causal structure — recalibrated
+        2026-07-09 (2nd pass): pairs like MEDIATION_GAP+ADJUDICATION_RISK fired
+        on several accepted dossiers (7717/7851/7990/8011) and never on a real
+        reject in this combination. All three still appear in severity_counts."""
+        a = assess_methodological_risk(
+            CausalStructure.DIRECT, [_bias("LOW"), _bias("HIGH"), _bias("MEDIUM")], None,
+        )
+        self.assertEqual(a.risk_level, MethodologicalRiskLevel.LOW)
+        self.assertEqual(a.severity_counts, {"LOW": 1, "HIGH": 1, "MEDIUM": 1})
 
-    def test_cas_rejected_alone_rejects(self):
+    def test_cas_rejected_alone_is_high(self):
         claim = ClinicalClaim(
             text="Valve NAVITOR réduit la mortalité cardiovasculaire",
             intervention="NAVITOR", domain="cardiology",
@@ -3227,36 +3241,52 @@ class TestOverallVerdict(unittest.TestCase):
             context_alignment=_make_context(ContextMatchType.SAME_HEALTHCARE_SYSTEM),
         )
         output = analyze(claim)
-        self.assertEqual(output.overall_verdict, CASVerdict.REJECTED)
+        self.assertEqual(output.methodological_risk.risk_level, MethodologicalRiskLevel.HIGH)
 
     def test_clean_cas_does_not_mask_circular_structure_with_high_bias(self):
         """A dossier with perfect CAS alignment but a CIRCULAR causal structure
-        plus a HIGH-severity bias flag must not be reported ACCEPTABLE overall
-        — this is the actual WALRUS 7182 / TRIPLE ACTION 7620 shape (both carry
+        plus a HIGH-severity bias flag must not be reported LOW overall — this is
+        the actual WALRUS 7182 / TRIPLE ACTION 7620 shape (both carry
         CIRCULARITY_RISK/SURROGATE_RISK alongside the CIRCULAR structure, not
         a bare structure with no flags)."""
-        v = determine_overall_verdict(
+        a = assess_methodological_risk(
             CausalStructure.CIRCULAR, [_bias("HIGH")],
             cas_output=None,
         )
-        self.assertEqual(v, CASVerdict.REJECTED)
+        self.assertEqual(a.risk_level, MethodologicalRiskLevel.HIGH)
 
-    def test_overall_verdict_wired_into_analyze_output(self):
+    def test_methodological_risk_wired_into_analyze_output(self):
         claim = ClinicalClaim(
             text="Le stimulateur INSPIRE IV réduit l'IAH chez les patients SAOS",
             intervention="INSPIRE IV", domain="pulmonology",
         )
         output = analyze(claim)
-        self.assertIsNotNone(output.overall_verdict)
+        self.assertIsNotNone(output.methodological_risk)
 
-    def test_overall_verdict_in_to_dict(self):
+    def test_methodological_risk_in_to_dict(self):
         claim = ClinicalClaim(
             text="Le stimulateur INSPIRE IV réduit l'IAH chez les patients SAOS",
             intervention="INSPIRE IV", domain="pulmonology",
         )
         output = analyze(claim)
         d = output.to_dict()
-        self.assertIn("overall_verdict", d)
+        self.assertIn("methodological_risk_trend", d)
+        self.assertIn("trend_label", d["methodological_risk_trend"])
+        self.assertIn("severity_counts", d["methodological_risk_trend"])
+
+    def test_methodological_risk_trend_reported_after_bias_flags_and_gaps(self):
+        """Item 9: bias_flags and repair_engine (gaps) must appear before the
+        risk trend in the report — it is a secondary, clearly-labeled trend,
+        not a leading verdict."""
+        claim = ClinicalClaim(
+            text="Le stimulateur INSPIRE IV réduit l'IAH chez les patients SAOS",
+            intervention="INSPIRE IV", domain="pulmonology",
+        )
+        output = analyze(claim)
+        d = output.to_dict()
+        keys = list(d.keys())
+        self.assertLess(keys.index("bias_flags"), keys.index("methodological_risk_trend"))
+        self.assertLess(keys.index("repair_engine"), keys.index("methodological_risk_trend"))
 
 
 # ===================================================================

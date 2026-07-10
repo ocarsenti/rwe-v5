@@ -22,7 +22,7 @@ from epistemic_core import (
 from epistemic_manifold import compute_review_position, compute_repair_delta
 from regulatory_labeler import label_case
 from design_mode import run_design_mode, run_design_mode_json
-from cas_engine import evaluate_cas, determine_overall_verdict
+from cas_engine import evaluate_cas, assess_methodological_risk
 
 
 # ===================================================================
@@ -70,7 +70,7 @@ def analyze(claim: ClinicalClaim, lang: str = "fr") -> EngineOutput:
             context=claim.context_alignment,
         )
 
-    overall_verdict = determine_overall_verdict(structure, bias_detections, cas_output)
+    methodological_risk = assess_methodological_risk(structure, bias_detections, cas_output, lang=lang)
 
     output = EngineOutput(
         claim_level=claim.level,
@@ -83,7 +83,7 @@ def analyze(claim: ClinicalClaim, lang: str = "fr") -> EngineOutput:
         regulatory_readout=regulatory_readout,
         manifold_position=manifold_position,
         cas_output=cas_output,
-        overall_verdict=overall_verdict,
+        methodological_risk=methodological_risk,
     )
 
     if repair_plan_v2 and repair_plan_v2.status == "REPAIRABLE":

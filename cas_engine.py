@@ -22,6 +22,8 @@ from models import (
     DeviceAlignment,
     DeviceMatchType,
     EligibilityShift,
+    MethodologicalRiskAssessment,
+    MethodologicalRiskLevel,
     OrganizationDependency,
     PopulationAlignment,
     PopulationMatchType,
@@ -352,8 +354,9 @@ def evaluate_cas(
 
 
 # ---------------------------------------------------------------------------
-# Overall verdict — combines CAS (alignment) with the epistemic core's causal
-# structure and bias severity, which evaluate_cas() deliberately never sees.
+# Methodological risk trend — combines CAS (alignment) with the epistemic
+# core's causal structure and bias severity, which evaluate_cas() deliberately
+# never sees.
 #
 # CAS_score/CASOutput.verdict stay exactly as before (pure alignment, unchanged,
 # still covered by their own unit tests below) — evaluate_cas() measures whether
@@ -378,35 +381,109 @@ def evaluate_cas(
 # 0 of the 27 accepted ones (the sole CIRCULAR-and-accepted case, DURAWALK
 # 7793, is a known structure-classification bug upstream of this function,
 # not a genuine counterexample). So bias severity is now used only to decide
-# how bad a broken structure is (REJECTED vs WEAK_EVIDENCE), never to trigger
-# a downgrade on its own — trades one real reject (VIS-RX 7425, caught only
+# how bad a broken structure is (HIGH vs MODERATE risk), never to trigger
+# an escalation on its own — trades one real reject (VIS-RX 7425, caught only
 # by a lone NO_COMPARATOR) for eliminating every bias-flag-driven false
 # positive on the 27 accepted dossiers.
+#
+# 2026-07-10 (PROMPT_FIX_CLASSIFIER_ET_VERDICT.md, Part 2): renamed from
+# determine_overall_verdict()/CASVerdict (ACCEPTABLE/WEAK_EVIDENCE/REJECTED)
+# to assess_methodological_risk()/MethodologicalRiskLevel (LOW/MODERATE/HIGH).
+# This tool flags methodological problems, it does not predict a HAS decision
+# — the old labels invited exactly that misreading. The escalation rule below
+# is unchanged (same validated signal); what changed is (a) the risk_level is
+# now always paired with a transparent severity_counts tally instead of being
+# the only thing shown, and (b) it is rendered as a secondary "trend", after
+# bias_flags/gaps in the report — see EngineOutput.to_dict().
 # ---------------------------------------------------------------------------
 
-_VERDICT_RANK = {CASVerdict.ACCEPTABLE: 0, CASVerdict.WEAK_EVIDENCE: 1, CASVerdict.REJECTED: 2}
+_CAS_VERDICT_TO_RISK = {
+    CASVerdict.ACCEPTABLE: MethodologicalRiskLevel.LOW,
+    CASVerdict.WEAK_EVIDENCE: MethodologicalRiskLevel.MODERATE,
+    CASVerdict.REJECTED: MethodologicalRiskLevel.HIGH,
+}
+_RISK_RANK = {
+    MethodologicalRiskLevel.LOW: 0,
+    MethodologicalRiskLevel.MODERATE: 1,
+    MethodologicalRiskLevel.HIGH: 2,
+}
 _HIGH_SEVERITY_BIAS = {"HIGH"}
 
+_TREND_PREFIX = {
+    "fr": "Tendance de risque méthodologique (pas un verdict) : ",
+    "en": "Methodological risk trend (not a verdict): ",
+}
+_RISK_LABEL = {
+    "fr": {
+        MethodologicalRiskLevel.LOW: "FAIBLE",
+        MethodologicalRiskLevel.MODERATE: "MODÉRÉ",
+        MethodologicalRiskLevel.HIGH: "ÉLEVÉ",
+    },
+    "en": {
+        MethodologicalRiskLevel.LOW: "LOW",
+        MethodologicalRiskLevel.MODERATE: "MODERATE",
+        MethodologicalRiskLevel.HIGH: "HIGH",
+    },
+}
 
-def determine_overall_verdict(
+
+def _tally_severity_counts(
     causal_structure: CausalStructure,
     bias_flags: list[BiasDetection],
     cas_output: CASOutput | None,
-) -> CASVerdict:
-    """Worst-of(CAS alignment, causal structure integrity). Bias severity only
-    escalates an already-broken causal structure to REJECTED — a bias flag on
-    its own, of any severity or count, never downgrades alone. See module
-    comment above for why."""
-    cas_verdict = cas_output.verdict if cas_output is not None else CASVerdict.ACCEPTABLE
+) -> dict[str, int]:
+    """Raw count of every methodological-risk signal considered, by severity —
+    shown in full regardless of whether it moves risk_level, so a reviewer
+    isn't left blind to signals judged too noisy to act on alone (see module
+    comment above)."""
+    counts: dict[str, int] = {}
+
+    def bump(severity: str) -> None:
+        counts[severity] = counts.get(severity, 0) + 1
+
+    if causal_structure in (CausalStructure.CIRCULAR, CausalStructure.INVALID):
+        bump("CRITICAL")
+
+    for bd in bias_flags:
+        bump(bd.severity)
+
+    if cas_output is not None:
+        if not cas_output.gating.device_gate_passed:
+            bump("CRITICAL")
+        for risk in cas_output.risks:
+            bump(risk.risk_level)
+
+    return counts
+
+
+def assess_methodological_risk(
+    causal_structure: CausalStructure,
+    bias_flags: list[BiasDetection],
+    cas_output: CASOutput | None,
+    lang: str = "fr",
+) -> MethodologicalRiskAssessment:
+    """Worst-of(CAS alignment, causal structure integrity), paired with a
+    transparent severity_counts tally. Bias severity only escalates an
+    already-broken causal structure to HIGH — a bias flag on its own, of any
+    severity or count, never escalates alone. See module comment above for why."""
+    cas_risk = _CAS_VERDICT_TO_RISK[cas_output.verdict] if cas_output is not None else MethodologicalRiskLevel.LOW
 
     structure_broken = causal_structure in (CausalStructure.CIRCULAR, CausalStructure.INVALID)
     has_high_bias = any(bd.severity in _HIGH_SEVERITY_BIAS for bd in bias_flags)
 
     if structure_broken and has_high_bias:
-        causal_bias_verdict = CASVerdict.REJECTED
+        causal_bias_risk = MethodologicalRiskLevel.HIGH
     elif structure_broken:
-        causal_bias_verdict = CASVerdict.WEAK_EVIDENCE
+        causal_bias_risk = MethodologicalRiskLevel.MODERATE
     else:
-        causal_bias_verdict = CASVerdict.ACCEPTABLE
+        causal_bias_risk = MethodologicalRiskLevel.LOW
 
-    return max((cas_verdict, causal_bias_verdict), key=lambda v: _VERDICT_RANK[v])
+    risk_level = max((cas_risk, causal_bias_risk), key=lambda r: _RISK_RANK[r])
+    severity_counts = _tally_severity_counts(causal_structure, bias_flags, cas_output)
+    trend_label = f"{_TREND_PREFIX[lang]}{_RISK_LABEL[lang][risk_level]}"
+
+    return MethodologicalRiskAssessment(
+        risk_level=risk_level,
+        severity_counts=severity_counts,
+        trend_label=trend_label,
+    )

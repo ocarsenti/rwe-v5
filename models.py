@@ -718,7 +718,7 @@ class EngineOutput:
     manifold_position: Optional["EpistemicManifoldPosition"] = None
     repair_delta: Optional["RepairManifoldDelta"] = None
     cas_output: Optional["CASOutput"] = None
-    overall_verdict: Optional["CASVerdict"] = None
+    methodological_risk: Optional["MethodologicalRiskAssessment"] = None
 
     def to_dict(self) -> dict:
         d = {
@@ -753,8 +753,10 @@ class EngineOutput:
             d["repair_manifold_delta"] = self.repair_delta.to_dict()
         if self.cas_output is not None:
             d["cas_output"] = self.cas_output.to_dict()
-        if self.overall_verdict is not None:
-            d["overall_verdict"] = self.overall_verdict.value
+        if self.methodological_risk is not None:
+            # Deliberately last: bias_flags/repair_engine (the actual findings) are
+            # reported first; this is a secondary trend indicator, not a verdict.
+            d["methodological_risk_trend"] = self.methodological_risk.to_dict()
         return d
 
     def _repair_dict(self) -> dict:
@@ -846,6 +848,36 @@ class CASVerdict(Enum):
     ACCEPTABLE = "ACCEPTABLE"
     WEAK_EVIDENCE = "WEAK_EVIDENCE"
     REJECTED = "REJECTED"
+
+
+class MethodologicalRiskLevel(Enum):
+    """Methodological-risk trend, not a prediction of a HAS/regulatory decision.
+
+    Deliberately not named ACCEPTABLE/REJECTED (see
+    PROMPT_FIX_CLASSIFIER_ET_VERDICT.md, Part 2): this tool flags methodological
+    problems for a reviewer to weigh, it does not simulate the agency's verdict.
+    """
+    LOW = "LOW"
+    MODERATE = "MODERATE"
+    HIGH = "HIGH"
+
+
+@dataclass
+class MethodologicalRiskAssessment:
+    """Transparent, secondary-position trend summary — see assess_methodological_risk()
+    in cas_engine.py. severity_counts is the raw tally of every signal considered
+    (causal structure, bias flags, CAS risks); it is always shown in full, never
+    folded into risk_level alone, so a reviewer can see what didn't move the trend."""
+    risk_level: MethodologicalRiskLevel
+    severity_counts: dict
+    trend_label: str
+
+    def to_dict(self) -> dict:
+        return {
+            "risk_level": self.risk_level.value,
+            "severity_counts": dict(self.severity_counts),
+            "trend_label": self.trend_label,
+        }
 
 
 @dataclass
