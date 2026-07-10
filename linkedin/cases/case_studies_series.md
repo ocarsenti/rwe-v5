@@ -76,8 +76,8 @@ relevées par la commission.
 
 | Mécanisme | Ce que sort le moteur | Ce que dit l'avis HAS | Verdict |
 |---|---|---|---|
-| MF_A identification causale | Structure causale directe — rien détecté | « caractère monocentrique ; absence d'information sur le caractère aveugle ou ouvert […] » | Manqué |
-| MF_B mesure de l'effet | ADJUDICATION_RISK — absence d'évaluation en aveugle | « […] absence d'information sur le caractère aveugle ou ouvert de l'étude […] » | Confirmé |
+| MF_A identification causale | Structure causale directe — rien détecté | « caractère monocentrique » | Manqué |
+| MF_B mesure de l'effet | ADJUDICATION_RISK — absence d'évaluation en aveugle | « absence d'information sur le caractère aveugle ou ouvert de l'étude (au moins pour le patient) » | Confirmé |
 | MF_D pertinence de l'évidence | Risque d'alignement population généré en interne, verdict global reste "acceptable" (0,9) | « Les données cliniques disponibles ne permettent pas la comparaison de DIZG DBM avec les autres allogreffes […] » | Partiel |
 
 MF_C (puissance statistique) et MF_E (fiabilité du corpus) : hors périmètre du moteur, absents
