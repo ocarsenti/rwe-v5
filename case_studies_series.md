@@ -92,6 +92,17 @@ archivés précédents (07-08/07-09). Le signal reste rattaché à MF_D (CAS eng
 (structure causale), d'où le déclassement de la ligne MF_A en "rien détecté sur ce point" plutôt
 qu'un vrai correctif de ce mécanisme-là.
 
+**Mise à jour 2026-07-11 (indication_matches_ce_marking + fix du vote consensus des endpoints)** :
+re-exécution de `has_vs_moteur.py` après les mêmes correctifs que pour WALRUS (voir plus bas,
+rwe-v5 commit `97c354b` / cnedimts_analysis commit `2bbeeee`). Contrairement à WALRUS, ce dossier
+n'est pas affecté sur le fond : `indication_matches_ce_marking=True` (le texte ne mentionne aucun
+usage hors périmètre du marquage CE pour ce dispositif), et tous les autres signaux restent
+identiques au run du 07-10 (structure DIRECT, CAS_CONTEXT confirmé, CAS_POPULATION non confirmé,
+ADJUDICATION_RISK confirmé, tendance LOW). Le vote consensus des endpoints ne relève ici qu'une
+instabilité mineure de libellé (`device_studied`, `endpoints[].result_direction`), sans effet sur
+`causal_role` ni sur l'ensemble des endpoints primaires — ce dossier n'avait pas de cas limite
+comparable à celui de WALRUS. Grille et texte inchangés.
+
 ---
 
 ## CAS 2/N — WALRUS (dossier 7182, primo-inscription, avis du 23 avril 2024)
