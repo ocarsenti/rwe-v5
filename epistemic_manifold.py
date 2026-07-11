@@ -144,6 +144,7 @@ def _study_to_coordinates(
         StudyDesign.RCT, StudyDesign.SHAM_RCT, StudyDesign.PRAGMATIC_RCT,
         StudyDesign.COHORT, StudyDesign.ITS, StudyDesign.BEFORE_AFTER,
         StudyDesign.MATCHED_OBSERVATIONAL, StudyDesign.SINGLE_ARM_PERFORMANCE_GOAL,
+        StudyDesign.EXTERNAL_CONTROL_COHORT,
     }
     if design_primary not in _identifiable_designs:
         rs = 0.0
@@ -162,6 +163,10 @@ def _study_to_coordinates(
             # threshold and justified sample size — weaker than any
             # comparator-based design, stronger than uncontrolled pilot work.
             StudyDesign.SINGLE_ARM_PERFORMANCE_GOAL: 0.20,
+            # Has an actual comparator (unlike the performance-goal design above),
+            # but non-concurrent and non-randomized: secular trends and case-mix
+            # drift between the two data sources add to the usual confounding risk.
+            StudyDesign.EXTERNAL_CONTROL_COHORT: 0.15,
         }
         rs = rs_map.get(design_primary, 0.3)
 

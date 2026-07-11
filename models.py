@@ -88,6 +88,15 @@ class StudyDesign(Enum):
     # pivotal study, primary endpoint compared to a documented performance
     # objective, accepted by HAS (SA Suffisant) — not treated as exploratory.
     SINGLE_ARM_PERFORMANCE_GOAL = "SINGLE_ARM_PERFORMANCE_GOAL"
+    # Single-arm study whose primary endpoint is compared to an external
+    # (historical, registry, or literature-derived) patient-level control cohort —
+    # a real comparator exists (has_comparator=True), unlike SINGLE_ARM_PERFORMANCE_GOAL
+    # (compared to a fixed numeric objective, not a cohort) and unlike REGISTRY/
+    # EXPLORATORY (no comparison claimed at all). Neither concurrent nor randomized,
+    # so it carries unmeasured confounding, selection bias, and temporal/secular-trend
+    # bias on top of the usual non-randomized-comparison risks. Mirrors
+    # EvidenceDesignType.EXTERNAL_CONTROL_COHORT on the DESIGN-mode side of the engine.
+    EXTERNAL_CONTROL_COHORT = "EXTERNAL_CONTROL_COHORT"
     EXPLORATORY = "EXPLORATORY"
     NOT_IDENTIFIABLE = "NOT_IDENTIFIABLE"
 

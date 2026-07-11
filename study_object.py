@@ -277,6 +277,9 @@ class StudyObject:
             "study_countries": self.study_countries,
             "primary_endpoint_met": self.primary_endpoint_met,
             "key_safety_signals": self.key_safety_signals,
+            "device_alignment": self.device_alignment.to_dict() if self.device_alignment else None,
+            "population_alignment": self.population_alignment.to_dict() if self.population_alignment else None,
+            "context_alignment": self.context_alignment.to_dict() if self.context_alignment else None,
         }
 
 
@@ -756,12 +759,45 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
             ),
         ))
 
+    # Single-arm study compared to an external (historical/registry/literature)
+    # control cohort — a real comparator exists, unlike SINGLE_ARM_PERFORMANCE_GOAL's
+    # fixed numeric objective, but it is neither concurrent nor randomized: secular
+    # trends, differing case-mix, and differing ascertainment between the two data
+    # sources compound the usual unmeasured-confounding and selection-bias risk of a
+    # non-randomized comparison. Weakest comparative design in the DESIGN-mode design
+    # space (EvidenceDesignType.EXTERNAL_CONTROL_COHORT: base_strength 0.35,
+    # acceptability 0.30) — mirrored here on the REVIEW side.
+    if (
+        study.study_design == StudyDesign.EXTERNAL_CONTROL_COHORT
+        and claim.level in (ClaimLevel.C, ClaimLevel.D)
+    ):
+        gaps.append(ClaimStudyGap(
+            dimension="design",
+            severity="HIGH",
+            description=(
+                "Étude mono-bras comparée à une cohorte de contrôle externe "
+                "(historique, registre ou littérature) pour une revendication "
+                "d'outcome. Comparateur non concurrent et non randomisé."
+            ),
+            has_critique=(
+                "Une cohorte de contrôle externe fournit un comparateur réel, mais "
+                "non concurrent et non randomisé : les tendances séculaires, les "
+                "différences de case-mix et les écarts de méthode de recueil entre "
+                "les deux sources de données s'ajoutent au risque de confusion non "
+                "mesurée et de biais de sélection déjà inhérents à toute comparaison "
+                "non randomisée. L'attribution causale de l'effet observé au "
+                "dispositif reste fragile sans appariement explicite (score de "
+                "propension, pondération) et sans démonstration de la comparabilité "
+                "temporelle et clinique des deux cohortes."
+            ),
+        ))
+
     # Non-randomized comparative study for outcome claim
     if (
         not study.is_randomized
         and study.has_comparator is True
         and claim.level in (ClaimLevel.C, ClaimLevel.D)
-        and study.study_design not in (StudyDesign.MATCHED_OBSERVATIONAL,)
+        and study.study_design not in (StudyDesign.MATCHED_OBSERVATIONAL, StudyDesign.EXTERNAL_CONTROL_COHORT)
     ):
         gaps.append(ClaimStudyGap(
             dimension="design",

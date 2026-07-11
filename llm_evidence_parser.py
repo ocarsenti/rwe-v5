@@ -101,6 +101,12 @@ _SYSTEM_PROMPT = """Tu es un expert en évaluation clinique et réglementaire de
   modalité comparable n'est disponible (ex. valve cardiaque transcathéter comparée à un seuil
   de dysfonction valvulaire documenté). Préférer cette catégorie à "EXPLORATORY" quand un
   objectif de performance chiffré et pré-enregistré est explicitement mentionné.
+- "EXTERNAL_CONTROL_COHORT" : étude bras unique dont le critère de jugement principal est
+  comparé aux résultats d'une cohorte de contrôle externe (historique, registre, ou tirée
+  de la littérature) — un comparateur réel existe (has_comparator=true), mais il n'est ni
+  concurrent ni randomisé. Distinct de "SINGLE_ARM_PERFORMANCE_GOAL" (comparaison à un
+  seuil numérique fixe, pas à une cohorte de patients) et de "REGISTRY" (aucune comparaison
+  formelle revendiquée).
 - "REGISTRY" : registre ou cohorte observationnelle non comparative
 - "COHORT" : cohorte comparative (avec comparateur non randomisé)
 - "BEFORE_AFTER" : avant/après sans groupe contrôle concurrent
@@ -199,7 +205,7 @@ _USER_TEMPLATE = """Analyse ce texte d'étude clinique et extrais les données s
 
 Réponds en JSON avec ce format exact :
 {{
-  "study_design": "RCT" | "SINGLE_ARM" | "SINGLE_ARM_PERFORMANCE_GOAL" | "REGISTRY" | "COHORT" | "BEFORE_AFTER" | "META_ANALYSIS" | "MATCHED_OBSERVATIONAL" | "EXPLORATORY",
+  "study_design": "RCT" | "SINGLE_ARM" | "SINGLE_ARM_PERFORMANCE_GOAL" | "EXTERNAL_CONTROL_COHORT" | "REGISTRY" | "COHORT" | "BEFORE_AFTER" | "META_ANALYSIS" | "MATCHED_OBSERVATIONAL" | "EXPLORATORY",
   "n_patients": <int ou null>,
   "has_comparator": <true | false | null>,
   "comparator_feasibility": "<voir liste — uniquement si has_comparator=false>",
@@ -245,6 +251,7 @@ _DESIGN_MAP: dict[str, StudyDesign] = {
     # return "SINGLE_ARM_PERFORMANCE_GOAL" instead (see prompt).
     "SINGLE_ARM": StudyDesign.EXPLORATORY,
     "SINGLE_ARM_PERFORMANCE_GOAL": StudyDesign.SINGLE_ARM_PERFORMANCE_GOAL,
+    "EXTERNAL_CONTROL_COHORT": StudyDesign.EXTERNAL_CONTROL_COHORT,
     "REGISTRY": StudyDesign.MATCHED_OBSERVATIONAL,
     "COHORT": StudyDesign.COHORT,
     "BEFORE_AFTER": StudyDesign.BEFORE_AFTER,
@@ -461,6 +468,11 @@ _SYSTEM_PROMPT_FULL = """Tu es un expert en évaluation clinique et réglementai
   dispositifs à haut risque sans comparateur de modalité comparable disponible. Préférer cette
   catégorie à "EXPLORATORY" dès qu'un seuil de performance chiffré et pré-enregistré est
   explicitement documenté dans le texte.
+- "EXTERNAL_CONTROL_COHORT" : bras unique comparé aux résultats d'une cohorte de contrôle
+  externe (historique, registre, ou littérature) — comparateur réel (has_comparator=true),
+  mais ni concurrent ni randomisé. Distinct de "SINGLE_ARM_PERFORMANCE_GOAL" (seuil
+  numérique fixe, pas une cohorte de patients) et de "REGISTRY" (aucune comparaison
+  formelle revendiquée).
 - "REGISTRY" : registre observationnel
 - "COHORT" : cohorte comparative non randomisée
 - "BEFORE_AFTER" : avant/après sans contrôle concurrent

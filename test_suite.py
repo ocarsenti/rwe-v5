@@ -3523,6 +3523,18 @@ class TestEvidenceParserMapping(unittest.TestCase):
         self.assertEqual(result.study_design, StudyDesign.SINGLE_ARM_PERFORMANCE_GOAL)
         self.assertNotEqual(result.study_design, StudyDesign.EXPLORATORY)
 
+    def test_external_control_cohort_mapped_distinctly(self):
+        """A single-arm study compared to an external/historical control cohort
+        must map to its own StudyDesign, not be collapsed into EXPLORATORY,
+        SINGLE_ARM_PERFORMANCE_GOAL, or MATCHED_OBSERVATIONAL."""
+        data = self._rct_json()
+        data["study_design"] = "EXTERNAL_CONTROL_COHORT"
+        data["has_comparator"] = True
+        result = _parse_result(data, "Device", "Indication")
+        self.assertEqual(result.study_design, StudyDesign.EXTERNAL_CONTROL_COHORT)
+        self.assertNotEqual(result.study_design, StudyDesign.EXPLORATORY)
+        self.assertNotEqual(result.study_design, StudyDesign.SINGLE_ARM_PERFORMANCE_GOAL)
+
 
 class TestEnrichClaim(unittest.TestCase):
     """Tests enrich_claim_with_study() — merging StudyParseResult into ClinicalClaim."""
@@ -3999,6 +4011,43 @@ class TestStudyObject(unittest.TestCase):
         perf_goal_gaps = [g for g in report.gaps if "objectif de performance" in g.description.lower()]
         self.assertGreater(len(perf_goal_gaps), 0)
         self.assertEqual(perf_goal_gaps[0].severity, "HIGH")
+
+    # --- External control cohort (single-arm vs. historical/registry comparator) ---
+
+    def test_compare_external_control_cohort_high(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(
+            study_design=StudyDesign.EXTERNAL_CONTROL_COHORT,
+            is_randomized=False,
+            has_comparator=True,
+        )
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        ecc_gaps = [g for g in report.gaps if "contrôle externe" in g.description.lower()]
+        self.assertGreater(len(ecc_gaps), 0)
+        self.assertEqual(ecc_gaps[0].severity, "HIGH")
+
+    def test_compare_external_control_cohort_not_double_flagged_as_generic_nonrandomized(self):
+        """The dedicated external-control-cohort gap must replace, not stack with,
+        the generic non-randomized-comparative-study gap."""
+        from study_object import compare_claim_to_study
+        study = self._make_study(
+            study_design=StudyDesign.EXTERNAL_CONTROL_COHORT,
+            is_randomized=False,
+            has_comparator=True,
+        )
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        generic_gaps = [
+            g for g in report.gaps
+            if "comparative non randomisée" in g.description.lower()
+        ]
+        self.assertEqual(generic_gaps, [])
+
+    def test_compare_external_control_cohort_irrelevant_for_rct(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(study_design=StudyDesign.RCT)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        ecc_gaps = [g for g in report.gaps if "contrôle externe" in g.description.lower()]
+        self.assertEqual(ecc_gaps, [])
 
     def test_compare_open_label_subjective_primary_high(self):
         from study_object import compare_claim_to_study, BlindingLevel
