@@ -674,7 +674,9 @@ async def diagnose_premium_endpoint(
 
     result = _build_gap_response(report, repair, claim, epistemic)
     result["epistemic"] = epistemic_dict
-    result["needs_manual_review"] = bool(unstable_fields)
+    result["needs_manual_review"] = (
+        bool(unstable_fields) or study.multiple_studies_detected or bool(study.citation_rejected_fields)
+    )
     result["_parse_info"] = {
         "intervention": claim.intervention,
         "domain": claim.domain,
@@ -684,6 +686,23 @@ async def diagnose_premium_endpoint(
         "n_patients": study.n_patients,
         "pdf": pdf_info,
         "unstable_fields": unstable_fields,
+        "citation_rejected_fields": study.citation_rejected_fields,
+        "multiple_studies_detected": study.multiple_studies_detected,
+        "other_studies_mentioned": study.other_studies_mentioned,
+        "multi_study_warning": (
+            (
+                "Ce document semble décrire plusieurs études distinctes ({studies}). "
+                "L'outil analyse une seule étude pivot à la fois (elle peut elle-même comparer "
+                "à une cohorte externe) — merci de soumettre uniquement le texte de l'étude "
+                "pivot, pas un dossier regroupant plusieurs publications."
+                if lang != "en" else
+                "This document appears to describe multiple distinct studies ({studies}). "
+                "The tool analyzes one pivot study at a time (it may itself compare against an "
+                "external cohort) — please submit only the pivot study's text, not a bundle of "
+                "several publications."
+            ).format(studies=", ".join(study.other_studies_mentioned) or "?")
+            if study.multiple_studies_detected else None
+        ),
         "endpoints": [
             {
                 "name": ep.name,

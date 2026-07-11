@@ -236,6 +236,23 @@ class StudyObject:
     population_alignment: Optional[PopulationAlignment] = None
     context_alignment: Optional[ContextAlignment] = None
 
+    # Multi-study source document (cf. avis CNEDiMTS VIS-RX 8145: source text described
+    # 3 distinct studies — Quimby et al. 2025, no comparator, and Nishi et al. 2023, the
+    # actual comparative study HAS's rejection was based on — the LLM extracted Quimby,
+    # silently analyzing the wrong one). The model does NOT try to pick which study is
+    # the pivot; it only flags that a choice exists so a human can make it.
+    multiple_studies_detected: bool = False
+    other_studies_mentioned: list[str] = field(default_factory=list)
+
+    # Citation verification — dotted paths of the highest-impact extracted fields
+    # (comparator/randomization, primary endpoint result, safety signals, device/
+    # population CAS alignment) whose LLM-provided value was reset to a conservative
+    # safe default because no verbatim citation from the source study text backed it.
+    # Populated by llm_evidence_parser._apply_citation_verification(); empty for
+    # StudyObjects built from manual form entry or hand-written test fixtures, which
+    # have no source text to verify a citation against.
+    citation_rejected_fields: list[str] = field(default_factory=list)
+
     def to_dict(self) -> dict:
         return {
             "acronym": self.acronym,
@@ -280,6 +297,9 @@ class StudyObject:
             "device_alignment": self.device_alignment.to_dict() if self.device_alignment else None,
             "population_alignment": self.population_alignment.to_dict() if self.population_alignment else None,
             "context_alignment": self.context_alignment.to_dict() if self.context_alignment else None,
+            "multiple_studies_detected": self.multiple_studies_detected,
+            "other_studies_mentioned": self.other_studies_mentioned,
+            "citation_rejected_fields": self.citation_rejected_fields,
         }
 
 

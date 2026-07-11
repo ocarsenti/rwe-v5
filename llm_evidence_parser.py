@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import re
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -458,6 +459,16 @@ _SYSTEM_PROMPT_FULL = """Tu es un expert en évaluation clinique et réglementai
 - null pour tout champ inconnu ou non mentionné.
 - [] pour toute liste inconnue.
 
+## multiple_studies_detected
+true si le texte décrit **plusieurs études cliniques distinctes** du dispositif revendiqué
+(auteurs/années différents, ou populations/designs clairement séparés) plutôt qu'une seule
+étude. Ne compte pas comme une deuxième étude : une méta-analyse qui regroupe les mêmes
+données, ou une simple mention en référence sans description propre. Si true, remplis quand
+même le Study Object avec la première étude clairement décrite (ne cherche PAS à deviner
+laquelle est la plus pertinente ni à fusionner les études entre elles) et liste les études
+identifiées dans "other_studies_mentioned" (ex: "Nishi et al. 2023", "Quimby et al. 2025") —
+c'est à l'utilisateur de préciser ensuite laquelle est l'étude pivot, pas au modèle de trancher.
+
 ## study_design
 - "RCT" : essai contrôlé randomisé
 - "SINGLE_ARM" : bras unique sans comparateur — générique, quand on ne peut pas trancher
@@ -538,13 +549,34 @@ consensus clinique, ou un critère réglementaire documenté). false ou null si 
 mentionné sans justification clinique de sa valeur.
 
 ## indication_matches_ce_marking
-Pertinent quand le texte précise le périmètre du marquage CE du dispositif (indication,
-population ou site anatomique couvert) ET décrit une population ou un usage anatomique
-étudié qui en sort. true si la population/l'usage anatomique étudié reste dans ce périmètre.
-false si le texte indique explicitement qu'une partie de la population étudiée ou de l'usage
-du dispositif (ex : un site anatomique) ne correspond pas à l'indication du marquage CE. null
-si le périmètre du marquage CE n'est pas précisé dans le texte ou si la correspondance n'est
-pas déterminable.
+Ce champ porte UNIQUEMENT sur le marquage CE réglementaire du dispositif — ne le confonds
+PAS avec le champ population/eligibility_shift, qui compare déjà la population étudiée à
+l'indication REVENDIQUÉE par le demandeur. Ici, la seule question est : la population ou le
+site anatomique étudié sort-il du périmètre du MARQUAGE CE ?
+
+- true : le texte précise le périmètre du marquage CE (indication, population ou site
+  anatomique couvert) ET la population/l'usage étudié y reste.
+- false : le texte mentionne EXPLICITEMENT le marquage CE (ou une notion équivalente —
+  autorisation, indication réglementaire du dispositif) ET indique qu'une partie de la
+  population étudiée ou de l'usage du dispositif (ex : un site anatomique) en sort. Il faut
+  une phrase du texte qui parle du statut réglementaire/marquage du dispositif lui-même, pas
+  seulement des critères d'inclusion/exclusion de l'étude.
+- null : le texte ne mentionne jamais le marquage CE ou le périmètre réglementaire du
+  dispositif — y compris quand l'étude a des critères d'inclusion/exclusion restrictifs ou une
+  population plus étroite que l'indication revendiquée. Une population d'étude plus étroite
+  que la revendication n'est PAS en soi un indice de non-conformité au marquage CE : c'est un
+  fait clinique (déjà capté par population/eligibility_shift), pas un fait réglementaire. En
+  l'absence de toute mention explicite du marquage CE dans le texte, la réponse est null, même
+  si tu soupçonnes une non-conformité.
+
+Exemple positif (false) : un avis précise que le dispositif est marqué CE pour l'usage
+intracrânien, et que l'étude soumise inclut aussi des patients traités en artère vertébrale,
+explicitement identifiée dans le texte comme hors du périmètre du marquage CE (cf. WALRUS
+7182).
+Exemple négatif (null, pas false) : une étude exclut les "lésions complexes" de ses critères
+d'inclusion alors que l'indication revendiquée cible spécifiquement les lésions complexes,
+mais le texte ne dit rien du marquage CE du dispositif — répondre null, pas false, même si la
+population étudiée ne correspond pas à la revendication (cf. VIS-RX 8145 / étude Nishi).
 
 ## primary_analysis_set
 - "ITT" : intention-to-treat
@@ -641,7 +673,23 @@ population_match_type : EXACT_INDICATION | NARROWER_SUBGROUP | BROADER_POPULATIO
 eligibility_shift : NONE | MINOR | MAJOR
 context_match_type : SAME_HEALTHCARE_SYSTEM | PARTIALLY_COMPARABLE | DIFFERENT_SYSTEM | UNKNOWN
 care_pathway_match : YES | PARTIAL | NO
-organization_dependency : LOW | MEDIUM | HIGH"""
+organization_dependency : LOW | MEDIUM | HIGH
+
+## Citations de vérification (champs critiques)
+Ces champs pilotent directement la détection de biais et le score CAS — pour chacun,
+fournis en plus, dans l'objet "citations", une citation VERBATIM (copiée mot pour mot
+depuis le texte source, sans reformulation ni troncature par "...") qui justifie
+littéralement la valeur retenue :
+- has_comparator, is_randomized, comparator_type
+- primary_endpoint_met, key_safety_signals
+- device_alignment.device_match_type, population_alignment.eligibility_shift
+- pour chaque endpoint : result_direction (via "result_citation") et
+  reached_significance (via "significance_citation")
+
+Si aucune phrase du texte source ne justifie littéralement la valeur retenue, laisse
+la citation correspondante vide ("") plutôt que d'inventer une citation approximative
+ou paraphrasée — une citation vide ou introuvable fera que le champ est ignoré côté
+applicatif (traité comme non déterminé) plutôt que silencieusement fait confiance."""
 
 _USER_TEMPLATE_FULL = """Analyse ce texte d'étude clinique et extrais le Study Object complet.
 
@@ -653,6 +701,9 @@ _USER_TEMPLATE_FULL = """Analyse ce texte d'étude clinique et extrais le Study 
 
 Réponds en JSON avec ce format exact :
 {{
+  "multiple_studies_detected": <true | false>,
+  "other_studies_mentioned": ["<étude 1, ex: Nishi et al. 2023>", "<étude 2>"],
+
   "acronym": "<acronyme de l'étude ou null>",
   "title": "<titre complet ou null>",
   "publication_year": <année ou null>,
@@ -702,7 +753,9 @@ Réponds en JSON avec ce format exact :
       "is_independently_adjudicated": <true | false>,
       "result_direction": "IMPROVED" | "NOT_IMPROVED" | "MIXED" | "UNKNOWN",
       "reached_significance": <true | false | null>,
-      "value_fixed_by_protocol": <true | false>
+      "value_fixed_by_protocol": <true | false>,
+      "result_citation": "<citation verbatim justifiant result_direction, ou \"\">",
+      "significance_citation": "<citation verbatim justifiant reached_significance, ou \"\">"
     }}
   ],
   "endpoint_hierarchy_prespecified": <true | false | null>,
@@ -731,6 +784,16 @@ Réponds en JSON avec ce format exact :
     "organization_dependency": "LOW" | "MEDIUM" | "HIGH",
     "study_country": "<pays principal>",
     "justification": "<explication>"
+  }},
+
+  "citations": {{
+    "has_comparator_citation": "<citation verbatim ou \"\">",
+    "is_randomized_citation": "<citation verbatim ou \"\">",
+    "comparator_type_citation": "<citation verbatim ou \"\">",
+    "primary_endpoint_met_citation": "<citation verbatim ou \"\">",
+    "key_safety_signals_citation": "<citation verbatim ou \"\">",
+    "device_match_type_citation": "<citation verbatim ou \"\">",
+    "eligibility_shift_citation": "<citation verbatim ou \"\">"
   }}
 }}"""
 
@@ -853,6 +916,92 @@ def _repair_truncated_json(raw: str) -> dict:
         return {}
 
 
+def _normalize_citation_text(text: str) -> str:
+    """Same normalization has_vs_moteur.py's extract_verbatim_quote() applies before
+    substring-checking a citation: join PDF line-wrap hyphenation, fold typographic
+    apostrophes, collapse whitespace, and case-fold — so trivial extraction artifacts
+    don't cause a genuine verbatim quote to fail verification."""
+    text = re.sub(r"-\s*\n\s*", "", text)
+    text = text.replace("’", "'")
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _citation_verified(citation: str | None, source_text: str) -> bool:
+    """A citation is trusted only if it is non-empty and a verbatim (whitespace/
+    hyphenation-normalized) substring of the source study text — the same
+    anti-fabrication check has_vs_moteur.py already applies to the HAS critique
+    quote, extended here to the extracted study fields that most directly drive
+    bias-flag/CAS scoring."""
+    if not citation or not citation.strip():
+        return False
+    return _normalize_citation_text(citation) in _normalize_citation_text(source_text)
+
+
+def _apply_citation_verification(obj: StudyObject, data: dict, study_text: str | None) -> None:
+    """Reset the highest-impact extracted fields to a conservative safe default when
+    the LLM's own supporting citation for that field can't be verified as a verbatim
+    excerpt of study_text, and record which fields were rejected on
+    obj.citation_rejected_fields. Covers comparator/randomization, primary endpoint
+    result, safety signals, and device/population CAS alignment (see
+    _SYSTEM_PROMPT_FULL's "Citations de vérification" section for the paired prompt
+    instructions). No-op when study_text isn't available — manual form entry and
+    hand-written test fixtures have no source text to verify a citation against."""
+    if not study_text:
+        return
+
+    citations = data.get("citations") or {}
+    rejected = obj.citation_rejected_fields
+
+    def verified(key: str) -> bool:
+        return _citation_verified(citations.get(key), study_text)
+
+    if obj.has_comparator is not None and not verified("has_comparator_citation"):
+        rejected.append("has_comparator")
+        obj.has_comparator = None
+
+    if obj.is_randomized and not verified("is_randomized_citation"):
+        rejected.append("is_randomized")
+        obj.is_randomized = False
+
+    if obj.comparator_type != ComparatorType.UNKNOWN and not verified("comparator_type_citation"):
+        rejected.append("comparator_type")
+        obj.comparator_type = ComparatorType.UNKNOWN
+
+    if obj.primary_endpoint_met is not None and not verified("primary_endpoint_met_citation"):
+        rejected.append("primary_endpoint_met")
+        obj.primary_endpoint_met = None
+
+    if obj.key_safety_signals and not verified("key_safety_signals_citation"):
+        rejected.append("key_safety_signals")
+        obj.key_safety_signals = []
+
+    if (obj.device_alignment is not None
+            and obj.device_alignment.device_match_type != DeviceMatchType.UNKNOWN
+            and not verified("device_match_type_citation")):
+        rejected.append("device_alignment.device_match_type")
+        obj.device_alignment.device_match_type = DeviceMatchType.UNKNOWN
+
+    if (obj.population_alignment is not None
+            and obj.population_alignment.eligibility_shift != EligibilityShift.NONE
+            and not verified("eligibility_shift_citation")):
+        rejected.append("population_alignment.eligibility_shift")
+        obj.population_alignment.eligibility_shift = EligibilityShift.NONE
+
+    raw_endpoints = data.get("endpoints") or []
+    for i, ep in enumerate(obj.endpoints):
+        raw = raw_endpoints[i] if i < len(raw_endpoints) else {}
+        if ep.result_direction != ResultDirection.UNKNOWN and not _citation_verified(
+            raw.get("result_citation"), study_text
+        ):
+            rejected.append(f"endpoints[{i}].result_direction")
+            ep.result_direction = ResultDirection.UNKNOWN
+        if ep.reached_significance is not None and not _citation_verified(
+            raw.get("significance_citation"), study_text
+        ):
+            rejected.append(f"endpoints[{i}].reached_significance")
+            ep.reached_significance = None
+
+
 def _call_llm_for_study_object_raw(
     study_text: str,
     claim_device: str,
@@ -906,7 +1055,7 @@ def parse_study_object_with_llm(
     StudyObject — useful for archiving to detect that instability across runs.
     """
     data = _call_llm_for_study_object_raw(study_text, claim_device, claim_indication)
-    study = _parse_study_object_result(data, claim_device, claim_indication)
+    study = _parse_study_object_result(data, claim_device, claim_indication, study_text=study_text)
     if return_raw:
         return study, data
     return study
@@ -1028,7 +1177,8 @@ def _majority_vote(values: list, path: str, unstable_paths: list[str]):
     counts = Counter(canonical)
     winner, winner_count = counts.most_common(1)[0]
     leaf_key = path.rsplit(".", 1)[-1] if path else path
-    if winner_count < len(values) and leaf_key not in _FREE_TEXT_LEAF_KEYS:
+    is_free_text = leaf_key in _FREE_TEXT_LEAF_KEYS or leaf_key.endswith("_citation")
+    if winner_count < len(values) and not is_free_text:
         unstable_paths.append(path)
     return values[canonical.index(winner)]
 
@@ -1058,7 +1208,7 @@ def parse_study_object_with_llm_consensus(
 
     unstable_fields: list[str] = []
     consensus_data = _majority_vote(raw_results, "", unstable_fields)
-    study = _parse_study_object_result(consensus_data, claim_device, claim_indication)
+    study = _parse_study_object_result(consensus_data, claim_device, claim_indication, study_text=study_text)
     return study, unstable_fields
 
 
@@ -1066,9 +1216,13 @@ def _parse_study_object_result(
     data: dict,
     claim_device: str,
     claim_indication: str,
+    study_text: str | None = None,
 ) -> StudyObject:
     """Map raw LLM JSON to StudyObject. No LLM call — pure data mapping."""
     obj = StudyObject()
+
+    obj.multiple_studies_detected = bool(data.get("multiple_studies_detected", False))
+    obj.other_studies_mentioned = data.get("other_studies_mentioned") or []
 
     obj.acronym = data.get("acronym") or ""
     obj.title = data.get("title") or ""
@@ -1188,6 +1342,8 @@ def _parse_study_object_result(
             target_country="France",
             justification=ctx.get("justification", ""),
         )
+
+    _apply_citation_verification(obj, data, study_text)
 
     return obj
 
