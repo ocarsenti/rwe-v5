@@ -180,6 +180,14 @@ class StudyObject:
     # justification for the pre-specified success threshold itself)
     performance_goal_clinically_justified: Optional[bool] = None
 
+    # CE marking scope — does the population and/or anatomical usage described in
+    # the study fall within the device's approved CE marking scope? Distinct from
+    # population_alignment (claim vs. study): this checks study vs. regulatory
+    # approval scope. A study conducted outside the CE-marked indication (broader
+    # population, different anatomical site or usage) cannot alone support a claim
+    # scoped to the approved indication without an explicit extrapolation analysis.
+    indication_matches_ce_marking: Optional[bool] = None
+
     # Population
     n_patients: Optional[int] = None
     age_min: Optional[float] = None
@@ -243,6 +251,7 @@ class StudyObject:
             "concomitant_treatments_controlled": self.concomitant_treatments_controlled,
             "concomitant_treatments_description": self.concomitant_treatments_description,
             "performance_goal_clinically_justified": self.performance_goal_clinically_justified,
+            "indication_matches_ce_marking": self.indication_matches_ce_marking,
             "n_patients": self.n_patients,
             "age_min": self.age_min,
             "age_max": self.age_max,
@@ -549,6 +558,33 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                     "doit être observé."
                 ),
             ))
+
+    # Population/anatomical usage studied outside the device's CE-marked scope —
+    # even a well-conducted study cannot support a claim scoped to the approved
+    # indication if the population or anatomical usage it actually covers falls
+    # outside the device's CE marking: the evidence bears on a use the device is
+    # not certified for, and extrapolation back to the approved scope is not
+    # automatic. Same style as the has_comparator rule above: a single explicit
+    # boolean check surfaced as a design/regulatory-scope gap.
+    if study.indication_matches_ce_marking is False:
+        gaps.append(ClaimStudyGap(
+            dimension="design",
+            severity="HIGH",
+            description=(
+                "Population ou usage anatomique étudié en dehors du périmètre du "
+                "marquage CE du dispositif."
+            ),
+            has_critique=(
+                "Lorsque la population étudiée ou l'usage anatomique décrit dans "
+                "l'étude excède le périmètre couvert par le marquage CE du "
+                "dispositif, les données générées portent sur un usage pour lequel "
+                "le dispositif n'est pas certifié : leur transposition à "
+                "l'indication revendiquée, elle-même bornée par ce marquage, ne "
+                "peut être présupposée. Une analyse explicite de la "
+                "transposabilité entre l'usage étudié et le périmètre certifié "
+                "est requise, ou une étude conduite dans le périmètre approuvé."
+            ),
+        ))
 
     # Single-center (or unknown centricity) study for an outcome claim — effects
     # observed at a single site may reflect local factors (expertise de l'opérateur,
