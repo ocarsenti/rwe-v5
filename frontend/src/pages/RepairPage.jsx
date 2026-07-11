@@ -230,8 +230,8 @@ export default function RepairPage() {
 
           <p className="text-xs text-gray-500 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
             {fr
-              ? 'Uploadez l\'abstract ou les 5 premières pages de votre publication / rapport d\'étude. L\'IA extrait automatiquement design, endpoints, population et résultats.'
-              : 'Upload the abstract or the first 5 pages of your publication / study report. AI automatically extracts design, endpoints, population and results.'}
+              ? 'Uploadez l\'abstract ou les 5 premières pages d\'UNE SEULE étude pivot — pas l\'avis HAS complet ni un dossier regroupant plusieurs publications. Cette étude peut elle-même comparer à une cohorte externe. Outil calibré sur des dossiers de primo-inscription. L\'IA extrait automatiquement design, endpoints, population et résultats.'
+              : 'Upload the abstract or the first 5 pages of a SINGLE pivot study — not the full HAS opinion nor a dossier bundling several publications. That study may itself compare against an external cohort. Tool calibrated on primo-inscription (first-listing) dossiers. AI automatically extracts design, endpoints, population and results.'}
           </p>
 
           {/* Drop zone */}

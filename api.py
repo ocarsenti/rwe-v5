@@ -602,7 +602,14 @@ async def diagnose_premium_endpoint(
     pdf_file: UploadFile = File(None),
     x_guest_token: Optional[str] = Header(None),
 ):
-    """Premium endpoint: PDF abstract → full StudyObject → gaps + repair plan."""
+    """Premium endpoint: PDF abstract → full StudyObject → gaps + repair plan.
+
+    Input contract: the PDF must describe a single pivot study. That study may itself
+    use an external cohort as its comparator (StudyDesign.EXTERNAL_CONTROL_COHORT is a
+    supported single-study design) — but a document bundling several distinct studies
+    (e.g. a full HAS avis citing 3 separate publications) is out of contract and produces
+    an unreliable extraction.
+    """
     # Guest token required — testing phase, access granted manually with a quota
     if not x_guest_token:
         raise HTTPException(status_code=403, detail="token_required")
