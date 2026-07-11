@@ -93,6 +93,7 @@ def identify_risks(
     d_device: float,
     d_pop: float,
     d_context: float,
+    indication_matches_ce_marking: bool | None = None,
 ) -> list[CASRisk]:
     risks: list[CASRisk] = []
 
@@ -133,6 +134,21 @@ def identify_risks(
             dimension="POPULATION",
             risk_level="HIGH",
             description="Major eligibility shift between study criteria and claimed indication.",
+        ))
+
+    # CE marking scope — additive flag, same pattern as care_pathway_match/
+    # organization_dependency below: does not feed d_pop/cas_score/verdict (those
+    # stay exactly as validated against the audited corpus, see module comment on
+    # assess_methodological_risk), it only surfaces as a reportable risk when the
+    # population/anatomical usage studied falls outside the device's approved CE
+    # marking scope. cf. avis CNEDiMTS WALRUS 7182: study population includes
+    # vertebral-artery use explicitly stated as outside the CE marking indication.
+    if indication_matches_ce_marking is False:
+        risks.append(CASRisk(
+            dimension="CE_MARKING",
+            risk_level="HIGH",
+            description="Study population/anatomical usage falls outside the device's "
+                        "approved CE marking scope.",
         ))
 
     if d_context >= 0.4:
@@ -320,6 +336,7 @@ def evaluate_cas(
     population: PopulationAlignment,
     context: ContextAlignment,
     lang: str = "fr",
+    indication_matches_ce_marking: bool | None = None,
 ) -> CASOutput:
     d_device = _D_DEVICE[device.device_match_type]
     d_pop = _D_POP[population.population_match_type]
@@ -329,7 +346,10 @@ def evaluate_cas(
     gating = apply_device_gate(d_device)
     verdict = determine_verdict(cas_score, gating)
 
-    risks = identify_risks(device, population, context, d_device, d_pop, d_context)
+    risks = identify_risks(
+        device, population, context, d_device, d_pop, d_context,
+        indication_matches_ce_marking=indication_matches_ce_marking,
+    )
 
     interpretation = build_regulatory_interpretation(
         device, population, context, cas_score, verdict, gating, lang=lang,

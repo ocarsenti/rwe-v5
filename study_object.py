@@ -1042,6 +1042,8 @@ def enrich_claim_with_study_object(
         claim.has_comparator = study.has_comparator
     if study.comparator_feasibility != ComparatorFeasibility.UNKNOWN:
         claim.comparator_feasibility = study.comparator_feasibility
+    if study.indication_matches_ce_marking is not None:
+        claim.indication_matches_ce_marking = study.indication_matches_ce_marking
     if study.follow_up_months is not None:
         claim.follow_up_months = study.follow_up_months
     if study.study_countries:

@@ -528,6 +528,7 @@ class ClinicalClaim:
     comparator_feasibility: "ComparatorFeasibility" = ComparatorFeasibility.UNKNOWN
     follow_up_months: Optional[float] = None
     study_countries: list[str] = field(default_factory=list)
+    indication_matches_ce_marking: Optional[bool] = None
 
 
 @dataclass

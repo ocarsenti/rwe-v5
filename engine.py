@@ -68,6 +68,7 @@ def analyze(claim: ClinicalClaim, lang: str = "fr") -> EngineOutput:
             device=claim.device_alignment,
             population=claim.population_alignment,
             context=claim.context_alignment,
+            indication_matches_ce_marking=claim.indication_matches_ce_marking,
         )
 
     methodological_risk = assess_methodological_risk(structure, bias_detections, cas_output, lang=lang)

@@ -17,6 +17,7 @@ load_pdf(path) → str   : PDF text extractor (pdfplumber or pypdf)
 
 from __future__ import annotations
 
+import difflib
 import json
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -524,6 +525,15 @@ justifie explicitement le seuil de succès retenu (référence à une donnée hi
 consensus clinique, ou un critère réglementaire documenté). false ou null si le seuil est
 mentionné sans justification clinique de sa valeur.
 
+## indication_matches_ce_marking
+Pertinent quand le texte précise le périmètre du marquage CE du dispositif (indication,
+population ou site anatomique couvert) ET décrit une population ou un usage anatomique
+étudié qui en sort. true si la population/l'usage anatomique étudié reste dans ce périmètre.
+false si le texte indique explicitement qu'une partie de la population étudiée ou de l'usage
+du dispositif (ex : un site anatomique) ne correspond pas à l'indication du marquage CE. null
+si le périmètre du marquage CE n'est pas précisé dans le texte ou si la correspondance n'est
+pas déterminable.
+
 ## primary_analysis_set
 - "ITT" : intention-to-treat
 - "mITT" : modified ITT
@@ -564,8 +574,18 @@ mentionné sans justification clinique de sa valeur.
 - "MEDIATED" : marqueur intermédiaire/de substitution qui n'est PAS lui-même le bénéfice
   clinique final (biomarqueur, score physiologique, critère composite non validé) — la chaîne
   causale vers un bénéfice clinique dur reste à démontrer
-- "CIRCULAR" : l'endpoint EST ce que le dispositif mesure/détecte lui-même — le dispositif est
-  à la fois l'intervention et l'instrument de mesure (piège principal des DMN)
+- "CIRCULAR" : couvre DEUX variantes du même piège — le dispositif est à la fois l'intervention
+  et l'instrument de sa propre évaluation :
+  1. Détection : l'endpoint EST ce que le dispositif mesure/détecte lui-même (ex : nombre
+     d'alertes générées par un dispositif de surveillance).
+  2. Performance procédurale : l'endpoint mesure si le dispositif a réussi à accomplir sa
+     propre tâche mécanique/procédurale conçue (ex : succès technique de la navigation, du
+     déploiement ou du positionnement d'un cathéter/d'une prothèse), plutôt qu'un bénéfice
+     clinique indépendant pour le patient. Exemple : « succès technique de la navigation du
+     cathéter jusqu'au vaisseau cible » est CIRCULAR, pas INDEPENDENT — il mesure si le
+     dispositif a rempli sa fonction mécanique, pas un bénéfice patient direct (à distinguer
+     de la reperfusion effective, d'un score fonctionnel ou de la mortalité, qui restent
+     INDEPENDENT même s'ils sont obtenus grâce au dispositif).
 IMPORTANT : ne classe MEDIATED que les marqueurs de substitution au sens strict. Un critère
 clinique dur ou un score fonctionnel/qualité de vie validé dans l'indication reste INDEPENDENT
 même s'il dépend biologiquement du mécanisme d'action — MEDIATED n'est pas un synonyme de
@@ -633,6 +653,7 @@ Réponds en JSON avec ce format exact :
   "concomitant_treatments_controlled": <true | false | null>,
   "concomitant_treatments_description": "<description ou \"\">",
   "performance_goal_clinically_justified": <true | false | null>,
+  "indication_matches_ce_marking": <true | false | null>,
 
   "n_patients": <entier ou null>,
   "age_min": <float ou null>,
@@ -874,18 +895,95 @@ def parse_study_object_with_llm(
 # (device_match_type, is_randomized, endpoints[].nature, etc.).
 _FREE_TEXT_LEAF_KEYS = {
     "justification", "title", "device_description_study", "population_description_study",
-    "comparator_description", "concomitant_treatments_description", "study_country",
+    "comparator_description", "concomitant_treatments_description", "study_country", "name",
 }
+
+# Below this similarity ratio (difflib, on lowercased/stripped endpoint names), two
+# endpoints from different runs are never considered "the same" endpoint even if
+# is_primary agrees — avoids merging unrelated endpoints that happen to share
+# primariness (e.g. mortality and vascular injury are both often primary safety/
+# efficacy endpoints, but are not the same endpoint).
+_ENDPOINT_NAME_MATCH_THRESHOLD = 0.55
+
+
+def _endpoint_name_similarity(a: dict, b: dict) -> float:
+    name_a = (a.get("name") or "").strip().lower()
+    name_b = (b.get("name") or "").strip().lower()
+    if not name_a or not name_b:
+        return 0.0
+    return difflib.SequenceMatcher(None, name_a, name_b).ratio()
+
+
+def _align_endpoint_clusters(endpoint_lists: list[list[dict]]) -> list[list[dict]]:
+    """Cluster endpoint dicts sampled from N parallel LLM parses of the SAME study into
+    groups that plausibly represent "the same" endpoint, greedily, by is_primary
+    agreement + fuzzy name similarity (see _ENDPOINT_NAME_MATCH_THRESHOLD).
+
+    This exists because endpoint identity is not stable enough across calls to align
+    by list position or exact name match (wording is paraphrased call to call, and —
+    more importantly — which endpoints even get marked is_primary can itself differ
+    between calls on genuinely ambiguous studies, e.g. avis CNEDiMTS WALRUS 7182 where
+    7 identical calls found anywhere from 2 to 8 "primary" endpoints). Each cluster is
+    later field-voted independently by _majority_vote; clusters that only a minority
+    of calls produced are dropped by the caller rather than treated as consensus.
+    """
+    clusters: list[list[dict]] = []
+    for endpoints in endpoint_lists:
+        for ep in endpoints:
+            if not isinstance(ep, dict):
+                continue
+            best_cluster = None
+            best_score = 0.0
+            for cluster in clusters:
+                rep = cluster[0]
+                if bool(rep.get("is_primary")) != bool(ep.get("is_primary")):
+                    continue
+                score = _endpoint_name_similarity(rep, ep)
+                if score > best_score:
+                    best_score = score
+                    best_cluster = cluster
+            if best_cluster is not None and best_score >= _ENDPOINT_NAME_MATCH_THRESHOLD:
+                best_cluster.append(ep)
+            else:
+                clusters.append([ep])
+    return clusters
+
+
+def _vote_endpoints(endpoint_lists: list[list[dict]], path: str, unstable_paths: list[str]) -> list[dict]:
+    """Majority-vote the `endpoints` list field-by-field per endpoint, instead of
+    treating the whole list as one atomic blob (see _majority_vote's general docstring
+    for why that's the default for other list fields). An endpoint only survives into
+    the consensus result if a strict majority of the n_calls parses agree it exists
+    (as a cluster from _align_endpoint_clusters) — anything short of that is dropped
+    and flagged via `{path}.primary_endpoint_set` in unstable_paths, since a minority
+    endpoint reflects real disagreement on the primary-endpoint set itself, not just
+    wording noise on a field within an agreed-upon endpoint.
+    """
+    n_calls = len(endpoint_lists)
+    clusters = _align_endpoint_clusters(endpoint_lists)
+    majority_threshold = n_calls / 2
+
+    consensus_endpoints = []
+    dropped_minority = False
+    for cluster in clusters:
+        if len(cluster) > majority_threshold:
+            consensus_endpoints.append(_majority_vote(cluster, f"{path}[]", unstable_paths))
+        else:
+            dropped_minority = True
+    if dropped_minority:
+        unstable_paths.append(f"{path}.primary_endpoint_set")
+    return consensus_endpoints
 
 
 def _majority_vote(values: list, path: str, unstable_paths: list[str]):
     """Recursively merge N raw LLM JSON parses (same shape, sampled at the same dotted
     path) into a single consensus value via per-leaf majority vote.
 
-    Dicts are recursed into key-by-key. Anything else (scalar, list, or a leaf where the
-    N values aren't all dicts) is treated as an atomic unit and voted on directly — list
-    fields like `endpoints` are compared whole rather than diffed element-by-element,
-    since LLM-generated list ordering/wording isn't reliable enough to align by index.
+    Dicts are recursed into key-by-key. The `endpoints` list is special-cased via
+    _vote_endpoints (see there for why list position/exact wording isn't a reliable
+    alignment key for endpoints specifically). Every other list field is treated as an
+    atomic unit and voted on directly — same rationale, but without a per-item
+    alignment heuristic built for it (e.g. `who_is_blinded`, `study_countries`).
     Appends the dotted path to unstable_paths whenever the N values didn't unanimously
     agree, unless the leaf is a known free-text field (see _FREE_TEXT_LEAF_KEYS).
     """
@@ -893,10 +991,15 @@ def _majority_vote(values: list, path: str, unstable_paths: list[str]):
         keys: set[str] = set()
         for v in values:
             keys.update(v.keys())
-        return {
-            k: _majority_vote([v.get(k) for v in values], f"{path}.{k}" if path else k, unstable_paths)
-            for k in keys
-        }
+        result = {}
+        for k in keys:
+            sub_values = [v.get(k) for v in values]
+            sub_path = f"{path}.{k}" if path else k
+            if k == "endpoints" and all(sv is None or isinstance(sv, list) for sv in sub_values):
+                result[k] = _vote_endpoints([sv or [] for sv in sub_values], sub_path, unstable_paths)
+            else:
+                result[k] = _majority_vote(sub_values, sub_path, unstable_paths)
+        return result
 
     canonical = [json.dumps(v, sort_keys=True, ensure_ascii=False) for v in values]
     counts = Counter(canonical)
@@ -975,6 +1078,7 @@ def _parse_study_object_result(
     obj.concomitant_treatments_controlled = data.get("concomitant_treatments_controlled")
     obj.concomitant_treatments_description = data.get("concomitant_treatments_description") or ""
     obj.performance_goal_clinically_justified = data.get("performance_goal_clinically_justified")
+    obj.indication_matches_ce_marking = data.get("indication_matches_ce_marking")
 
     obj.n_patients = data.get("n_patients")
     obj.age_min = data.get("age_min")

@@ -45,7 +45,7 @@ Le domaine médical (ex: ophthalmology, oncology, pain management, emergency neu
 ## Intervention
 Le nom/description du dispositif médical évalué.
 
-IMPORTANT : Sois particulièrement attentif à la CIRCULARITÉ. Si le dispositif mesure/détecte quelque chose et que l'endpoint EST ce que le dispositif mesure/détecte, alors le causal_role est CIRCULAR. C'est le piège principal des DMN.
+IMPORTANT : Sois particulièrement attentif à la CIRCULARITÉ, qui couvre DEUX variantes du même piège (le dispositif est à la fois l'intervention et l'instrument de sa propre évaluation) : (1) détection — le dispositif mesure/détecte quelque chose et l'endpoint EST ce que le dispositif mesure/détecte ; (2) performance procédurale — l'endpoint mesure si le dispositif a réussi sa propre tâche mécanique/procédurale conçue (ex : succès technique de navigation/déploiement/positionnement d'un cathéter ou d'une prothèse) plutôt qu'un bénéfice clinique indépendant pour le patient. Dans les deux cas, le causal_role est CIRCULAR. C'est le piège principal des DMN.
 
 Réponds UNIQUEMENT en JSON valide, sans commentaire."""
 
