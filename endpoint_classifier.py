@@ -196,6 +196,13 @@ def _detect_endpoint_flags(
             f"nature={nature.value} ({nature_reason})"
         )
 
+    if endpoint.is_primary and endpoint.value_fixed_by_protocol:
+        flags.append(BiasFlag.PROTOCOL_FIXED_ENDPOINT)
+        reasons[BiasFlag.PROTOCOL_FIXED_ENDPOINT] = (
+            "is_primary=True, value_fixed_by_protocol=True — endpoint value in the "
+            "evaluated device's arm is a protocol parameter, not a measured outcome"
+        )
+
     all_cause_marker = _first_marker_match(ALL_CAUSE_DEATH_MARKERS, text)
     is_all_cause_death = all_cause_marker is not None
     if (

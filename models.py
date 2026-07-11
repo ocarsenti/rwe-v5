@@ -62,6 +62,7 @@ class BiasFlag(Enum):
     SURROGATE_RISK = "SURROGATE_RISK"
     ADJUDICATION_RISK = "ADJUDICATION_RISK"
     NO_COMPARATOR = "NO_COMPARATOR"
+    PROTOCOL_FIXED_ENDPOINT = "PROTOCOL_FIXED_ENDPOINT"
 
 
 class RepairType(Enum):
@@ -510,6 +511,7 @@ class Endpoint:
     is_validated_surrogate: bool = False
     is_feasibility_accepted_surrogate: bool = False
     is_independently_adjudicated: bool = False
+    value_fixed_by_protocol: bool = False
 
 
 @dataclass

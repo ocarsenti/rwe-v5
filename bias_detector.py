@@ -73,6 +73,18 @@ BIAS_DETAILS: dict[BiasFlag, dict] = {
             "to suppress this flag when the surrogate is accepted in the literature."
         ),
     },
+    BiasFlag.PROTOCOL_FIXED_ENDPOINT: {
+        "severity": "HIGH",
+        "detail": (
+            "The primary endpoint's value in the evaluated device's arm is a pre-specified "
+            "protocol parameter, not a measured outcome, while the comparator arm's value "
+            "is genuinely measured. Any 'superiority' on this criterion is tautological by "
+            "construction — it reflects the chosen protocol value, not a causal effect of "
+            "the device. Set value_fixed_by_protocol=True on the endpoint when the study "
+            "text confirms this design (e.g. a contrast volume or dose fixed a priori in "
+            "one arm)."
+        ),
+    },
     BiasFlag.NO_COMPARATOR: {
         "severity": "HIGH",
         "detail": (

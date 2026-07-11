@@ -121,6 +121,12 @@ class StudyEndpoint:
     reached_significance: Optional[bool] = None
     nature: EndpointNature = EndpointNature.OBJECTIVE
     causal_role: CausalRole = CausalRole.INDEPENDENT
+    # True when the endpoint's value in the evaluated device's arm is a pre-specified
+    # protocol parameter rather than a measured outcome (e.g. contrast volume fixed at
+    # 5 mL by design), while the comparator arm's value is genuinely measured — makes
+    # any "superiority" on this criterion tautological by construction, not a real
+    # comparative finding. cf. avis CNEDiMTS VIS-RX 8145 (étude Nishi et al. 2023).
+    value_fixed_by_protocol: bool = False
 
     def to_dict(self) -> dict:
         d = {
@@ -133,6 +139,7 @@ class StudyEndpoint:
             "result_direction": self.result_direction.value,
             "nature": self.nature.value,
             "causal_role": self.causal_role.value,
+            "value_fixed_by_protocol": self.value_fixed_by_protocol,
         }
         if self.reached_significance is not None:
             d["reached_significance"] = self.reached_significance
@@ -914,6 +921,26 @@ def _endpoint_gaps(
                         "l'effet clinique."
                     ),
                 ))
+            elif bd.flag == BiasFlag.PROTOCOL_FIXED_ENDPOINT:
+                gaps.append(ClaimStudyGap(
+                    dimension="endpoint",
+                    severity="HIGH",
+                    description=(
+                        "Critère principal comparatif dont la valeur, dans le bras du "
+                        "dispositif évalué, est fixée à l'avance par le protocole (paramètre "
+                        "de design) plutôt que mesurée comme résultat."
+                    ),
+                    has_critique=(
+                        "Lorsque la valeur d'un critère de jugement comparatif est fixée à "
+                        "l'avance par le protocole dans le bras du dispositif évalué, alors "
+                        "qu'elle est réellement mesurée dans le bras comparateur, toute "
+                        "« supériorité » observée sur ce critère est tautologique par "
+                        "construction : elle reflète le paramètre de design choisi, pas un "
+                        "effet causal du dispositif. Un critère dont la valeur est mesurée "
+                        "de façon symétrique dans les deux bras est requis pour établir une "
+                        "comparaison interprétable."
+                    ),
+                ))
             elif bd.flag == BiasFlag.NO_COMPARATOR:
                 pass  # covered in design gaps
 
@@ -1063,6 +1090,7 @@ def enrich_claim_with_study_object(
                 is_validated_surrogate=ep.is_validated_surrogate,
                 is_feasibility_accepted_surrogate=ep.is_feasibility_accepted_surrogate,
                 is_independently_adjudicated=ep.is_independently_adjudicated,
+                value_fixed_by_protocol=ep.value_fixed_by_protocol,
             )
             for ep in study.endpoints
         ]

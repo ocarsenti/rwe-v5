@@ -591,6 +591,16 @@ clinique dur ou un score fonctionnel/qualité de vie validé dans l'indication r
 même s'il dépend biologiquement du mécanisme d'action — MEDIATED n'est pas un synonyme de
 "non direct", c'est réservé aux vrais critères intermédiaires.
 
+## value_fixed_by_protocol (par endpoint)
+Pertinent uniquement pour un critère de jugement comparatif (l'étude compare le dispositif à un
+comparateur sur ce critère précis). true si la valeur du critère dans le bras du dispositif
+évalué est fixée à l'avance par le protocole (un paramètre de design, pas une mesure), pendant
+que la valeur du comparateur est réellement mesurée — ce qui rend toute "supériorité" sur ce
+critère tautologique par construction, indépendamment du dispositif. false sinon (valeur
+réellement mesurée dans les deux bras, ou critère non comparatif). Exemple : volume de produit
+de contraste injecté fixé à 5 mL par protocole dans le bras du cathéter évalué, mesuré librement
+dans le bras du cathéter comparateur (avis CNEDiMTS VIS-RX 8145, étude Nishi et al. 2023).
+
 ## is_validated_surrogate (par endpoint)
 true UNIQUEMENT si les 3 conditions sont simultanément réunies :
 1. Reconnaissance réglementaire formelle (FDA/EMA/HAS) dans cette indication ET cette population
@@ -679,7 +689,8 @@ Réponds en JSON avec ce format exact :
       "is_validated_surrogate": <true | false>,
       "is_independently_adjudicated": <true | false>,
       "result_direction": "IMPROVED" | "NOT_IMPROVED" | "MIXED" | "UNKNOWN",
-      "reached_significance": <true | false | null>
+      "reached_significance": <true | false | null>,
+      "value_fixed_by_protocol": <true | false>
     }}
   ],
   "endpoint_hierarchy_prespecified": <true | false | null>,
@@ -1111,6 +1122,7 @@ def _parse_study_object_result(
             reached_significance=ep.get("reached_significance"),
             nature=_NATURE_MAP.get(ep.get("nature", "OBJECTIVE"), EndpointNature.OBJECTIVE),
             causal_role=_CAUSAL_ROLE_MAP.get(ep.get("causal_role", "INDEPENDENT"), CausalRole.INDEPENDENT),
+            value_fixed_by_protocol=bool(ep.get("value_fixed_by_protocol", False)),
         ))
 
     obj.endpoint_hierarchy_prespecified = data.get("endpoint_hierarchy_prespecified")
