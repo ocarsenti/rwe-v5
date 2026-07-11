@@ -119,11 +119,13 @@ Le moteur classe la structure causale circulaire : les études soumises ne perme
 d'identifier proprement l'effet du dispositif. Sa tendance de risque méthodologique : HIGH —
 cohérente avec la décision réelle de la HAS (Service Attendu Insuffisant).
 
-Le détail mécanisme par mécanisme est plus nuancé : un des biais individuels ne se retrouve pas
-clairement dans le texte de l'avis, et si le moteur confirme bien le caractère monocentrique de
-l'étude retenue, il ne relève pas l'usage hors marquage CE (artère vertébrale) que la HAS cite
-explicitement. C'est précisément pour ça que la tendance de risque ne repose jamais sur un seul
-flag isolé : elle regarde d'abord si la structure elle-même tient debout.
+Le détail mécanisme par mécanisme est plus nuancé : un des biais individuels (le risque de
+critère de substitution) ne se retrouve pas clairement dans le texte de l'avis. En revanche, sur
+la pertinence de l'évidence, le moteur confirme désormais pleinement deux signaux distincts : le
+caractère monocentrique de l'étude retenue, et l'usage hors périmètre du marquage CE (artère
+vertébrale) que la HAS cite explicitement — un signal que le moteur ratait jusqu'ici. C'est
+précisément pour ça que la tendance de risque ne repose jamais sur un seul flag isolé : elle
+regarde d'abord si la structure elle-même tient debout.
 
 2/N — toujours la même grille, sur un nouveau dossier.
 
@@ -135,7 +137,7 @@ flag isolé : elle regarde d'abord si la structure elle-même tient debout.
 |---|---|---|---|
 | MF_A identification causale | Structure causale CIRCULAIRE — effet non identifiable | « Huit des quinze études retenues sont des études rétrospectives et aucune n'était contrôlée randomisée. » | Confirmé |
 | MF_B mesure de l'effet | SURROGATE_RISK détecté | aucune critique isolée et vérifiable sur ce point précis dans le texte de l'avis | Non confirmé |
-| MF_D pertinence de l'évidence | CAS_CONTEXT confirmé (étude jugée monocentrique) ; reste muet sur l'usage hors marquage CE (score d'alignement 0,79–0,9, aucune alerte forte) | « étude monocentrique à collecte rétrospective des données avec des critères de jugement non hiérarchisés » + « [...] l'utilisation du cathéter dans l'artère vertébrale ne correspond pas à l'indication du marquage CE. » | Confirmé |
+| MF_D pertinence de l'évidence | CAS_CONTEXT confirmé (étude monocentrique) + CAS_CE_MARKING confirmé (usage hors périmètre du marquage CE) | « étude monocentrique à collecte rétrospective des données avec des critères de jugement non hiérarchisés » + « [...] l'utilisation du cathéter dans l'artère vertébrale ne correspond pas à l'indication du marquage CE. » | Confirmé |
 
 MF_C/MF_E : hors périmètre, absents de la grille. Bandeau "Tendance de risque méthodologique du
 moteur = Décision réelle HAS" en tête d'image, avant la grille de détail — élément visuel qui
@@ -150,6 +152,27 @@ runs archivés depuis le 07-08 — la ligne MF_D du post original ("Manqué", "a
 était donc déjà factuellement inexacte avant même le changement de moteur d'aujourd'hui, corrigée
 ici. Les bias flags (SURROGATE_RISK/CIRCULARITY_RISK/ADJUDICATION_RISK, CAS 0,9) restent conformes
 à l'historique une fois l'instabilité LLM d'un run isolé écartée (voir [[project_rwe_v5]]).
+
+**Mise à jour 2026-07-11 (indication_matches_ce_marking + fix du vote consensus des endpoints)** :
+ajout d'un champ `indication_matches_ce_marking` sur `StudyObject`, câblé dans `cas_engine.py`
+comme risque additif `CAS_CE_MARKING` (n'affecte pas `cas_score`/verdict, cf. calibration auditée
+dans `assess_methodological_risk`) — rwe-v5 commit `97c354b`. `has_vs_moteur.py` bascule sur
+`parse_study_object_with_llm_consensus()` (cnedimts_analysis commit `2bbeeee`) au lieu de l'appel
+simple, ce qui a mis au jour un bug corrigé dans le même commit rwe-v5 : `_majority_vote()` votait
+sur la liste `endpoints` entière comme un bloc atomique, donc le "correctif consensus" existant ne
+stabilisait en réalité jamais `causal_role`. Sur ce dossier précis, l'endpoint primaire de Cortez
+et al. (« succès technique de la navigation ») s'est révélé un vrai cas limite : 4/7 vs 3/7 entre
+CIRCULAR et INDEPENDENT sur des appels identiques avec l'ancien prompt/vote. Avec la définition
+CIRCULAR élargie (couvre désormais la performance procédurale d'un dispositif — le dispositif
+réussit sa propre tâche mécanique conçue — pas seulement la détection) et le vote endpoint-par-
+endpoint corrigé (alignement par `is_primary` + similarité de nom, endpoints minoritaires
+exclus), 5/5 essais (n_calls=3) et 3/3 (n_calls=7) convergent sur CIRCULAR, cohérent avec les 6/6
+runs archivés avant ce fix. Le champ `causal_role` de cet endpoint reste listé dans
+`unstable_fields` (désaccord résiduel par appel individuel), mais le résultat consensus est
+désormais stable — signal affiché dans le post lui-même plutôt que masqué. Résultat : `CAS_CE_MARKING`
+confirme désormais textuellement (« marquage ce ») le point que le moteur ratait jusqu'ici, et
+`causal_structure`/`overall_verdict` restent CIRCULAR/HIGH de façon reproductible plutôt que de
+dépendre du hasard d'un seul appel LLM.
 
 ---
 
