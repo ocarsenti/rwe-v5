@@ -101,7 +101,7 @@ FIBREPIK_JSON = {
     "longest_follow_up_months": 9,
     "dropout_rate_pct": 10.0,
 
-    "primary_analysis_set": "modified_itt",  # Pas ITT strict : 165/170 analysés
+    "primary_analysis_set": "mITT",  # Pas ITT strict : 165/170 analysés
     "sample_size_calculation_provided": True,
 
     "primary_endpoint_met": True,  # p=0.021 MAIS analyse non ITT stricte + données manquantes
