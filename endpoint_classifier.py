@@ -47,23 +47,41 @@ KNOWN_VALIDATED_SURROGATE_MARKERS = [
 ]
 
 INSTRUMENTED_MARKERS = [
+    # English
     "time-to-detection", "alert", "device-generated", "monitoring",
     "sensor", "automated", "ai-generated", "algorithm", "app-reported",
     "connected", "digital biomarker", "time-to-treatment",
+    # French
+    "délai jusqu'à détection", "alerte", "généré par le dispositif",
+    "télésurveillance", "surveillance", "capteur", "automatisé",
+    "généré par ia", "algorithme", "signalé par l'application",
+    "connecté", "biomarqueur numérique", "délai jusqu'au traitement",
 ]
 
 SUBJECTIVE_MARKERS = [
+    # English
     "pain", "qol", "quality of life", "satisfaction", "anxiety",
     "depression", "fatigue", "well-being", "comfort", "patient-reported",
     "self-reported", "perception", "symptom score",
+    # French
+    "douleur", "qualité de vie", "satisfaction", "anxiété",
+    "dépression", "fatigue", "bien-être", "confort", "auto-rapporté",
+    "auto-évalué", "auto-déclaré", "perception", "score de symptômes",
 ]
 
 OBJECTIVE_MARKERS = [
+    # English
     "mortality", "survival", "hospitalization", "complication",
     "lab", "biomarker", "hba1c", "blood pressure", "bmi",
     "recurrence", "readmission", "injection", "acuity",
     "functional outcome", "treatment escalation", "adverse event",
     "infection", "analgesic consumption",
+    # French
+    "mortalité", "survie", "hospitalisation", "complication",
+    "biomarqueur", "hémoglobine glyquée", "pression artérielle", "imc",
+    "récidive", "récurrence", "réhospitalisation", "injection", "acuité",
+    "résultat fonctionnel", "escalade thérapeutique", "événement indésirable",
+    "infection", "consommation d'analgésiques",
 ]
 
 
@@ -172,8 +190,12 @@ def _detect_endpoint_flags(
     # (Downstream, both land as HIGH severity gaps; be aware this can push
     # _compute_overall_risk to CRITICAL off a single endpoint's dual labeling.)
     detection_markers = [
+        # English
         "time-to-detection", "alert-based", "monitoring-triggered",
         "detection", "time-to-treatment",
+        # French
+        "délai jusqu'à détection", "déclenché par alerte", "alerte",
+        "déclenché par surveillance", "détection", "délai jusqu'au traitement",
     ]
     marker = _first_marker_match(detection_markers, text)
     if marker:
