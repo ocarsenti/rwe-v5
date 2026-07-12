@@ -462,6 +462,15 @@ _DOMAIN_ANCHORS: dict[str, str] = {
         "(c) Mortalité toutes causes depuis registre civil à 36 mois, "
         "(d) Score de qualité de vie validé (FOSQ-10 ou SF-36) évalué en aveugle par évaluateur indépendant."
     ),
+    "rheumatology": (
+        "(a) Consommation d'antalgiques (dont opioïdes) objectivée par données de délivrance "
+        "pharmaceutique (SNDS), "
+        "(b) Absentéisme professionnel / arrêts de travail depuis données administratives (CNAM), "
+        "(c) Recours aux soins non programmés pour la douleur (consultations urgences, "
+        "hospitalisations) depuis données PMSI/SNDS, "
+        "(d) Actimétrie objective (nombre de pas, accéléromètre validé) en alternative à un "
+        "score d'activité auto-rapporté."
+    ),
 }
 
 _DOMAIN_ANCHORS_DEFAULT = (
@@ -493,6 +502,12 @@ _DOMAIN_ALIASES: dict[str, str] = {
     "somnologie": "sleep_medicine", "sommeil": "sleep_medicine", "sahos": "sleep_medicine",
     "sleep apnea": "sleep_medicine", "apnée": "sleep_medicine", "osas": "sleep_medicine",
     "hypoglosse": "sleep_medicine", "stimulation hypoglosse": "sleep_medicine",
+    "rhumatologie": "rheumatology", "rheumatologic": "rheumatology",
+    "fibromyalgie": "rheumatology", "fibromyalgia": "rheumatology",
+    "douleur chronique": "rheumatology", "chronic pain": "rheumatology",
+    "algologie": "rheumatology", "pain medicine": "rheumatology",
+    "arthrose": "rheumatology", "osteoarthritis": "rheumatology",
+    "polyarthrite": "rheumatology", "spondylarthrite": "rheumatology",
 }
 
 
