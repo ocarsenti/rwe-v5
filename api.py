@@ -444,7 +444,9 @@ def smart_cas_endpoint(req: SmartCASRequest):
     output["_parse_info"] = {
         "claim_parsed": claim_parsed,
         "study_parsed": parsed.get("study_parsed", {}),
+        "claim_extraction": parsed.get("claim_extraction", {}),
     }
+    output["_consensus_meta"] = parsed.get("_consensus_meta", {})
     return output
 
 
