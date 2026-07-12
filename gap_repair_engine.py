@@ -37,6 +37,7 @@ class GapRepairType(Enum):
     CONFOUNDER_CONTROL      = "confounder_control"
     MULTIPLICITY_CORRECTION = "multiplicity_correction"
     PERFORMANCE_GOAL_JUSTIFICATION = "performance_goal_justification"
+    ANALYSIS_SET_CORRECTION = "analysis_set_correction"
 
 
 class GapRepairEffort(Enum):
@@ -541,7 +542,29 @@ def _repair_design_gap(
         ))
         return actions, True
 
-    # 2. Confounding / uncontrolled co-intervention (SOMNIO pattern)
+    # 2. Primary analysis set declared as per-protocol rather than ITT
+    if "intention de traiter" in desc:
+        actions.append(GapRepairAction(
+            gap_dimension="design",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.ANALYSIS_SET_CORRECTION,
+            description="Pré-spécifier l'ITT comme analyse primaire",
+            specific_suggestion=(
+                "Le per-protocol ne doit pas être l'analyse primaire d'une "
+                "revendication d'outcome : en excluant les patients non-observants "
+                "ou sortis d'étude, il surestime systématiquement l'effet. "
+                "Options : (1) Amendement du plan d'analyse statistique (SAP) "
+                "désignant l'ITT comme analyse primaire, le per-protocol restant "
+                "une analyse de sensibilité secondaire. (2) Si l'étude est en cours "
+                "avec un SAP déjà verrouillé en per-protocol, produire l'analyse ITT "
+                "en complément avant soumission."
+            ),
+            effort=GapRepairEffort.LOW,
+            removes_risk=["surestimation de l'effet par exclusion des non-observants"],
+        ))
+        return actions, False
+
+    # 3. Confounding / uncontrolled co-intervention (SOMNIO pattern)
     if "confusion" in desc or "concomitant" in desc:
         actions.append(GapRepairAction(
             gap_dimension="design",
@@ -564,7 +587,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 3. Performance goal threshold without clinical justification (SAPIEN 3/ALTERRA pattern)
+    # 4. Performance goal threshold without clinical justification (SAPIEN 3/ALTERRA pattern)
     if "seuil de performance" in desc or "seuil de succès" in desc:
         actions.append(GapRepairAction(
             gap_dimension="design",
@@ -584,7 +607,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 4. No comparator for C/D claim
+    # 5. No comparator for C/D claim
     if "sans comparateur" in desc or "comparateur" in desc:
         _claim_level = getattr(claim, "level", None)
         control_type = (
@@ -610,7 +633,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 5. Open-label with subjective primary
+    # 6. Open-label with subjective primary
     if "patient-rapporté" in desc or "subjectif" in desc or "pro" in desc:
         actions.append(GapRepairAction(
             gap_dimension="design",
@@ -644,7 +667,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 6. Short / insufficient follow-up
+    # 7. Short / insufficient follow-up
     if "suivi" in desc or "mois" in desc:
         is_durability_only = "durabilité" in desc  # LOW gap (12–24 mois)
         if is_durability_only:
@@ -680,7 +703,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 7. Non-randomized comparative
+    # 8. Non-randomized comparative
     actions.append(GapRepairAction(
         gap_dimension="design",
         gap_severity=gap.severity,

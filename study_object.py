@@ -643,6 +643,36 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
             ),
         ))
 
+    # Primary analysis set declared as per-protocol rather than ITT — for an outcome
+    # claim (C/D), ITT (all randomised patients, regardless of adherence/dropout) is
+    # the standard primary analysis; per-protocol only keeps adherent patients and
+    # systematically inflates the observed effect by dropping the cases most likely
+    # to fail. This is a protocol-stage weakness (what the study PLANS as its primary
+    # analysis), not a detection of a post-hoc switch — flagged before the study is
+    # even run, unlike the FIBROREM ANALYSIS_SET_BIAS mock which only made sense for
+    # an already-completed study comparing "annoncé" vs. "publié".
+    if (
+        study.primary_analysis_set == AnalysisSet.PP
+        and claim.level in (ClaimLevel.C, ClaimLevel.D)
+    ):
+        gaps.append(ClaimStudyGap(
+            dimension="design",
+            severity="HIGH",
+            description=(
+                "Analyse primaire prévue en per-protocol plutôt qu'en intention de "
+                "traiter (ITT), pour une revendication d'outcome (niveau C/D)."
+            ),
+            has_critique=(
+                "L'analyse en population per-protocol n'inclut que les patients ayant "
+                "suivi le protocole (observance, absence de sortie d'étude), à "
+                "l'inverse de l'intention de traiter qui conserve tous les patients "
+                "randomisés. Cela exclut systématiquement les échecs et abandons, "
+                "gonflant artificiellement l'effet observé. L'ITT doit être l'analyse "
+                "primaire pré-spécifiée ; une analyse per-protocol peut être présentée "
+                "en complément (analyse de sensibilité), jamais en remplacement."
+            ),
+        ))
+
     # Confounding / uncontrolled co-intervention — the observed effect may not be
     # attributable to the device if concomitant treatments are present and neither
     # described nor controlled. cf. avis CNEDiMTS SOMNIO 7781 (SA Insuffisant):

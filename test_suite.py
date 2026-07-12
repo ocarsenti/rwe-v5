@@ -4104,6 +4104,37 @@ class TestStudyObject(unittest.TestCase):
         confounding_gaps = [g for g in report.gaps if "confusion" in g.description.lower()]
         self.assertEqual(confounding_gaps, [])
 
+    # --- Primary analysis set declared per-protocol rather than ITT (protocol-review stage) ---
+
+    def test_compare_analysis_set_per_protocol_high(self):
+        from study_object import compare_claim_to_study, AnalysisSet
+        study = self._make_study(primary_analysis_set=AnalysisSet.PP)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        pp_gaps = [g for g in report.gaps if "intention de traiter" in g.description.lower()]
+        self.assertGreater(len(pp_gaps), 0)
+        self.assertEqual(pp_gaps[0].severity, "HIGH")
+
+    def test_compare_analysis_set_silent_when_itt(self):
+        from study_object import compare_claim_to_study, AnalysisSet
+        study = self._make_study(primary_analysis_set=AnalysisSet.ITT)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        pp_gaps = [g for g in report.gaps if "intention de traiter" in g.description.lower()]
+        self.assertEqual(pp_gaps, [])
+
+    def test_compare_analysis_set_silent_when_unknown(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study()  # primary_analysis_set defaults to UNKNOWN
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        pp_gaps = [g for g in report.gaps if "intention de traiter" in g.description.lower()]
+        self.assertEqual(pp_gaps, [])
+
+    def test_compare_analysis_set_silent_on_mechanism_claim(self):
+        from study_object import compare_claim_to_study, AnalysisSet
+        study = self._make_study(primary_analysis_set=AnalysisSet.PP)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.A), study)
+        pp_gaps = [g for g in report.gaps if "intention de traiter" in g.description.lower()]
+        self.assertEqual(pp_gaps, [])
+
     # --- Endpoint multiplicity without hierarchy (ENTERRA II pattern, avis 7254) ---
 
     def test_compare_endpoint_multiplicity_no_hierarchy_medium(self):
@@ -4435,6 +4466,17 @@ class TestGapRepairEngine(unittest.TestCase):
         types = [a.repair_type for a in plan.actions]
         self.assertIn(GapRepairType.CONFOUNDER_CONTROL, types)
         self.assertEqual(plan.actions[0].effort, GapRepairEffort.MEDIUM)
+
+    def test_design_analysis_set_per_protocol_low_effort_not_blocking(self):
+        claim = self._c_claim()
+        gaps = [_gap("design", "HIGH", "Analyse primaire prévue en per-protocol plutôt qu'en intention de traiter (ITT), pour une revendication d'outcome (niveau C/D).")]
+        report = _make_comparison_report(gaps, OverallRisk.HIGH)
+        plan = repair_comparison(report, claim)
+        self.assertEqual(len(plan.non_repairable_gaps), 0)
+        self.assertTrue(plan.is_fully_repairable)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.ANALYSIS_SET_CORRECTION, types)
+        self.assertEqual(plan.actions[0].effort, GapRepairEffort.LOW)
 
     def test_design_performance_goal_unjustified_low_effort(self):
         claim = self._c_claim()
