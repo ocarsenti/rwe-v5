@@ -392,12 +392,12 @@ class SmartCASRequest(BaseModel):
     lang: str = "fr"
 
 
-@app.post("/api/smart-cas")
-def smart_cas_endpoint(req: SmartCASRequest):
-    """Parse claim + study with LLM, then evaluate CAS."""
-    parsed = parse_cas_smart(req.claim_text, req.study_text, lang=req.lang)
+def _run_smart_cas(claim_text: str, study_text: str, lang: str) -> dict | None:
+    """Parse claim + study with LLM, then evaluate CAS. Shared by /api/smart-cas
+    and /api/diagnose-premium (CAS alignment folded into the full report)."""
+    parsed = parse_cas_smart(claim_text, study_text, lang=lang)
     if parsed is None:
-        return {"error": "LLM parsing failed", "status": "error"}
+        return None
 
     da = parsed.get("device_alignment", {})
     pa = parsed.get("population_alignment", {})
@@ -431,13 +431,13 @@ def smart_cas_endpoint(req: SmartCASRequest):
     domain = claim_parsed.get("domain", "")
 
     result = evaluate_cas(
-        claim_text=req.claim_text,
+        claim_text=claim_text,
         intervention=intervention,
         domain=domain,
         device=device,
         population=population,
         context=context,
-        lang=req.lang,
+        lang=lang,
     )
 
     output = result.to_dict()
@@ -447,6 +447,15 @@ def smart_cas_endpoint(req: SmartCASRequest):
         "claim_extraction": parsed.get("claim_extraction", {}),
     }
     output["_consensus_meta"] = parsed.get("_consensus_meta", {})
+    return output
+
+
+@app.post("/api/smart-cas")
+def smart_cas_endpoint(req: SmartCASRequest):
+    """Parse claim + study with LLM, then evaluate CAS."""
+    output = _run_smart_cas(req.claim_text, req.study_text, req.lang)
+    if output is None:
+        return {"error": "LLM parsing failed", "status": "error"}
     return output
 
 
@@ -655,6 +664,8 @@ async def diagnose_premium_endpoint(
             "truncated": total_pages > _MAX_PDF_PAGES,
             "chars_extracted": len(pdf_text),
         }
+
+        cas = _run_smart_cas(claim_text, pdf_text, lang)
     else:
         # No PDF — return early with just epistemic analysis
         epistemic = analyze(claim, lang=lang)
@@ -676,6 +687,7 @@ async def diagnose_premium_endpoint(
 
     result = _build_gap_response(report, repair, claim, epistemic)
     result["epistemic"] = epistemic_dict
+    result["cas"] = cas
     result["needs_manual_review"] = (
         bool(unstable_fields) or study.multiple_studies_detected or bool(study.citation_rejected_fields)
     )

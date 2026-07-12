@@ -4,7 +4,11 @@ import { useLang } from '../LangContext'
 import { useGuest } from '../guest/GuestContext'
 import RadarChart from '../components/RadarChart'
 import AccessRequestCard from '../components/AccessRequestCard'
-import { CLAIM_LEVELS, CAUSAL_STRUCTURES, STUDY_DESIGNS, MANIFOLD_REGIONS, label, desc } from '../enumLabels'
+import {
+  CLAIM_LEVELS, CAUSAL_STRUCTURES, STUDY_DESIGNS, MANIFOLD_REGIONS,
+  DEVICE_MATCH_TYPES, POPULATION_MATCH_TYPES, CONTEXT_MATCH_TYPES, CAS_VERDICTS,
+  label, desc,
+} from '../enumLabels'
 import { t } from '../i18n'
 
 const RISK_CONFIG = {
@@ -30,6 +34,20 @@ const EFFORT_CONFIG = {
 
 const DIM_LABEL_FR = { device: 'Dispositif', endpoint: 'Critère', design: 'Design', population: 'Population', context: 'Contexte' }
 const DIM_LABEL_EN = { device: 'Device', endpoint: 'Endpoint', design: 'Design', population: 'Population', context: 'Context' }
+
+const CAS_VERDICT_CLS = {
+  ACCEPTABLE:    'bg-green-100 text-green-800 border-green-200',
+  WEAK_EVIDENCE: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  REJECTED:      'bg-red-100 text-red-800 border-red-200',
+}
+
+const VALIDATION_CLS = {
+  passed:              'bg-green-50 text-green-700 border-green-200',
+  rejected_citation:   'bg-red-50 text-red-700 border-red-200',
+  no_citation_needed:  'bg-gray-50 text-gray-500 border-gray-200',
+}
+const VALIDATION_LABEL_FR = { passed: 'Citation vérifiée', rejected_citation: 'Citation rejetée', no_citation_needed: 'Sans citation' }
+const VALIDATION_LABEL_EN = { passed: 'Citation verified', rejected_citation: 'Citation rejected', no_citation_needed: 'No citation' }
 
 const FLAG_LABELS = {
   CIRCULARITY_RISK:   { fr: 'Risque de circularité',          en: 'Circularity risk' },
@@ -404,6 +422,50 @@ function DiagnosticResults({ result, lang }) {
         </>
       )}
 
+      {/* CAS — Alignement étude / revendication */}
+      {result.cas && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+          <div className="px-6 pt-5 pb-4 border-b border-gray-50 flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h2 className="font-bold text-gray-900">
+                {fr ? 'Alignement étude / revendication (CAS)' : 'Study / claim alignment (CAS)'}
+              </h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {fr
+                  ? 'L\'étude porte-t-elle sur le bon dispositif, la bonne population, le bon contexte ?'
+                  : 'Does the study cover the right device, population, context?'}
+              </p>
+            </div>
+            <span className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${CAS_VERDICT_CLS[result.cas.verdict] || CAS_VERDICT_CLS.WEAK_EVIDENCE}`}>
+              {label(CAS_VERDICTS, result.cas.verdict, fr ? 'fr' : 'en')} · {result.cas.scores?.cas_score?.toFixed(2)}
+            </span>
+          </div>
+          <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-50">
+            <CASDimension
+              title={fr ? 'Dispositif' : 'Device'}
+              matchType={label(DEVICE_MATCH_TYPES, result.cas.device_alignment?.device_match_type, fr ? 'fr' : 'en')}
+              distance={result.cas.scores?.d_device}
+              extraction={result.cas._parse_info?.claim_extraction?.['device_alignment.device_match_type']}
+              fr={fr}
+            />
+            <CASDimension
+              title="Population"
+              matchType={label(POPULATION_MATCH_TYPES, result.cas.population_alignment?.population_match_type, fr ? 'fr' : 'en')}
+              distance={result.cas.scores?.d_population}
+              extraction={result.cas._parse_info?.claim_extraction?.['population_alignment.population_match_type']}
+              fr={fr}
+            />
+            <CASDimension
+              title={fr ? 'Contexte' : 'Context'}
+              matchType={label(CONTEXT_MATCH_TYPES, result.cas.context_alignment?.context_match_type, fr ? 'fr' : 'en')}
+              distance={result.cas.scores?.d_context}
+              extraction={result.cas._parse_info?.claim_extraction?.['context_alignment.context_match_type']}
+              fr={fr}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Summary cards */}
       {result.epistemic && (
         <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -728,6 +790,37 @@ function SummaryCard({ label, value, description }) {
       <div className="text-lg font-bold text-primary leading-tight">{value || '—'}</div>
       {description && (
         <p className="text-xs text-gray-400 leading-relaxed">{description}</p>
+      )}
+    </div>
+  )
+}
+
+function CASDimension({ title, matchType, distance, extraction, fr }) {
+  const dist = distance ?? 0
+  const barColor = dist <= 0.1 ? 'bg-green-500' : dist <= 0.4 ? 'bg-yellow-500' : dist <= 0.7 ? 'bg-orange-500' : 'bg-red-500'
+  return (
+    <div className="px-6 py-4">
+      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{title}</div>
+      <div className="text-sm font-medium text-gray-800 mb-2">{matchType}</div>
+      <div className="w-full bg-gray-100 rounded-full h-1.5 mb-3">
+        <div className={`h-1.5 rounded-full ${barColor}`} style={{ width: `${Math.max(dist * 100, 3)}%` }} />
+      </div>
+      {extraction && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs gap-2">
+            <span className={`px-1.5 py-0.5 rounded border font-medium ${VALIDATION_CLS[extraction.validation] || VALIDATION_CLS.no_citation_needed}`}>
+              {(fr ? VALIDATION_LABEL_FR : VALIDATION_LABEL_EN)[extraction.validation] || extraction.validation}
+            </span>
+            <span className="text-gray-400 flex-shrink-0">
+              {fr ? 'Confiance' : 'Confidence'} {(extraction.confidence * 100).toFixed(0)}%
+            </span>
+          </div>
+          {extraction.source_quote && (
+            <p className="text-xs text-gray-500 italic leading-relaxed border-l-2 border-gray-100 pl-2">
+              “{extraction.source_quote}”
+            </p>
+          )}
+        </div>
       )}
     </div>
   )
