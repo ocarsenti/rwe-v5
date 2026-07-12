@@ -197,9 +197,70 @@ def _verify_cas_citations(data: dict, study_text: str) -> list[str]:
     return rejected
 
 
+def _vote_confidence(raw_results: list[dict], dim_key: str, field_key: str) -> float:
+    """Fraction of the n_calls raw parses that agree with the value that WON
+    the majority vote for data[dim_key][field_key]. Computed independently of
+    _majority_vote's unstable_fields bookkeeping (which is only a binary
+    unanimous/not-unanimous flag) so a continuous per-field confidence can be
+    exposed without changing the vote engine StudyObject parsing also relies
+    on. 1.0 = all n_calls agreed; 1/n_calls = no two calls agreed."""
+    from collections import Counter
+
+    values = [(r.get(dim_key) or {}).get(field_key) for r in raw_results]
+    if not values:
+        return 0.0
+    canonical = [json.dumps(v, sort_keys=True, ensure_ascii=False) for v in values]
+    _, winner_count = Counter(canonical).most_common(1)[0]
+    return round(winner_count / len(values), 2)
+
+
+def _build_claim_extraction(
+    consensus_data: dict, raw_results: list[dict],
+    citation_rejected_fields: list[str], study_text: str,
+) -> dict:
+    """Consolidate the 3 alignment-dimension verdicts into ONE auditable object
+    per field, instead of the info being scattered across unstable_fields
+    (binary, engine-wide), citation_rejected_fields (a bare list of field
+    paths), and the raw quote strings buried inside device_alignment /
+    population_alignment / context_alignment.
+
+    Each entry has exactly the shape the architecture review asked for:
+      {"value": ..., "confidence": ..., "source_quote": ..., "validation": ...,
+       "parser": "claude-haiku-4-5"}
+    `validation` is "passed" (citation verified), "rejected_citation" (citation
+    didn't survive Niveau 2 verbatim check — value was reset to UNKNOWN), or
+    "no_citation_needed" (value is UNKNOWN on its own merits, no evidence claim
+    to check).
+    """
+    dims = [
+        ("device_alignment", "device_match_type"),
+        ("population_alignment", "population_match_type"),
+        ("context_alignment", "context_match_type"),
+    ]
+    extraction = {}
+    for dim_key, field_key in dims:
+        path = f"{dim_key}.{field_key}"
+        dim = consensus_data.get(dim_key) or {}
+        value = dim.get(field_key, "UNKNOWN")
+        if path in citation_rejected_fields:
+            validation = "rejected_citation"
+        elif value == "UNKNOWN":
+            validation = "no_citation_needed"
+        else:
+            validation = "passed"
+        extraction[path] = {
+            "value": value,
+            "confidence": _vote_confidence(raw_results, dim_key, field_key),
+            "source_quote": dim.get("source_quote", ""),
+            "validation": validation,
+            "parser": "claude-haiku-4-5",
+        }
+    return extraction
+
+
 def parse_cas_with_llm_consensus(
     claim_text: str, study_text: str, lang: str = "fr", n_calls: int = 3,
-) -> tuple[dict, list[str], list[str]]:
+) -> tuple[dict, list[str], list[str], dict]:
     """Niveau 3 — self-consistency loop for claim/study alignment extraction.
 
     Runs n_calls parallel raw parses of the SAME (claim_text, study_text) pair
@@ -211,11 +272,14 @@ def parse_cas_with_llm_consensus(
     call individually — a citation only counts if the value it supports survived
     the vote.
 
-    This closes the one gap identified in the 3-tier architecture review: claim
-    parsing previously had neither Niveau 2 (citation check) nor Niveau 3
-    (consensus), unlike study-object parsing which already had both.
+    This closes the two gaps identified in the 3-tier architecture review:
+    claim parsing previously had neither Niveau 2 (citation check) nor Niveau 3
+    (consensus), unlike study-object parsing which already had both — and the
+    per-field audit trail (value/confidence/source_quote/validation) was
+    scattered across three disconnected structures instead of being one
+    consolidated, per-field object.
 
-    Returns (consensus_dict, unstable_fields, citation_rejected_fields).
+    Returns (consensus_dict, unstable_fields, citation_rejected_fields, claim_extraction).
     """
     from llm_evidence_parser import _majority_vote
 
@@ -230,22 +294,28 @@ def parse_cas_with_llm_consensus(
     unstable_fields: list[str] = []
     consensus_data = _majority_vote(raw_results, "", unstable_fields)
     citation_rejected_fields = _verify_cas_citations(consensus_data, study_text)
-    return consensus_data, unstable_fields, citation_rejected_fields
+    claim_extraction = _build_claim_extraction(
+        consensus_data, raw_results, citation_rejected_fields, study_text,
+    )
+    return consensus_data, unstable_fields, citation_rejected_fields, claim_extraction
 
 
 def parse_cas_smart(claim_text: str, study_text: str, lang: str = "fr") -> dict | None:
     """Production entry point (used by api.py's /api/smart-cas). Runs the
     consensus + citation-verification pipeline rather than a single raw call.
 
-    unstable_fields / citation_rejected_fields are stashed under the
-    "_consensus_meta" key so existing callers that read known top-level keys
-    (parsed.get("device_alignment"), etc.) are unaffected — only callers that
-    know to look for "_consensus_meta" see the new audit trail.
+    "claim_extraction" is the consolidated per-field audit object (value/
+    confidence/source_quote/validation) — this is what a caller or a LinkedIn
+    post should read to explain WHY a verdict was trusted. "_consensus_meta"
+    keeps the raw unstable_fields/citation_rejected_fields lists for deeper
+    debugging. Both are additive keys; existing callers reading known keys
+    (parsed.get("device_alignment"), etc.) are unaffected.
     """
     try:
-        consensus, unstable_fields, citation_rejected_fields = parse_cas_with_llm_consensus(
-            claim_text, study_text, lang=lang,
+        consensus, unstable_fields, citation_rejected_fields, claim_extraction = (
+            parse_cas_with_llm_consensus(claim_text, study_text, lang=lang)
         )
+        consensus["claim_extraction"] = claim_extraction
         consensus["_consensus_meta"] = {
             "unstable_fields": unstable_fields,
             "citation_rejected_fields": citation_rejected_fields,
