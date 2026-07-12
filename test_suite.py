@@ -4128,6 +4128,22 @@ class TestStudyObject(unittest.TestCase):
         pp_gaps = [g for g in report.gaps if "intention de traiter" in g.description.lower()]
         self.assertEqual(pp_gaps, [])
 
+    def test_compare_analysis_set_silent_when_mitt(self):
+        """mITT (modified ITT) is a commonly-accepted ITT-adjacent choice, not a red flag."""
+        from study_object import compare_claim_to_study, AnalysisSet
+        study = self._make_study(primary_analysis_set=AnalysisSet.mITT)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        pp_gaps = [g for g in report.gaps if "intention de traiter" in g.description.lower()]
+        self.assertEqual(pp_gaps, [])
+
+    def test_compare_analysis_set_silent_when_fas(self):
+        """FAS (Full Analysis Set) is defined to stay maximally close to ITT (ICH E9), not a red flag."""
+        from study_object import compare_claim_to_study, AnalysisSet
+        study = self._make_study(primary_analysis_set=AnalysisSet.FAS)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        pp_gaps = [g for g in report.gaps if "intention de traiter" in g.description.lower()]
+        self.assertEqual(pp_gaps, [])
+
     def test_compare_analysis_set_silent_on_mechanism_claim(self):
         from study_object import compare_claim_to_study, AnalysisSet
         study = self._make_study(primary_analysis_set=AnalysisSet.PP)
