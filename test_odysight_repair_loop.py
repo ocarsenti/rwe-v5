@@ -96,11 +96,13 @@ TIL003_JSON = {
         "justification": "Même dispositif que la revendication.",
     },
     "population_alignment": {
-        "population_match_type": "EXACT_INDICATION",
+        "population_match_type": "NARROWER_SUBGROUP",
         "population_description_study": "DMLA exsudative sous anti-VEGF, 112 patients",
         "population_description_claim": "DMLA exsudative",
-        "eligibility_shift": "NONE",
-        "justification": "Population alignée.",
+        "eligibility_shift": "MINOR",
+        "justification": "L'étude ne couvre que les patients déjà sous anti-VEGF (112 patients), "
+                          "un sous-groupe plus restreint que l'indication revendiquée (DMLA exsudative, "
+                          "sans restriction de traitement concomitant).",
     },
     "context_alignment": {
         "context_match_type": "SAME_HEALTHCARE_SYSTEM",

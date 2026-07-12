@@ -39,6 +39,7 @@ class GapRepairType(Enum):
     PERFORMANCE_GOAL_JUSTIFICATION = "performance_goal_justification"
     ANALYSIS_SET_CORRECTION = "analysis_set_correction"
     SUBGROUP_CONFIRMATION = "subgroup_confirmation"
+    BASELINE_ADJUSTMENT = "baseline_adjustment"
 
 
 class GapRepairEffort(Enum):
@@ -627,7 +628,32 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 5. Performance goal threshold without clinical justification (SAPIEN 3/ALTERRA pattern)
+    # 5. Baseline group imbalance (MAIOREGEN PRIME pattern) — distinct from the
+    # confounding branch above (co-interventions during the study, not baseline
+    # comparability).
+    if "comparables à l'inclusion" in desc:
+        actions.append(GapRepairAction(
+            gap_dimension="design",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.BASELINE_ADJUSTMENT,
+            description="Ajuster statistiquement sur les caractéristiques déséquilibrées",
+            specific_suggestion=(
+                "Les groupes comparés diffèrent à l'inclusion sur une caractéristique "
+                "pronostique : l'effet observé peut refléter ce déséquilibre plutôt "
+                "qu'un effet causal du dispositif. Options par ordre de robustesse : "
+                "(1) Analyse ajustée pré-spécifiée (ANCOVA, régression multivariée) sur "
+                "la ou les caractéristiques déséquilibrées, si les données ont été "
+                "collectées mais non ajustées. (2) Appariement ou stratification a "
+                "posteriori sur ces caractéristiques, avec analyse de sensibilité. "
+                "(3) Nouvelle étude avec randomisation stratifiée sur les facteurs "
+                "pronostiques identifiés comme déséquilibrés."
+            ),
+            effort=GapRepairEffort.MEDIUM,
+            removes_risk=["déséquilibre de baseline", "attribution causale non établie"],
+        ))
+        return actions, False
+
+    # 6. Performance goal threshold without clinical justification (SAPIEN 3/ALTERRA pattern)
     if "seuil de performance" in desc or "seuil de succès" in desc:
         actions.append(GapRepairAction(
             gap_dimension="design",
@@ -647,7 +673,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 6. No comparator for C/D claim
+    # 7. No comparator for C/D claim
     if "sans comparateur" in desc or "comparateur" in desc:
         _claim_level = getattr(claim, "level", None)
         control_type = (
@@ -673,7 +699,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 7. Open-label with subjective primary — residual-risk MEDIUM (patient already
+    # 8. Open-label with subjective primary — residual-risk MEDIUM (patient already
     # blinded, cf. study_object.py's SINGLE_BLIND+patient-blinded branch) gets a
     # lighter-effort suggestion; full HIGH (patient not blinded at all) keeps the
     # original "convert to SHAM" recommendation.
@@ -734,7 +760,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 8. Short / insufficient follow-up
+    # 9. Short / insufficient follow-up
     if "suivi" in desc or "mois" in desc:
         is_durability_only = "durabilité" in desc  # LOW gap (12–24 mois)
         if is_durability_only:
@@ -770,7 +796,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 9. Non-randomized comparative
+    # 10. Non-randomized comparative
     actions.append(GapRepairAction(
         gap_dimension="design",
         gap_severity=gap.severity,

@@ -32,6 +32,7 @@ from models import (
     ComparatorFeasibility,
     DeviceAlignment,
     DeviceMatchType,
+    EligibilityShift,
     Endpoint,
     EndpointNature,
     PopulationAlignment,
@@ -181,6 +182,17 @@ class StudyObject:
     concomitant_treatments_controlled: Optional[bool] = None
     concomitant_treatments_description: str = ""
 
+    # Baseline group comparability — distinct from concomitant_treatments_*
+    # (which is about co-interventions given DURING the study): this is about
+    # whether the comparator arms were comparable at randomization/inclusion on
+    # prognostically relevant characteristics. cf. avis CNEDiMTS MAIOREGEN PRIME
+    # 7282: HAS explicitly flagged that "les deux groupes ne sont pas complètement
+    # homogènes (plus de lésions rotuliennes pour le groupe BMS) et d'autres
+    # interventions chirurgicales sont effectuées dans le même temps dans le
+    # groupe matrice" as a reason to interpret the subgroup finding with caution.
+    baseline_groups_comparable: Optional[bool] = None
+    baseline_imbalance_description: str = ""
+
     # Performance goal justification — only relevant when study_design is
     # SINGLE_ARM_PERFORMANCE_GOAL (cf. avis CNEDiMTS SAPIEN 3/ALTERRA 7873: accepted
     # design, but HAS's residual critique was the absence of documented clinical
@@ -284,6 +296,8 @@ class StudyObject:
             "concomitant_treatments_present": self.concomitant_treatments_present,
             "concomitant_treatments_controlled": self.concomitant_treatments_controlled,
             "concomitant_treatments_description": self.concomitant_treatments_description,
+            "baseline_groups_comparable": self.baseline_groups_comparable,
+            "baseline_imbalance_description": self.baseline_imbalance_description,
             "performance_goal_clinically_justified": self.performance_goal_clinically_justified,
             "indication_matches_ce_marking": self.indication_matches_ce_marking,
             "n_patients": self.n_patients,
@@ -471,13 +485,25 @@ def _device_gap(alignment: DeviceAlignment, study: StudyObject) -> ClaimStudyGap
 def _population_gap(alignment: PopulationAlignment) -> ClaimStudyGap | None:
     m = alignment.population_match_type
     if m == PopulationMatchType.EXACT_INDICATION:
-        return None
-    severity_map = {
-        PopulationMatchType.NARROWER_SUBGROUP: "MEDIUM",
-        PopulationMatchType.BROADER_POPULATION: "MEDIUM",
-        PopulationMatchType.DIFFERENT_POPULATION: "HIGH",
-        PopulationMatchType.UNKNOWN: "LOW",
-    }
+        # match_type says "exact", but eligibility_shift can still flag a real
+        # eligibility-criteria divergence (e.g. a study restricted to a treatment
+        # subset not mentioned in the claimed indication) that match_type alone
+        # doesn't capture — cf. ODYSIGHT/TIL-003, where EXACT_INDICATION was
+        # silently masking a study population narrower than the claim.
+        if alignment.eligibility_shift == EligibilityShift.MAJOR:
+            severity = "MEDIUM"
+        elif alignment.eligibility_shift == EligibilityShift.MINOR:
+            severity = "LOW"
+        else:
+            return None
+    else:
+        severity_map = {
+            PopulationMatchType.NARROWER_SUBGROUP: "MEDIUM",
+            PopulationMatchType.BROADER_POPULATION: "MEDIUM",
+            PopulationMatchType.DIFFERENT_POPULATION: "HIGH",
+            PopulationMatchType.UNKNOWN: "LOW",
+        }
+        severity = severity_map[m]
     critique_map = {
         "MEDIUM": (
             "Un écart entre population étudiée et indication revendiquée fragilise la validité "
@@ -499,7 +525,6 @@ def _population_gap(alignment: PopulationAlignment) -> ClaimStudyGap | None:
             "de la revendication."
         ),
     }
-    severity = severity_map[m]
     desc = (
         f"Population étudiée ({alignment.population_description_study}) "
         f"vs. indication revendiquée ({alignment.population_description_claim}). "
@@ -755,6 +780,43 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 "des co-interventions et, si elles ne peuvent être exclues, un ajustement "
                 "statistique pré-spécifié (stratification, covariable, sensibilité) sont "
                 "requis pour établir l'attribution causale."
+            ),
+        ))
+
+    # Baseline group imbalance — distinct from concomitant_treatments_present
+    # above (co-interventions given DURING the study): this is about whether
+    # the comparator arms were comparable AT INCLUSION on prognostically
+    # relevant characteristics. cf. avis CNEDiMTS MAIOREGEN PRIME 7282: HAS
+    # noted "les deux groupes ne sont pas complètement homogènes (plus de
+    # lésions rotuliennes pour le groupe BMS) et d'autres interventions
+    # chirurgicales sont effectuées dans le même temps dans le groupe matrice"
+    # as a reason to interpret an otherwise-significant subgroup finding with
+    # caution — a randomization/comparability threat, not a co-intervention one.
+    if (
+        study.has_comparator is True
+        and study.baseline_groups_comparable is False
+        and claim.level in (ClaimLevel.C, ClaimLevel.D)
+    ):
+        gaps.append(ClaimStudyGap(
+            dimension="design",
+            severity="HIGH",
+            description=(
+                "Groupes non comparables à l'inclusion sur une ou plusieurs "
+                "caractéristiques pronostiques (déséquilibre de baseline)."
+                + (f" {study.baseline_imbalance_description}" if study.baseline_imbalance_description else "")
+            ),
+            has_critique=(
+                "Lorsque les bras comparés diffèrent à l'inclusion sur une "
+                "caractéristique pronostique pertinente (sévérité, localisation de "
+                "la lésion, comorbidités, gestes associés...), l'effet observé peut "
+                "refléter ce déséquilibre plutôt qu'un effet causal du dispositif — "
+                "même dans un essai randomisé, un déséquilibre résiduel peut survenir "
+                "par hasard ou par une répartition non aléatoire de facteurs "
+                "additionnels (ex : interventions associées plus fréquentes dans un "
+                "bras). Un ajustement statistique pré-spécifié sur les caractéristiques "
+                "déséquilibrées (analyse de covariance, stratification, appariement) "
+                "est requis pour établir que l'effet observé n'est pas expliqué par ce "
+                "déséquilibre."
             ),
         ))
 

@@ -68,11 +68,13 @@ ODYSIGHT_JSON = {
         "justification": "Même dispositif que la revendication.",
     },
     "population_alignment": {
-        "population_match_type": "EXACT_INDICATION",
+        "population_match_type": "BROADER_POPULATION",
         "population_description_study": "DMLA exsudative, OMD",
         "population_description_claim": "DMLA exsudative",
-        "eligibility_shift": "NONE",
-        "justification": "Population alignée.",
+        "eligibility_shift": "MINOR",
+        "justification": "L'étude mélange deux indications (DMLA exsudative et OMD) sans distinguer "
+                          "les résultats par sous-population, alors que la revendication ne porte que "
+                          "sur la DMLA exsudative.",
     },
     "context_alignment": {
         "context_match_type": "SAME_HEALTHCARE_SYSTEM",

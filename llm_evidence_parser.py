@@ -542,6 +542,19 @@ expliquer l'effet observé.
   contrôlés dans l'analyse. null si non déterminable.
 - **concomitant_treatments_description** : brève description textuelle si pertinent, sinon "".
 
+## baseline_groups_comparable / baseline_imbalance_description
+Pertinent uniquement pour une étude comparative (has_comparator=true). Porte sur la
+comparabilité des bras À L'INCLUSION (caractéristiques pronostiques : sévérité, localisation
+de la lésion, comorbidités, gestes associés...) — à distinguer de
+concomitant_treatments_present, qui porte sur des traitements donnés PENDANT l'étude.
+- **baseline_groups_comparable** : true si le texte indique explicitement que les groupes
+  étaient comparables à l'inclusion (ou ne rapporte aucun déséquilibre notable). false si le
+  texte rapporte explicitement un déséquilibre entre les groupes sur une caractéristique
+  pronostique pertinente (ex : plus de lésions sévères dans un bras, gestes associés plus
+  fréquents dans un bras). null si le texte ne permet pas de trancher.
+- **baseline_imbalance_description** : brève description du déséquilibre rapporté si
+  baseline_groups_comparable=false, sinon "".
+
 ## endpoint_hierarchy_prespecified
 Pertinent uniquement si plusieurs endpoints sont marqués is_primary=true. true si une
 procédure de contrôle de la multiplicité (hiérarchisation séquentielle, gatekeeping,
@@ -753,6 +766,8 @@ Réponds en JSON avec ce format exact :
   "concomitant_treatments_present": <true | false | null>,
   "concomitant_treatments_controlled": <true | false | null>,
   "concomitant_treatments_description": "<description ou \"\">",
+  "baseline_groups_comparable": <true | false | null>,
+  "baseline_imbalance_description": "<description ou \"\">",
   "performance_goal_clinically_justified": <true | false | null>,
   "indication_matches_ce_marking": <true | false | null>,
 
@@ -1098,6 +1113,7 @@ def parse_study_object_with_llm(
 _FREE_TEXT_LEAF_KEYS = {
     "justification", "title", "device_description_study", "population_description_study",
     "comparator_description", "concomitant_treatments_description", "study_country", "name",
+    "baseline_imbalance_description",
 }
 
 # Below this similarity ratio (difflib, on lowercased/stripped endpoint names), two
@@ -1285,6 +1301,8 @@ def _parse_study_object_result(
     obj.concomitant_treatments_present = data.get("concomitant_treatments_present")
     obj.concomitant_treatments_controlled = data.get("concomitant_treatments_controlled")
     obj.concomitant_treatments_description = data.get("concomitant_treatments_description") or ""
+    obj.baseline_groups_comparable = data.get("baseline_groups_comparable")
+    obj.baseline_imbalance_description = data.get("baseline_imbalance_description") or ""
     obj.performance_goal_clinically_justified = data.get("performance_goal_clinically_justified")
     obj.indication_matches_ce_marking = data.get("indication_matches_ce_marking")
 

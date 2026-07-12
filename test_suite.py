@@ -4196,6 +4196,40 @@ class TestStudyObject(unittest.TestCase):
         confounding_gaps = [g for g in report.gaps if "confusion" in g.description.lower()]
         self.assertEqual(confounding_gaps, [])
 
+    # --- Baseline group imbalance (MAIOREGEN PRIME pattern, avis 7282) ---
+
+    def test_compare_baseline_imbalance_high(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(
+            baseline_groups_comparable=False,
+            baseline_imbalance_description="plus de lésions rotuliennes dans le groupe comparateur",
+        )
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        imbalance_gaps = [g for g in report.gaps if "comparables à l'inclusion" in g.description.lower()]
+        self.assertGreater(len(imbalance_gaps), 0)
+        self.assertEqual(imbalance_gaps[0].severity, "HIGH")
+
+    def test_compare_baseline_imbalance_silent_when_comparable(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(baseline_groups_comparable=True)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        imbalance_gaps = [g for g in report.gaps if "comparables à l'inclusion" in g.description.lower()]
+        self.assertEqual(imbalance_gaps, [])
+
+    def test_compare_baseline_imbalance_silent_when_unstated(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study()  # baseline_groups_comparable defaults to None
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        imbalance_gaps = [g for g in report.gaps if "comparables à l'inclusion" in g.description.lower()]
+        self.assertEqual(imbalance_gaps, [])
+
+    def test_compare_baseline_imbalance_silent_when_no_comparator(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(has_comparator=False, baseline_groups_comparable=False)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        imbalance_gaps = [g for g in report.gaps if "comparables à l'inclusion" in g.description.lower()]
+        self.assertEqual(imbalance_gaps, [])
+
     # --- Primary analysis set declared per-protocol rather than ITT (protocol-review stage) ---
 
     def test_compare_analysis_set_per_protocol_high(self):
