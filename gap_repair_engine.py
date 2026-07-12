@@ -473,6 +473,16 @@ _DOMAIN_ANCHORS: dict[str, str] = {
         "(d) Actimétrie objective (nombre de pas, accéléromètre validé) en alternative à un "
         "score d'activité auto-rapporté."
     ),
+    "prosthetics": (
+        "(a) Score de mobilité fonctionnelle standardisé validé chez l'amputé (Amputee Mobility "
+        "Predictor, L-test, Timed Up and Go) réalisé par évaluateur indépendant en aveugle, "
+        "(b) Taux d'abandon du dispositif / durée de port quotidienne objectivée (données "
+        "d'usage, actimétrie), "
+        "(c) Complications cutanées à l'interface moignon-emboîture (lésions, escarres) depuis "
+        "données PMSI/consultations, "
+        "(d) Pression d'interface moignon-emboîture mesurée par capteur instrumenté (mesure "
+        "biomécanique objective)."
+    ),
 }
 
 _DOMAIN_ANCHORS_DEFAULT = (
@@ -510,6 +520,10 @@ _DOMAIN_ALIASES: dict[str, str] = {
     "algologie": "rheumatology", "pain medicine": "rheumatology",
     "arthrose": "rheumatology", "osteoarthritis": "rheumatology",
     "polyarthrite": "rheumatology", "spondylarthrite": "rheumatology",
+    "prothèse": "prosthetics", "prosthesis": "prosthetics", "prosthetic": "prosthetics",
+    "appareillage": "prosthetics", "amputé": "prosthetics", "amputee": "prosthetics",
+    "amputation": "prosthetics", "moignon": "prosthetics", "emboîture": "prosthetics",
+    "emboiture": "prosthetics",
 }
 
 
