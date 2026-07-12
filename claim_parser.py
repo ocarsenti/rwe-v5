@@ -7,24 +7,37 @@ import re
 from models import ClaimLevel, ClinicalClaim
 
 
+# French terms included alongside English ones — this product's real market is
+# France/HAS-CNEDiMTS, so claim text is routinely French. Without them, a French
+# outcome claim that also mentions its mechanism (a common sponsor phrasing —
+# "le dispositif stimule X, soulageant Y") matched only on MECHANISM_KEYWORDS
+# and silently fell through to ClaimLevel.A instead of C/D, suppressing every
+# C/D-gated bias flag and gap downstream (cf. FIBROREM case, 2026-07-12).
 MECHANISM_KEYWORDS = [
-    "mechanism", "biolog", "receptor", "stimulat", "modulat",
-    "neurostimulat", "endorphin", "molecule", "cellular", "tissue",
-    "electromagnetic", "frequency", "wavelength", "absorption",
+    "mechanism", "mécanisme", "biolog", "receptor", "récepteur",
+    "stimulat", "stimul", "modulat", "neurostimulat", "endorphin",
+    "endorphine", "molecule", "moléculaire", "cellular", "cellulaire",
+    "tissue", "tissulaire", "electromagnetic", "électromagnétique",
+    "frequency", "fréquence", "wavelength", "longueur d'onde", "absorption",
 ]
 
 PROCESS_KEYWORDS = [
-    "workflow", "pathway", "triage", "referral", "care pathway",
-    "monitoring", "alert", "screening", "detection", "surveillance",
-    "follow-up", "scheduling", "coordination", "telemonitoring",
-    "remote monitoring", "symptom tracking",
+    "workflow", "pathway", "parcours de soins", "parcours de santé",
+    "triage", "referral", "orientation", "adressage", "care pathway",
+    "monitoring", "monitorage", "télésurveillance", "télémonitorage",
+    "alert", "alerte", "screening", "dépistage", "detection", "détection",
+    "surveillance", "follow-up", "suivi", "scheduling", "coordination",
+    "telemonitoring", "remote monitoring", "symptom tracking",
 ]
 
 OUTCOME_KEYWORDS = [
-    "survival", "mortality", "hospitalization", "complication",
-    "pain", "quality of life", "qol", "acuity", "progression",
-    "recurrence", "readmission", "functional", "disability",
-    "morbidity", "adverse event", "infection rate",
+    "survival", "survie", "mortality", "mortalité", "hospitalization",
+    "hospitalisation", "complication", "pain", "douleur",
+    "quality of life", "qualité de vie", "qol", "acuity", "progression",
+    "recurrence", "récidive", "readmission", "réadmission", "functional",
+    "fonctionnel", "disability", "handicap", "incapacité", "morbidity",
+    "morbidité", "adverse event", "événement indésirable", "effet indésirable",
+    "infection rate", "taux d'infection", "symptôme", "soulagement",
 ]
 
 
@@ -69,6 +82,12 @@ def classify_claim(claim: ClinicalClaim) -> ClaimLevel:
 
 
 def parse_claim(claim: ClinicalClaim) -> ClinicalClaim:
-    """Parse and enrich a clinical claim with its level."""
-    claim.level = classify_claim(claim)
+    """Parse and enrich a clinical claim with its level.
+
+    Only classifies when level is unset — an explicit level (set by the caller,
+    or already derived upstream by a more reliable classifier such as the LLM-based
+    parse_claim_with_llm) must not be silently overwritten by this keyword heuristic.
+    """
+    if claim.level is None:
+        claim.level = classify_claim(claim)
     return claim

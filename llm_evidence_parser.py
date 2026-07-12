@@ -491,6 +491,12 @@ c'est à l'utilisateur de préciser ensuite laquelle est l'étude pivot, pas au 
 - "MATCHED_OBSERVATIONAL" : appariement (PSM ou autre)
 - "EXPLORATORY" : pilote, faisabilité, série de cas, **sans** seuil de succès pré-spécifié
 
+## is_multicentric
+true si le texte indique explicitement plusieurs centres/sites d'investigation (ex : "étude
+multicentrique", un nombre de centres > 1, une liste de centres/villes). false si le texte
+indique explicitement un seul centre ("étude monocentrique", un centre nommé sans mention
+d'autres). null si le texte ne précise pas le nombre de centres.
+
 ## blinding_level
 - "OPEN_LABEL" : pas d'aveugle
 - "SINGLE_BLIND" : un niveau d'aveugle
@@ -712,6 +718,7 @@ Réponds en JSON avec ce format exact :
 
   "study_design": "<voir liste>",
   "is_randomized": <true | false>,
+  "is_multicentric": <true | false | null>,
   "blinding_level": "<voir liste>",
   "who_is_blinded": ["patient", "assessor", "clinician", "statistician"],
   "allocation_concealment": <true | false | null>,
@@ -1235,6 +1242,7 @@ def _parse_study_object_result(
         obj.study_design = _DESIGN_MAP.get(design_str)
 
     obj.is_randomized = bool(data.get("is_randomized", False))
+    obj.is_multicentric = data.get("is_multicentric")
     obj.blinding_level = _BLINDING_MAP.get(
         data.get("blinding_level", "UNKNOWN"), BlindingLevel.UNKNOWN
     )
