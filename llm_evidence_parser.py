@@ -584,6 +584,27 @@ d'inclusion alors que l'indication revendiquée cible spécifiquement les lésio
 mais le texte ne dit rien du marquage CE du dispositif — répondre null, pas false, même si la
 population étudiée ne correspond pas à la revendication (cf. VIS-RX 8145 / étude Nishi).
 
+## subgroup_only_significant / subgroup_prespecified
+Pertinent uniquement si le critère de jugement principal n'est PAS significatif sur la
+population analysée dans son ensemble.
+- subgroup_only_significant : true si le texte rapporte, en plus de ce résultat principal non
+  significatif, un résultat statistiquement significatif dans un sous-groupe de patients (ex :
+  sous-groupe correspondant à l'indication revendiquée, sous-groupe de sévérité, etc.). false
+  si aucun sous-groupe significatif n'est rapporté, ou si le critère principal est lui-même
+  significatif sur la population entière (auquel cas ce champ n'est pas pertinent, laisser
+  null). null si le texte ne permet pas de trancher.
+- subgroup_prespecified : true si le texte précise explicitement que cette analyse en
+  sous-groupe était prévue au protocole ou dans le plan d'analyse statistique avant la levée
+  de l'aveugle. false si le texte indique explicitement qu'elle est post-hoc / exploratoire.
+  null si le texte ne précise pas si elle était prévue au protocole — ne pas supposer une
+  pré-spécification par défaut : l'absence de précision doit rester null, jamais true.
+
+Exemple (cf. avis CNEDiMTS MAIOREGEN PRIME 7282) : le critère principal (score IKDC à 24 mois)
+n'est pas significatif sur la population analysée, mais une différence significative de +12,4
+points est rapportée dans le sous-groupe des patients avec lésions profondes (l'indication
+revendiquée) — le texte ne précise pas si cette analyse en sous-groupe était prévue au
+protocole → subgroup_only_significant=true, subgroup_prespecified=null.
+
 ## primary_analysis_set
 - "ITT" : intention-to-treat
 - "mITT" : modified ITT
@@ -771,6 +792,8 @@ Réponds en JSON avec ce format exact :
   "sample_size_calculation_provided": <true | false>,
 
   "primary_endpoint_met": <true | false | null>,
+  "subgroup_only_significant": <true | false | null>,
+  "subgroup_prespecified": <true | false | null>,
   "key_safety_signals": ["<signal 1>", "<signal 2>"],
   "study_countries": ["<pays 1>", "<pays 2>"],
 
@@ -1308,6 +1331,8 @@ def _parse_study_object_result(
 
     obj.study_countries = data.get("study_countries") or []
     obj.primary_endpoint_met = data.get("primary_endpoint_met")
+    obj.subgroup_only_significant = data.get("subgroup_only_significant")
+    obj.subgroup_prespecified = data.get("subgroup_prespecified")
 
     # Fallback: if study_countries still empty, extract from context_alignment.study_country
     if not obj.study_countries:

@@ -4068,6 +4068,98 @@ class TestStudyObject(unittest.TestCase):
         self.assertGreater(len(sham_gaps), 0)
         self.assertEqual(sham_gaps[0].severity, "HIGH")
 
+    def test_compare_single_blind_patient_blinded_primary_medium(self):
+        """MAIOREGEN PRIME pattern (avis CNEDiMTS 7282): patient blinded to allocation
+        (SINGLE_BLIND) mitigates but doesn't eliminate expectation bias on a PRO —
+        residual-risk MEDIUM, not the full HIGH given to a fully open design.
+        """
+        from study_object import compare_claim_to_study, BlindingLevel
+        study = self._make_study(
+            blinding_level=BlindingLevel.SINGLE_BLIND,
+            who_is_blinded=["patient"],
+        )
+        claim = ClinicalClaim(
+            text="Device réduit la douleur",
+            intervention="MyDevice",
+            level=ClaimLevel.C,
+            endpoints=[
+                Endpoint("EVA douleur", EndpointNature.SUBJECTIVE, CausalRole.INDEPENDENT, True),
+            ],
+        )
+        report = compare_claim_to_study(claim, study)
+        sham_gaps = [
+            g for g in report.gaps
+            if "subjectif" in g.description.lower() or "PRO" in g.description
+        ]
+        self.assertGreater(len(sham_gaps), 0)
+        self.assertEqual(sham_gaps[0].severity, "MEDIUM")
+
+    def test_compare_single_blind_assessor_only_primary_still_high(self):
+        """SINGLE_BLIND where the PATIENT is not the one blinded (e.g. only the
+        assessor is) doesn't mitigate the mechanism this gap targets — stays HIGH.
+        """
+        from study_object import compare_claim_to_study, BlindingLevel
+        study = self._make_study(
+            blinding_level=BlindingLevel.SINGLE_BLIND,
+            who_is_blinded=["assessor"],
+        )
+        claim = ClinicalClaim(
+            text="Device réduit la douleur",
+            intervention="MyDevice",
+            level=ClaimLevel.C,
+            endpoints=[
+                Endpoint("EVA douleur", EndpointNature.SUBJECTIVE, CausalRole.INDEPENDENT, True),
+            ],
+        )
+        report = compare_claim_to_study(claim, study)
+        sham_gaps = [
+            g for g in report.gaps
+            if "subjectif" in g.description.lower() or "PRO" in g.description
+        ]
+        self.assertGreater(len(sham_gaps), 0)
+        self.assertEqual(sham_gaps[0].severity, "HIGH")
+
+    # --- Subgroup-only significance of unconfirmed pre-specification (MAIOREGEN PRIME pattern, avis 7282) ---
+
+    def test_compare_subgroup_only_significant_unconfirmed_high(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(
+            subgroup_only_significant=True,
+            subgroup_prespecified=None,
+        )
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        subgroup_gaps = [g for g in report.gaps if "sous-groupe" in g.description.lower()]
+        self.assertGreater(len(subgroup_gaps), 0)
+        self.assertEqual(subgroup_gaps[0].severity, "HIGH")
+
+    def test_compare_subgroup_fires_when_explicitly_posthoc(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(
+            subgroup_only_significant=True,
+            subgroup_prespecified=False,
+        )
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        subgroup_gaps = [g for g in report.gaps if "sous-groupe" in g.description.lower()]
+        self.assertGreater(len(subgroup_gaps), 0)
+        self.assertEqual(subgroup_gaps[0].severity, "HIGH")
+
+    def test_compare_subgroup_silent_when_prespecified(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(
+            subgroup_only_significant=True,
+            subgroup_prespecified=True,
+        )
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        subgroup_gaps = [g for g in report.gaps if "sous-groupe" in g.description.lower()]
+        self.assertEqual(subgroup_gaps, [])
+
+    def test_compare_subgroup_silent_when_no_subgroup_signal(self):
+        from study_object import compare_claim_to_study
+        study = self._make_study(subgroup_only_significant=False)
+        report = compare_claim_to_study(self._make_claim(level=ClaimLevel.C), study)
+        subgroup_gaps = [g for g in report.gaps if "sous-groupe" in g.description.lower()]
+        self.assertEqual(subgroup_gaps, [])
+
     # --- Confounding / uncontrolled co-intervention (SOMNIO pattern, avis 7781) ---
 
     def test_compare_confounding_uncontrolled_high(self):
@@ -4462,6 +4554,27 @@ class TestGapRepairEngine(unittest.TestCase):
         types = [a.repair_type for a in plan.actions]
         self.assertIn(GapRepairType.DESIGN_SHAM, types)
         self.assertIn(GapRepairType.ENDPOINT_ADDITION, types)
+
+    def test_design_patient_blinded_medium_single_action(self):
+        claim = self._c_claim()
+        gaps = [_gap("design", "MEDIUM", "Critère principal patient-rapporté (PRO/subjectif), patient en aveugle du traitement mais pas de sham — risque résiduel de biais d'expectation.")]
+        report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
+        plan = repair_comparison(report, claim)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.DESIGN_SHAM, types)
+        self.assertNotIn(GapRepairType.ENDPOINT_ADDITION, types)
+        self.assertEqual(plan.actions[0].effort, GapRepairEffort.MEDIUM)
+
+    def test_design_subgroup_confirmation_high_effort(self):
+        claim = self._c_claim()
+        gaps = [_gap("design", "HIGH", "Critère principal non significatif sur la population analysée ; la revendication s'appuie sur un résultat significatif dans un sous-groupe dont le caractère pré-spécifié n'est pas confirmé.")]
+        report = _make_comparison_report(gaps, OverallRisk.HIGH)
+        plan = repair_comparison(report, claim)
+        self.assertEqual(len(plan.non_repairable_gaps), 0)
+        self.assertTrue(plan.is_fully_repairable)
+        types = [a.repair_type for a in plan.actions]
+        self.assertIn(GapRepairType.SUBGROUP_CONFIRMATION, types)
+        self.assertEqual(plan.actions[0].effort, GapRepairEffort.HIGH)
 
     def test_design_short_followup_extension(self):
         claim = self._c_claim()

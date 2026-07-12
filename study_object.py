@@ -229,6 +229,16 @@ class StudyObject:
 
     # Results
     primary_endpoint_met: Optional[bool] = None
+    # Subgroup-only significance (cf. avis CNEDiMTS MAIOREGEN PRIME 7282: primary
+    # endpoint not significant on the analyzed population, but significant on a
+    # subgroup matching the claimed indication — HAS explicitly flagged that the
+    # subgroup analysis's pre-specification could not be confirmed from the
+    # dossier). subgroup_prespecified is independently null/true/false — null
+    # means the dossier simply doesn't state whether it was planned in the
+    # protocol/SAP, which is itself the red flag (data-driven subgroup fishing
+    # can't be ruled out), not the same as false (explicitly post-hoc).
+    subgroup_only_significant: Optional[bool] = None
+    subgroup_prespecified: Optional[bool] = None
     key_safety_signals: list[str] = field(default_factory=list)
 
     # CAS alignment (populated by LLM parser)
@@ -293,6 +303,8 @@ class StudyObject:
             "sample_size_calculation_provided": self.sample_size_calculation_provided,
             "study_countries": self.study_countries,
             "primary_endpoint_met": self.primary_endpoint_met,
+            "subgroup_only_significant": self.subgroup_only_significant,
+            "subgroup_prespecified": self.subgroup_prespecified,
             "key_safety_signals": self.key_safety_signals,
             "device_alignment": self.device_alignment.to_dict() if self.device_alignment else None,
             "population_alignment": self.population_alignment.to_dict() if self.population_alignment else None,
@@ -673,6 +685,48 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
             ),
         ))
 
+    # Subgroup-only significance — the primary endpoint failed on the analyzed
+    # population, and the claim instead relies on a subgroup finding whose
+    # pre-specification cannot be confirmed. cf. avis CNEDiMTS MAIOREGEN PRIME
+    # 7282 (SA Insuffisant): non-significant IKDC at 24 months on the full
+    # per-protocol population, but a statistically significant +12.4-point
+    # difference in the subgroup matching the claimed indication (deep
+    # osteochondral lesions) — HAS explicitly noted the subgroup methodology
+    # was not described, in particular whether it was planned in the protocol.
+    # subgroup_prespecified is not True covers both explicit False and unstated
+    # null — a dossier that doesn't say whether a subgroup was pre-specified
+    # cannot rule out data-driven subgroup fishing, so null is treated the same
+    # as a confirmed post-hoc analysis, not given the benefit of the doubt.
+    if (
+        study.subgroup_only_significant is True
+        and study.subgroup_prespecified is not True
+        and claim.level in (ClaimLevel.C, ClaimLevel.D)
+    ):
+        gaps.append(ClaimStudyGap(
+            dimension="design",
+            severity="HIGH",
+            description=(
+                "Critère principal non significatif sur la population analysée ; la "
+                "revendication s'appuie sur un résultat significatif dans un "
+                "sous-groupe dont le caractère pré-spécifié n'est pas confirmé."
+            ),
+            has_critique=(
+                "Lorsque le critère de jugement principal échoue sur la population "
+                "analysée mais qu'un sous-groupe présente un résultat significatif, "
+                "ce résultat ne peut soutenir la revendication que si l'analyse en "
+                "sous-groupe était pré-spécifiée au protocole (hypothèse, méthode et "
+                "correction de multiplicité définies avant la levée de l'aveugle). À "
+                "défaut d'une pré-spécification confirmée, une significativité de "
+                "sous-groupe peut résulter d'une recherche a posteriori parmi "
+                "plusieurs sous-groupes possibles (subgroup fishing), qui inflate le "
+                "risque de faux positif indépendamment de tout effet réel du "
+                "dispositif. La méthodologie de l'analyse en sous-groupe (nombre de "
+                "sous-groupes testés, pré-spécification, correction du risque alpha) "
+                "doit être documentée, ou une étude confirmatoire dédiée à ce "
+                "sous-groupe doit être conduite."
+            ),
+        ))
+
     # Confounding / uncontrolled co-intervention — the observed effect may not be
     # attributable to the device if concomitant treatments are present and neither
     # described nor controlled. cf. avis CNEDiMTS SOMNIO 7781 (SA Insuffisant):
@@ -704,30 +758,63 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
             ),
         ))
 
-    # Open-label with subjective primary endpoint
+    # Open-label with subjective primary endpoint — severity depends on WHO is
+    # blinded, not just the blinding_level label. For a self-reported (PRO) primary
+    # endpoint, the mechanism this gap targets is the patient's own expectation
+    # biasing their self-report — patient blinding directly mitigates that specific
+    # mechanism, even under SINGLE_BLIND (assessor not necessarily blinded), so it
+    # is treated as a residual-risk MEDIUM rather than the full HIGH given to a
+    # design where the patient knows their own allocation. Residual risk remains:
+    # unblinded care-team members (coach, investigator) can still leak allocation
+    # through differential interaction, as HAS noted for FIBROREM's personalized
+    # coaching contact — patient blinding reduces but does not eliminate this gap.
     claim_primary_subjective = any(
         ep.nature == EndpointNature.SUBJECTIVE and ep.is_primary
         for ep in claim.endpoints
+    )
+    patient_blinded = any(
+        w.strip().lower() == "patient" for w in study.who_is_blinded
     )
     if (
         claim_primary_subjective
         and study.blinding_level not in (BlindingLevel.DOUBLE_BLIND, BlindingLevel.SHAM_CONTROLLED)
     ):
-        gaps.append(ClaimStudyGap(
-            dimension="design",
-            severity="HIGH",
-            description=(
-                "Critère principal patient-rapporté (PRO/subjectif) sans aveugle ni sham. "
-                f"Design : {study.blinding_level.value}."
-            ),
-            has_critique=(
-                "L'association d'un critère patient-rapporté et d'une évaluation en ouvert génère "
-                "structurellement des biais d'expectation et d'effet placebo : le patient "
-                "connaissant son traitement, ses réponses sont influencées par ses attentes "
-                "indépendamment de l'effet réel du dispositif. Ce mécanisme fragilise "
-                "l'attribution causale de l'amélioration observée."
-            ),
-        ))
+        if study.blinding_level == BlindingLevel.SINGLE_BLIND and patient_blinded:
+            gaps.append(ClaimStudyGap(
+                dimension="design",
+                severity="MEDIUM",
+                description=(
+                    "Critère principal patient-rapporté (PRO/subjectif), patient en aveugle "
+                    "du traitement mais pas de sham — risque résiduel de biais d'expectation."
+                ),
+                has_critique=(
+                    "Le patient étant en aveugle de son groupe de traitement, le risque direct "
+                    "que ses réponses au critère auto-rapporté soient influencées par la "
+                    "connaissance de son allocation est réduit. Un risque résiduel subsiste : "
+                    "le personnel en contact avec le patient (investigateur, accompagnant, "
+                    "kinésithérapeute), lui, connaît l'allocation et peut moduler différemment "
+                    "son interaction selon le bras, transmettant involontairement cette "
+                    "information ou biaisant l'accompagnement. Un design SHAM complet élimine "
+                    "ce risque résiduel ; à défaut, l'étanchéité du personnel en contact avec "
+                    "le patient doit être documentée au protocole."
+                ),
+            ))
+        else:
+            gaps.append(ClaimStudyGap(
+                dimension="design",
+                severity="HIGH",
+                description=(
+                    "Critère principal patient-rapporté (PRO/subjectif) sans aveugle ni sham. "
+                    f"Design : {study.blinding_level.value}."
+                ),
+                has_critique=(
+                    "L'association d'un critère patient-rapporté et d'une évaluation en ouvert génère "
+                    "structurellement des biais d'expectation et d'effet placebo : le patient "
+                    "connaissant son traitement, ses réponses sont influencées par ses attentes "
+                    "indépendamment de l'effet réel du dispositif. Ce mécanisme fragilise "
+                    "l'attribution causale de l'amélioration observée."
+                ),
+            ))
 
     # Exploratory design for C/D claim
     if study.study_design == StudyDesign.EXPLORATORY and claim.level in (ClaimLevel.C, ClaimLevel.D):

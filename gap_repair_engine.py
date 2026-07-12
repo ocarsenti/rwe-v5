@@ -38,6 +38,7 @@ class GapRepairType(Enum):
     MULTIPLICITY_CORRECTION = "multiplicity_correction"
     PERFORMANCE_GOAL_JUSTIFICATION = "performance_goal_justification"
     ANALYSIS_SET_CORRECTION = "analysis_set_correction"
+    SUBGROUP_CONFIRMATION = "subgroup_confirmation"
 
 
 class GapRepairEffort(Enum):
@@ -579,7 +580,31 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 3. Confounding / uncontrolled co-intervention (SOMNIO pattern)
+    # 3. Subgroup-only significance of unconfirmed pre-specification (MAIOREGEN PRIME pattern)
+    if "sous-groupe" in desc:
+        actions.append(GapRepairAction(
+            gap_dimension="design",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.SUBGROUP_CONFIRMATION,
+            description="Documenter la pré-spécification ou confirmer par une étude dédiée",
+            specific_suggestion=(
+                "Un résultat significatif dans un sous-groupe, alors que le critère principal "
+                "échoue sur la population analysée, ne peut soutenir la revendication que si "
+                "l'analyse était pré-spécifiée. Options par ordre de robustesse : "
+                "(1) Si l'analyse était réellement prévue au protocole/SAP : produire la "
+                "documentation datée l'attestant (protocole verrouillé avant la levée de "
+                "l'aveugle, enregistrement d'essai mentionnant ce sous-groupe). "
+                "(2) Test d'interaction pré-spécifié (sous-groupe × traitement) avec correction "
+                "de multiplicité, démontrant que l'effet différentiel n'est pas dû au hasard. "
+                "(3) À défaut, étude confirmatoire dédiée, randomisée, restreinte à ce "
+                "sous-groupe, avec le critère principal pré-enregistré pour cette population."
+            ),
+            effort=GapRepairEffort.HIGH,
+            removes_risk=["subgroup fishing", "signification de sous-groupe non confirmée"],
+        ))
+        return actions, False
+
+    # 4. Confounding / uncontrolled co-intervention (SOMNIO pattern)
     if "confusion" in desc or "concomitant" in desc:
         actions.append(GapRepairAction(
             gap_dimension="design",
@@ -602,7 +627,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 4. Performance goal threshold without clinical justification (SAPIEN 3/ALTERRA pattern)
+    # 5. Performance goal threshold without clinical justification (SAPIEN 3/ALTERRA pattern)
     if "seuil de performance" in desc or "seuil de succès" in desc:
         actions.append(GapRepairAction(
             gap_dimension="design",
@@ -622,7 +647,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 5. No comparator for C/D claim
+    # 6. No comparator for C/D claim
     if "sans comparateur" in desc or "comparateur" in desc:
         _claim_level = getattr(claim, "level", None)
         control_type = (
@@ -648,8 +673,35 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 6. Open-label with subjective primary
+    # 7. Open-label with subjective primary — residual-risk MEDIUM (patient already
+    # blinded, cf. study_object.py's SINGLE_BLIND+patient-blinded branch) gets a
+    # lighter-effort suggestion; full HIGH (patient not blinded at all) keeps the
+    # original "convert to SHAM" recommendation.
     if "patient-rapporté" in desc or "subjectif" in desc or "pro" in desc:
+        if gap.severity == "MEDIUM":
+            actions.append(GapRepairAction(
+                gap_dimension="design",
+                gap_severity=gap.severity,
+                repair_type=GapRepairType.DESIGN_SHAM,
+                description="Documenter et renforcer l'étanchéité du personnel en contact avec le patient",
+                specific_suggestion=(
+                    "Le patient est déjà en aveugle de son traitement — le risque direct "
+                    "d'expectation sur son auto-questionnaire est réduit, mais pas éliminé : "
+                    "le personnel en contact avec le patient (investigateur, accompagnant, "
+                    "kinésithérapeute) connaît l'allocation et peut la transmettre "
+                    "involontairement par une interaction différenciée selon le bras. "
+                    "Options par ordre de robustesse : (1) Design SHAM complet si réalisable "
+                    "(élimine le risque résiduel). (2) À défaut, documenter au protocole des "
+                    "interactions standardisées et identiques quel que soit le bras pour tout "
+                    "le personnel en contact avec le patient (cf. avis CNEDiMTS FIBROREM : un "
+                    "accompagnement personnalisé non étanche a suffi à invalider un design "
+                    "pourtant partiellement en aveugle)."
+                ),
+                effort=GapRepairEffort.MEDIUM,
+                removes_risk=["biais d'expectation résiduel"],
+            ))
+            return actions, False
+
         actions.append(GapRepairAction(
             gap_dimension="design",
             gap_severity=gap.severity,
@@ -682,7 +734,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 7. Short / insufficient follow-up
+    # 8. Short / insufficient follow-up
     if "suivi" in desc or "mois" in desc:
         is_durability_only = "durabilité" in desc  # LOW gap (12–24 mois)
         if is_durability_only:
@@ -718,7 +770,7 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 8. Non-randomized comparative
+    # 9. Non-randomized comparative
     actions.append(GapRepairAction(
         gap_dimension="design",
         gap_severity=gap.severity,
