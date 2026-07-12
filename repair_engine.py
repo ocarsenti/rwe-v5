@@ -208,6 +208,44 @@ DETECTION_REPAIRS: dict[str, list[dict]] = {
     ],
 }
 
+# Gait/mobility-assistance devices (orthoses, exosquelettes...) whose circular
+# endpoints are the device's own biomechanical output (joint kinematics/kinetics
+# it was mechanically adjusted to produce) — the generic fallback below (mortality,
+# adjudicated clinical events) is a poor fit for this population, which is not
+# typically at elevated near-term mortality risk from the condition itself.
+_GAIT_MOBILITY_REPAIRS: list[dict] = [
+    {
+        "endpoint": "taux de chutes documentées (carnet de suivi + confirmation médicale) sur 12 mois",
+        "type": EndpointRepairKind.HARD_CLINICAL,
+        "causal_role": "PRIMARY",
+        "why_valid": "La chute est un événement clinique patient-pertinent, ascerté indépendamment "
+                     "des paramètres biomécaniques propres au réglage du dispositif — directement lié "
+                     "au risque fonctionnel que la compensation du déficit de marche vise à réduire.",
+        "risk_reduction": ["supprime la circularité"],
+    },
+    {
+        "endpoint": "passages aux urgences ou hospitalisations liés à une chute depuis les données "
+                    "administratives (PMSI/SNDS)",
+        "type": EndpointRepairKind.UTILIZATION_INDEPENDENT,
+        "causal_role": "PRIMARY",
+        "why_valid": "Les recours aux soins pour chute sont enregistrés dans les bases administratives "
+                     "hospitalières, indépendamment du réglage du dispositif.",
+        "risk_reduction": ["supprime la circularité", "supprime le biais de détection"],
+    },
+    {
+        "endpoint": "échelle de mobilité fonctionnelle validée (ex : Functional Ambulation Category, "
+                    "Timed Up and Go) par évaluateur indépendant en aveugle du réglage",
+        "type": EndpointRepairKind.SOFT_CLINICAL,
+        "causal_role": "SECONDARY",
+        "why_valid": "Score fonctionnel standardisé évalué par un tiers indépendant du réglage de "
+                     "l'articulation, plutôt qu'un paramètre biomécanique intrinsèque au dispositif.",
+        "risk_reduction": ["supprime la circularité"],
+    },
+]
+DETECTION_REPAIRS["marche"] = _GAIT_MOBILITY_REPAIRS
+DETECTION_REPAIRS["cinématique"] = _GAIT_MOBILITY_REPAIRS
+DETECTION_REPAIRS["biomécanique"] = _GAIT_MOBILITY_REPAIRS
+
 SUBJECTIVE_REPAIRS: dict[str, list[dict]] = {
     "pain": [
         {
