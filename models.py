@@ -547,6 +547,14 @@ class BiasDetection:
     flag: BiasFlag
     severity: str  # HIGH, MEDIUM, LOW
     detail: str
+    # Case-specific justification: why THIS flag fired for THIS dossier, grounded
+    # in the actual extracted field values (e.g. "nature=OBJECTIVE, causal_role=
+    # INDEPENDENT, is_primary=True, is_independently_adjudicated=False"). Distinct
+    # from `detail`, which is a fixed, flag-type-level definition reused across
+    # every dossier that triggers this flag. None when no case-specific reason
+    # was threaded through (should not happen for new detections; kept optional
+    # so existing callers/tests that build BiasDetection directly don't break).
+    case_reason: Optional[str] = None
 
 
 @dataclass
@@ -748,7 +756,12 @@ class EngineOutput:
             ],
             "causal_structure": self.causal_structure.value,
             "bias_flags": [
-                {"flag": bd.flag.value, "severity": bd.severity, "detail": bd.detail}
+                {
+                    "flag": bd.flag.value,
+                    "severity": bd.severity,
+                    "detail": bd.detail,
+                    "case_reason": bd.case_reason,
+                }
                 for bd in self.bias_flags
             ],
             "design_recommendation": {

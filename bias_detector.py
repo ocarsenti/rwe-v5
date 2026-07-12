@@ -105,8 +105,17 @@ def build_bias_detections(
     flags: list[BiasFlag],
     endpoint_analyses: list[EndpointAnalysis],
     structure: CausalStructure,
+    case_reasons: dict[BiasFlag, str] | None = None,
 ) -> list[BiasDetection]:
-    """Build detailed bias detection objects from flags."""
+    """Build detailed bias detection objects from flags.
+
+    `case_reasons` (from causal_graph_builder.detect_structural_issues) maps
+    each flag to a dossier-specific justification. Optional and defaulted to
+    None so existing callers/tests built before this parameter existed keep
+    working — in that case `case_reason` on the resulting BiasDetection is
+    simply None rather than the pipeline failing.
+    """
+    case_reasons = case_reasons or {}
     seen = set()
     detections = []
 
@@ -122,6 +131,7 @@ def build_bias_detections(
                     flag=flag,
                     severity=info["severity"],
                     detail=info["detail"],
+                    case_reason=case_reasons.get(flag),
                 )
             )
 
@@ -132,6 +142,11 @@ def build_bias_detections(
                 flag=BiasFlag.CIRCULARITY_RISK,
                 severity=info["severity"],
                 detail=info["detail"],
+                case_reason=case_reasons.get(
+                    BiasFlag.CIRCULARITY_RISK,
+                    f"causal_structure={structure.value} at the overall study-design "
+                    f"level (structural circularity not tied to a single endpoint)",
+                ),
             )
         )
 

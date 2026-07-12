@@ -76,19 +76,42 @@ def detect_structural_issues(
     claim: ClinicalClaim,
     endpoint_analyses: list[EndpointAnalysis],
     structure: CausalStructure,
-) -> list[BiasFlag]:
-    """Detect structural bias flags from the causal graph."""
+) -> tuple[list[BiasFlag], dict[BiasFlag, str]]:
+    """Detect structural bias flags from the causal graph.
+
+    Returns (flags, reasons): `reasons` maps each flag to a case-specific,
+    human-checkable justification grounded in this dossier's actual field
+    values — never the flag-type-level generic text from BIAS_DETAILS. For
+    flags inherited from endpoint-level analysis, this is `ea.flag_reasons`
+    (already computed by endpoint_classifier.py but previously dropped here,
+    since `flags.update(ea.flags)` only kept the bare enum). For flags added
+    directly at the structural level below, the reason is built here from the
+    same claim/endpoint data that triggered the flag.
+    """
     flags = set()
+    reasons: dict[BiasFlag, str] = {}
 
     for ea in endpoint_analyses:
         flags.update(ea.flags)
+        for f, r in ea.flag_reasons.items():
+            # An endpoint-level flag can recur across several endpoints; keep
+            # the first reason encountered rather than overwrite silently, so
+            # the surfaced justification always traces back to one concrete
+            # endpoint the reader can check against the source study.
+            reasons.setdefault(f, r)
 
     if claim.level in (ClaimLevel.A, ClaimLevel.B):
-        has_outcome = any(
-            ea.nature == EndpointNature.OBJECTIVE for ea in endpoint_analyses
-        )
-        if has_outcome:
+        outcome_endpoints = [
+            ea.endpoint.name for ea in endpoint_analyses
+            if ea.nature == EndpointNature.OBJECTIVE
+        ]
+        if outcome_endpoints:
             flags.add(BiasFlag.MEDIATION_GAP)
+            reasons[BiasFlag.MEDIATION_GAP] = (
+                f"claim.level={claim.level.value} (mechanism/process-level claim), "
+                f"but {len(outcome_endpoints)} endpoint(s) measure objective clinical "
+                f"outcome(s) directly: {outcome_endpoints[:3]}"
+            )
 
     if claim.level == ClaimLevel.D:
         has_process_endpoint = any(
@@ -97,6 +120,11 @@ def detect_structural_issues(
         )
         if not has_process_endpoint:
             flags.add(BiasFlag.MEDIATION_GAP)
+            reasons[BiasFlag.MEDIATION_GAP] = (
+                f"claim.level=D (complete-chain outcome claim) but no endpoint has "
+                f"nature=OBJECTIVE and causal_role=MEDIATED — no intermediate process "
+                f"step linking mechanism to outcome is measured in this evidence base"
+            )
 
     all_subjective = (
         endpoint_analyses
@@ -104,6 +132,10 @@ def detect_structural_issues(
     )
     if all_subjective:
         flags.add(BiasFlag.PERCEPTION_BIAS)
+        reasons[BiasFlag.PERCEPTION_BIAS] = (
+            f"all {len(endpoint_analyses)} endpoint(s) have nature=SUBJECTIVE "
+            f"(patient-reported) — none is OBJECTIVE or INSTRUMENTED"
+        )
 
     claim_text = f"{claim.text} {claim.intervention}".lower()
     intervention_is_process = any(
@@ -117,6 +149,15 @@ def detect_structural_issues(
         ]
         if process_endpoints:
             flags.add(BiasFlag.PROCESS_TAUTOLOGY)
+            matched_kw = next(
+                kw for kw in ["monitoring", "triage", "screening", "alert", "detection"]
+                if kw in claim_text
+            )
+            reasons[BiasFlag.PROCESS_TAUTOLOGY] = (
+                f"intervention text matches process keyword '{matched_kw}', "
+                f"claim.level=B, and {len(process_endpoints)} endpoint(s) have "
+                f"nature=INSTRUMENTED — the device's own process is the endpoint"
+            )
 
     if (
         claim.has_comparator is False
@@ -125,5 +166,10 @@ def detect_structural_issues(
         and claim.comparator_feasibility != ComparatorFeasibility.NO_ALTERNATIVE
     ):
         flags.add(BiasFlag.NO_COMPARATOR)
+        reasons[BiasFlag.NO_COMPARATOR] = (
+            f"claim.has_comparator=False, claim.level={claim.level.value} "
+            f"(outcome-level), comparator_feasibility={claim.comparator_feasibility.value} "
+            f"(neither DIFFERENT_MODALITY nor NO_ALTERNATIVE, so a comparator was expected)"
+        )
 
-    return list(flags)
+    return list(flags), reasons

@@ -34,8 +34,8 @@ def analyze(claim: ClinicalClaim, lang: str = "fr") -> EngineOutput:
     claim = parse_claim(claim)
     endpoint_analyses = classify_endpoints(claim)
     structure = build_causal_structure(claim, endpoint_analyses)
-    bias_flags = detect_structural_issues(claim, endpoint_analyses, structure)
-    bias_detections = build_bias_detections(bias_flags, endpoint_analyses, structure)
+    bias_flags, bias_reasons = detect_structural_issues(claim, endpoint_analyses, structure)
+    bias_detections = build_bias_detections(bias_flags, endpoint_analyses, structure, bias_reasons)
     design = recommend_design(claim, endpoint_analyses, structure, bias_flags)
 
     repair_plan = generate_repair_plan(

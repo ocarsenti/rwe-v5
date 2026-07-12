@@ -130,8 +130,8 @@ class TestOdySightFullWorkflow(unittest.TestCase):
         )
         cls.ep_analyses = classify_endpoints(cls.parsed)
         cls.structure = build_causal_structure(cls.parsed, cls.ep_analyses)
-        cls.bias_flags = detect_structural_issues(cls.parsed, cls.ep_analyses, cls.structure)
-        cls.bias_detections = build_bias_detections(cls.bias_flags, cls.ep_analyses, cls.structure)
+        cls.bias_flags, cls.bias_reasons = detect_structural_issues(cls.parsed, cls.ep_analyses, cls.structure)
+        cls.bias_detections = build_bias_detections(cls.bias_flags, cls.ep_analyses, cls.structure, cls.bias_reasons)
         cls.design = recommend_design(cls.parsed, cls.ep_analyses, cls.structure, cls.bias_flags)
         cls.repair_v1 = generate_repair_plan(
             cls.parsed, cls.ep_analyses, cls.structure,
@@ -433,8 +433,8 @@ class TestMoovcareFullWorkflow(unittest.TestCase):
         )
         cls.ep_analyses = classify_endpoints(cls.parsed)
         cls.structure = build_causal_structure(cls.parsed, cls.ep_analyses)
-        cls.bias_flags = detect_structural_issues(cls.parsed, cls.ep_analyses, cls.structure)
-        cls.bias_detections = build_bias_detections(cls.bias_flags, cls.ep_analyses, cls.structure)
+        cls.bias_flags, cls.bias_reasons = detect_structural_issues(cls.parsed, cls.ep_analyses, cls.structure)
+        cls.bias_detections = build_bias_detections(cls.bias_flags, cls.ep_analyses, cls.structure, cls.bias_reasons)
         cls.design = recommend_design(cls.parsed, cls.ep_analyses, cls.structure, cls.bias_flags)
         cls.repair_v1 = generate_repair_plan(
             cls.parsed, cls.ep_analyses, cls.structure,
@@ -627,8 +627,8 @@ class TestRemedeeFullWorkflow(unittest.TestCase):
         )
         cls.ep_analyses = classify_endpoints(cls.parsed)
         cls.structure = build_causal_structure(cls.parsed, cls.ep_analyses)
-        cls.bias_flags = detect_structural_issues(cls.parsed, cls.ep_analyses, cls.structure)
-        cls.bias_detections = build_bias_detections(cls.bias_flags, cls.ep_analyses, cls.structure)
+        cls.bias_flags, cls.bias_reasons = detect_structural_issues(cls.parsed, cls.ep_analyses, cls.structure)
+        cls.bias_detections = build_bias_detections(cls.bias_flags, cls.ep_analyses, cls.structure, cls.bias_reasons)
         cls.design = recommend_design(cls.parsed, cls.ep_analyses, cls.structure, cls.bias_flags)
         cls.repair_v1 = generate_repair_plan(
             cls.parsed, cls.ep_analyses, cls.structure,
@@ -841,8 +841,8 @@ class TestAITriageFullWorkflow(unittest.TestCase):
         )
         cls.ep_analyses = classify_endpoints(cls.parsed)
         cls.structure = build_causal_structure(cls.parsed, cls.ep_analyses)
-        cls.bias_flags = detect_structural_issues(cls.parsed, cls.ep_analyses, cls.structure)
-        cls.bias_detections = build_bias_detections(cls.bias_flags, cls.ep_analyses, cls.structure)
+        cls.bias_flags, cls.bias_reasons = detect_structural_issues(cls.parsed, cls.ep_analyses, cls.structure)
+        cls.bias_detections = build_bias_detections(cls.bias_flags, cls.ep_analyses, cls.structure, cls.bias_reasons)
         cls.design = recommend_design(cls.parsed, cls.ep_analyses, cls.structure, cls.bias_flags)
         cls.repair_v1 = generate_repair_plan(
             cls.parsed, cls.ep_analyses, cls.structure,
@@ -1289,7 +1289,7 @@ class TestEdgeCases(unittest.TestCase):
             "Monitoring system improves monitoring coverage via screening", "Screening monitoring device",
             endpoints=[Endpoint("monitoring coverage rate", EndpointNature.INSTRUMENTED,
                                 CausalRole.CIRCULAR, True, description="automated monitoring metric")]))
-        flags = detect_structural_issues(claim, classify_endpoints(claim),
+        flags, _reasons = detect_structural_issues(claim, classify_endpoints(claim),
                                          build_causal_structure(claim, classify_endpoints(claim)))
         self.assertIn(BiasFlag.PROCESS_TAUTOLOGY, flags)
 

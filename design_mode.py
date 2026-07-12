@@ -94,7 +94,7 @@ def run_design_mode(
 
     ep_analyses = classify_endpoints(parsed)
     structure = build_causal_structure(parsed, ep_analyses)
-    bias_flags = detect_structural_issues(parsed, ep_analyses, structure)
+    bias_flags, _bias_reasons = detect_structural_issues(parsed, ep_analyses, structure)
     identification = assess_identification(parsed, ep_analyses, structure, bias_flags)
 
     endpoint_families = compute_endpoint_families(dag, identification)
