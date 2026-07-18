@@ -4430,7 +4430,10 @@ class TestStudyObject(unittest.TestCase):
 from gap_repair_engine import (
     GapRepairEffort, GapRepairType, repair_comparison,
 )
-from study_object import ClaimStudyGap, ComparisonReport, OverallRisk
+from study_object import ClaimStudyGap, ComparisonReport, EvidenceStatus, OverallRisk
+from review_causal_graph import (
+    NodeStatus, NodeType, attach_comparison_report, build_review_causal_graph,
+)
 
 
 def _make_comparison_report(gaps: list[ClaimStudyGap], overall: OverallRisk) -> ComparisonReport:
@@ -4444,8 +4447,8 @@ def _make_comparison_report(gaps: list[ClaimStudyGap], overall: OverallRisk) -> 
     )
 
 
-def _gap(dimension: str, severity: str, description: str, topic: str | None = None, related_bias_flag=None) -> ClaimStudyGap:
-    return ClaimStudyGap(dimension=dimension, severity=severity, description=description, has_critique=None, topic=topic, related_bias_flag=related_bias_flag)
+def _gap(dimension: str, severity: str, description: str, topic: str | None = None, related_bias_flag=None, endpoint_index: int | None = None, evidence_status=EvidenceStatus.CONFIRMED, has_critique: str | None = None) -> ClaimStudyGap:
+    return ClaimStudyGap(dimension=dimension, severity=severity, description=description, has_critique=has_critique, topic=topic, related_bias_flag=related_bias_flag, endpoint_index=endpoint_index, evidence_status=evidence_status)
 
 
 class TestGapRepairEngine(unittest.TestCase):
@@ -4746,6 +4749,207 @@ class TestGapRepairEngine(unittest.TestCase):
         self.assertIn("repair_summary", d)
         self.assertIn("non_repairable_gaps", d)
         self.assertTrue(all("repair_type" in a for a in d["actions"]))
+
+
+# ===================================================================
+# TestReviewCausalGraph
+# ===================================================================
+
+from models import BiasFlag as _RCG_BiasFlag, CausalRole as _RCG_CausalRole
+from models import EndpointAnalysis as _RCG_EndpointAnalysis
+from models import EndpointNature as _RCG_EndpointNature
+
+
+def _rcg_claim(has_comparator=None, level=None) -> ClinicalClaim:
+    return ClinicalClaim(
+        text="Test claim for review causal graph",
+        intervention="Test intervention",
+        level=level or ClaimLevel.C,
+        endpoints=[Endpoint(
+            name="Test endpoint", nature=EndpointNature.OBJECTIVE,
+            causal_role=CausalRole.INDEPENDENT, is_primary=True,
+        )],
+        has_comparator=has_comparator,
+    )
+
+
+def _rcg_endpoint_analysis(ep: Endpoint, flags=None, flag_reasons=None) -> "_RCG_EndpointAnalysis":
+    return _RCG_EndpointAnalysis(
+        endpoint=ep, nature=ep.nature, causal_role=ep.causal_role,
+        flags=flags or [], nature_reason="test nature reason",
+        flag_reasons=flag_reasons or {},
+    )
+
+
+class TestReviewCausalGraph(unittest.TestCase):
+
+    def test_basic_structure_ten_nodes(self):
+        claim = _rcg_claim()
+        eas = [_rcg_endpoint_analysis(claim.endpoints[0])]
+        graph = build_review_causal_graph(claim, eas, CausalStructure.DIRECT, [])
+        node_ids = {n.id for n in graph.nodes}
+        self.assertEqual(
+            node_ids,
+            {"claim", "intervention", "mechanism", "comparator", "endpoint_0",
+             "population", "device", "context", "design", "conclusion"},
+        )
+
+    def test_is_acyclic(self):
+        claim = _rcg_claim()
+        eas = [_rcg_endpoint_analysis(claim.endpoints[0])]
+        graph = build_review_causal_graph(claim, eas, CausalStructure.DIRECT, [])
+        # DFS cycle check — un vrai DAG ne doit jamais revisiter un noeud en cours de route
+        visiting: set[str] = set()
+        visited: set[str] = set()
+
+        def dfs(node_id: str) -> bool:
+            if node_id in visiting:
+                return False  # cycle détecté
+            if node_id in visited:
+                return True
+            visiting.add(node_id)
+            for e in graph._outgoing(node_id):
+                if not dfs(e.target):
+                    return False
+            visiting.discard(node_id)
+            visited.add(node_id)
+            return True
+
+        for n in graph.nodes:
+            self.assertTrue(dfs(n.id), f"cycle détecté en passant par {n.id}")
+
+    def test_population_unknown_without_comparison_report(self):
+        claim = _rcg_claim()
+        eas = [_rcg_endpoint_analysis(claim.endpoints[0])]
+        graph = build_review_causal_graph(claim, eas, CausalStructure.DIRECT, [])
+        self.assertEqual(graph._node("population").status, NodeStatus.UNKNOWN)
+
+    def test_population_ok_when_no_population_gap(self):
+        claim = _rcg_claim()
+        eas = [_rcg_endpoint_analysis(claim.endpoints[0])]
+        report = _make_comparison_report([], OverallRisk.LOW)
+        graph = build_review_causal_graph(claim, eas, CausalStructure.DIRECT, [], report)
+        self.assertEqual(graph._node("population").status, NodeStatus.OK)
+
+    def test_population_gap_reflected_in_node(self):
+        claim = _rcg_claim()
+        eas = [_rcg_endpoint_analysis(claim.endpoints[0])]
+        gaps = [_gap("population", "HIGH", "Population différente de l'indication revendiquée.")]
+        report = _make_comparison_report(gaps, OverallRisk.HIGH)
+        graph = build_review_causal_graph(claim, eas, CausalStructure.DIRECT, [], report)
+        self.assertEqual(graph._node("population").status, NodeStatus.GAP)
+
+    def test_design_excludes_no_comparator_topic(self):
+        """Le gap topic=no_comparator ne doit jamais apparaître dans le noeud
+        design — il est déjà porté par le noeud comparator (BiasFlag.NO_COMPARATOR).
+        Anti-régression du bug de double-comptage identifié le 2026-07-18."""
+        claim = _rcg_claim()
+        eas = [_rcg_endpoint_analysis(claim.endpoints[0])]
+        gaps = [
+            _gap("design", "HIGH", "Étude sans comparateur.", topic="no_comparator"),
+            _gap("design", "MEDIUM", "Design exploratoire.", topic="exploratory_design"),
+        ]
+        report = _make_comparison_report(gaps, OverallRisk.HIGH)
+        graph = build_review_causal_graph(claim, eas, CausalStructure.DIRECT, [], report)
+        design_label = graph._node("design").label
+        self.assertNotIn("comparateur", design_label.lower())
+        self.assertIn("exploratoire", design_label.lower())
+
+    def test_design_unknown_when_only_missing_data(self):
+        """evidence_status=UNKNOWN seul -> noeud design UNKNOWN, pas GAP.
+        Distinction centrale du 2026-07-18 : absence de donnée != faiblesse confirmée."""
+        claim = _rcg_claim()
+        eas = [_rcg_endpoint_analysis(claim.endpoints[0])]
+        gaps = [_gap(
+            "design", "LOW",
+            "Centricité de l'étude non renseignée — ce point ne peut pas être évalué.",
+            topic="monocentric", evidence_status=EvidenceStatus.UNKNOWN,
+        )]
+        report = _make_comparison_report(gaps, OverallRisk.LOW)
+        graph = build_review_causal_graph(claim, eas, CausalStructure.DIRECT, [], report)
+        self.assertEqual(graph._node("design").status, NodeStatus.UNKNOWN)
+
+    def test_design_gap_when_confirmed_weakness_present(self):
+        claim = _rcg_claim()
+        eas = [_rcg_endpoint_analysis(claim.endpoints[0])]
+        gaps = [_gap(
+            "design", "MEDIUM", "Étude mono-centrique.",
+            topic="monocentric", evidence_status=EvidenceStatus.CONFIRMED,
+        )]
+        report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
+        graph = build_review_causal_graph(claim, eas, CausalStructure.DIRECT, [], report)
+        self.assertEqual(graph._node("design").status, NodeStatus.GAP)
+
+    def test_find_unjustified_nodes_empty_when_all_gaps_have_critique(self):
+        claim = _rcg_claim()
+        eas = [_rcg_endpoint_analysis(claim.endpoints[0])]
+        gaps = [_gap("population", "HIGH", "Desc.", has_critique="Une vraie justification.")]
+        report = _make_comparison_report(gaps, OverallRisk.HIGH)
+        graph = build_review_causal_graph(claim, eas, CausalStructure.DIRECT, [], report)
+        self.assertEqual(graph.find_unjustified_nodes(), [])
+
+    def test_find_disconnected_nodes_empty_on_valid_graph(self):
+        claim = _rcg_claim()
+        eas = [_rcg_endpoint_analysis(claim.endpoints[0])]
+        graph = build_review_causal_graph(claim, eas, CausalStructure.DIRECT, [])
+        self.assertEqual(graph.find_disconnected_nodes(), [])
+
+    def test_explain_path_traces_back_to_claim(self):
+        claim = _rcg_claim()
+        eas = [_rcg_endpoint_analysis(claim.endpoints[0])]
+        graph = build_review_causal_graph(claim, eas, CausalStructure.DIRECT, [])
+        path = graph.explain_path("conclusion")
+        self.assertEqual(path[0].id, "claim")
+        self.assertEqual(path[-1].id, "conclusion")
+
+    def test_endpoint_node_gap_from_bias_flag_alone(self):
+        claim = _rcg_claim()
+        ep = claim.endpoints[0]
+        eas = [_rcg_endpoint_analysis(ep, flags=[_RCG_BiasFlag.CIRCULARITY_RISK], flag_reasons={_RCG_BiasFlag.CIRCULARITY_RISK: "circular reason"})]
+        graph = build_review_causal_graph(claim, eas, CausalStructure.CIRCULAR, [])
+        self.assertEqual(graph._node("endpoint_0").status, NodeStatus.GAP)
+
+    def test_endpoint_relevance_combines_with_bias_flags_via_attach(self):
+        """attach_comparison_report() doit COMPLÉTER le noeud endpoint déjà
+        construit (avec son statut/justification issus des BiasFlag), pas
+        l'écraser. Anti-régression du bug trouvé le 2026-07-18."""
+        claim = _rcg_claim()
+        ep = claim.endpoints[0]
+        eas = [_rcg_endpoint_analysis(ep, flags=[_RCG_BiasFlag.ADJUDICATION_RISK], flag_reasons={_RCG_BiasFlag.ADJUDICATION_RISK: "adjudication reason"})]
+        graph = build_review_causal_graph(claim, eas, CausalStructure.DIRECT, [])
+        # Avant attach : GAP uniquement via BiasFlag, justification sans le mismatch
+        self.assertEqual(graph._node("endpoint_0").status, NodeStatus.GAP)
+        self.assertIn("adjudication reason", graph._node("endpoint_0").justification)
+
+        gaps = [_gap(
+            "endpoint", "HIGH", "Endpoint mesuré vs effet revendiqué : mismatch.",
+            topic="claim_endpoint_mismatch", endpoint_index=0,
+            has_critique="Le critère ne mesure pas l'effet revendiqué.",
+        )]
+        report = _make_comparison_report(gaps, OverallRisk.HIGH)
+        attach_comparison_report(graph, report)
+
+        node = graph._node("endpoint_0")
+        self.assertEqual(node.status, NodeStatus.GAP)
+        # Les deux justifications doivent coexister, aucune écrasée
+        self.assertIn("adjudication reason", node.justification)
+        self.assertIn("mesure pas l'effet revendiqué", node.justification)
+
+    def test_endpoint_relevance_unknown_without_flags_is_unknown_status(self):
+        claim = _rcg_claim()
+        ep = claim.endpoints[0]
+        eas = [_rcg_endpoint_analysis(ep)]  # aucun BiasFlag
+        graph = build_review_causal_graph(claim, eas, CausalStructure.DIRECT, [])
+        self.assertEqual(graph._node("endpoint_0").status, NodeStatus.OK)
+
+        gaps = [_gap(
+            "endpoint", "LOW", "Adéquation non documentée.",
+            topic="claim_endpoint_mismatch", endpoint_index=0,
+            evidence_status=EvidenceStatus.UNKNOWN,
+        )]
+        report = _make_comparison_report(gaps, OverallRisk.LOW)
+        attach_comparison_report(graph, report)
+        self.assertEqual(graph._node("endpoint_0").status, NodeStatus.UNKNOWN)
 
 
 if __name__ == "__main__":
