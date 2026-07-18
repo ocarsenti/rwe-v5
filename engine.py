@@ -23,6 +23,7 @@ from epistemic_manifold import compute_review_position, compute_repair_delta
 from regulatory_labeler import label_case
 from design_mode import run_design_mode, run_design_mode_json
 from cas_engine import evaluate_cas, assess_methodological_risk
+from review_causal_graph import build_review_causal_graph
 
 
 # ===================================================================
@@ -73,6 +74,10 @@ def analyze(claim: ClinicalClaim, lang: str = "fr") -> EngineOutput:
 
     methodological_risk = assess_methodological_risk(structure, bias_detections, cas_output, lang=lang)
 
+    review_causal_graph = build_review_causal_graph(
+        claim, endpoint_analyses, structure, bias_detections,
+    )
+
     output = EngineOutput(
         claim_level=claim.level,
         endpoint_analysis=endpoint_analyses,
@@ -85,6 +90,7 @@ def analyze(claim: ClinicalClaim, lang: str = "fr") -> EngineOutput:
         manifold_position=manifold_position,
         cas_output=cas_output,
         methodological_risk=methodological_risk,
+        review_causal_graph=review_causal_graph,
     )
 
     if repair_plan_v2 and repair_plan_v2.status == "REPAIRABLE":

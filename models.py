@@ -739,6 +739,13 @@ class EngineOutput:
     repair_delta: Optional["RepairManifoldDelta"] = None
     cas_output: Optional["CASOutput"] = None
     methodological_risk: Optional["MethodologicalRiskAssessment"] = None
+    # Représentation explicite du raisonnement causal (Claim -> Intervention
+    # -> Mécanisme -> Endpoint(s)/Comparateur/Population -> Conclusion),
+    # assemblée à partir des champs ci-dessus par review_causal_graph.py.
+    # Champ Optional ajouté en dernier, même pattern que les 4 champs
+    # au-dessus : non-breaking pour tout consommateur existant de
+    # EngineOutput qui ignore ce champ.
+    review_causal_graph: Optional["ReviewCausalGraph"] = None
 
     def to_dict(self) -> dict:
         d = {
@@ -782,6 +789,8 @@ class EngineOutput:
             # Deliberately last: bias_flags/repair_engine (the actual findings) are
             # reported first; this is a secondary trend indicator, not a verdict.
             d["methodological_risk_trend"] = self.methodological_risk.to_dict()
+        if self.review_causal_graph is not None:
+            d["review_causal_graph"] = self.review_causal_graph.to_dict()
         return d
 
     def _repair_dict(self) -> dict:
