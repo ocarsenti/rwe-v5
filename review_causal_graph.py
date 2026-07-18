@@ -45,6 +45,26 @@ Couverture des dimensions de ComparisonReport.gaps (study_object.py) :
     endpoint    -> NON représenté par un nœud dédié : ce sont déjà les
                    nœuds endpoint_N existants (EndpointAnalysis.flags),
                    ajouter un nœud de plus dupliquerait l'information.
+Nature du graphe (précision ajoutée le 2026-07-18, suite à une question sur
+la terminologie) : ReviewCausalGraph est un DAG au sens structurel strict
+(dirigé, acyclique — vérifié : toutes les arêtes vont de claim vers
+conclusion, aucun cycle) mais PAS un graphe causal au sens de Pearl. Une
+arête comme comparator -> conclusion ne signifie pas "l'absence de
+comparateur cause la conclusion" ; elle signifie "l'évaluation de
+conclusion dépend de, agrège, l'évaluation de comparator". C'est une
+dépendance d'ARGUMENTATION (proche d'un assurance case / goal structure,
+vocabulaire GSN — Goal Structuring Notation), pas une dépendance causale
+au sens formel (pas de do-calculus, pas d'ensemble d'ajustement).
+
+Ce module réutilise la classe DAGEdge, définie à l'origine pour TargetDAG
+dans models.py (utilisée par epistemic_core.infer_target_dag(), mode
+DESIGN — celui-là EST authentiquement causal : chaîne intervention ->
+médiateurs -> outcome). Même classe, deux sémantiques différentes selon le
+graphe où elle apparaît. Vérifié le 2026-07-18 : les deux usages sont
+aujourd'hui cloisonnés (aucun code ne mélange TargetDAG et
+ReviewCausalGraph), mais un futur lecteur du code doit garder cette
+distinction en tête — DAGEdge ne garantit par elle-même aucune des deux
+sémantiques, c'est le graphe qui la porte.
 """
 
 from __future__ import annotations
