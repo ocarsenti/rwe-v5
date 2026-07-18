@@ -24,19 +24,23 @@ Couverture des dimensions de ComparisonReport.gaps (study_object.py) :
     device      -> nœud "device"
     population  -> nœud "population"
     context     -> nœud "context"
-    design      -> nœud "design", à l'EXCLUSION des gaps relatifs au
-                   comparateur (déjà représentés par le nœud "comparator",
-                   alimenté par BiasFlag.NO_COMPARATOR — même condition de
-                   déclenchement exacte des deux côtés, cf.
-                   causal_graph_builder.py:162-171 vs
-                   study_object.py:_design_gaps, HIGH branch). Le filtre
-                   utilisé est une recherche du mot "comparateur" dans la
-                   description — heuristique imparfaite (même famille de
-                   limite que le matching par mots-clés déjà connu dans
-                   endpoint_classifier.py), documentée plutôt que masquée.
-                   Le statut GAP/UNKNOWN du nœud "design", en revanche, lit
-                   ClaimStudyGap.evidence_status (champ structuré) plutôt
-                   que du texte — corrigé le 2026-07-18, voir EvidenceStatus
+    design      -> nœud "design", à l'EXCLUSION des gaps portant
+                   ClaimStudyGap.topic == "no_comparator" (déjà représentés
+                   par le nœud "comparator", alimenté par
+                   BiasFlag.NO_COMPARATOR — même condition de déclenchement
+                   exacte des deux côtés, cf. causal_graph_builder.py:
+                   162-171 vs study_object.py:_design_gaps, has_comparator
+                   branch). Corrigé le 2026-07-18 : un premier filtre par
+                   recherche du mot "comparateur" dans la description
+                   excluait AUSSI, par erreur, deux gaps sans rapport
+                   (mono-bras vs objectif de performance, mono-bras vs
+                   cohorte externe) qui mentionnent ce mot en passant sans
+                   être des doublons — remplacé par le champ structuré
+                   `topic`, positionné uniquement sur les deux gaps qui
+                   partagent réellement la condition de déclenchement de
+                   NO_COMPARATOR. Le statut GAP/UNKNOWN du nœud "design"
+                   lit de la même façon ClaimStudyGap.evidence_status
+                   (champ structuré), pas du texte — voir EvidenceStatus
                    dans study_object.py.
     endpoint    -> NON représenté par un nœud dédié : ce sont déjà les
                    nœuds endpoint_N existants (EndpointAnalysis.flags),
@@ -319,7 +323,7 @@ def _build_design_node(comparison_report: "Optional[ComparisonReport]") -> Graph
     design_gaps = [
         g
         for g in comparison_report.gaps
-        if g.dimension == "design" and "comparateur" not in g.description.lower()
+        if g.dimension == "design" and g.topic != "no_comparator"
     ]
     if design_gaps:
         # Une absence de donnée (evidence_status=UNKNOWN) n'est pas une

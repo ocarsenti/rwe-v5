@@ -371,6 +371,19 @@ class ClaimStudyGap:
     # positionne explicitement UNKNOWN — migration minimale, cf. échange du
     # 2026-07-18.
     evidence_status: EvidenceStatus = EvidenceStatus.CONFIRMED
+    # Sous-catégorie structurée au sein d'une dimension, pour les cas où
+    # plusieurs gaps distincts partagent la même dimension mais doivent être
+    # distingués par un consommateur en aval (ex: review_causal_graph.py
+    # exclut le doublon "no_comparator" du nœud "design" car il est déjà
+    # représenté par le nœud "comparator" — cf. BiasFlag.NO_COMPARATOR,
+    # même condition de déclenchement exacte : study.has_comparator is
+    # False). None = pas de sous-catégorie particulière. Remplace un
+    # ancien filtre par recherche du mot "comparateur" dans description,
+    # qui excluait AUSSI, par erreur, deux gaps sans rapport (mono-bras vs
+    # objectif de performance, mono-bras vs cohorte externe — déclenchés
+    # par study.study_design, pas par has_comparator) simplement parce que
+    # leur texte mentionnait "comparateur" en passant.
+    topic: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
@@ -379,6 +392,7 @@ class ClaimStudyGap:
             "description": self.description,
             "has_critique": self.has_critique,
             "evidence_status": self.evidence_status.value,
+            "topic": self.topic,
         }
 
 
@@ -641,6 +655,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                     "ce contexte, sous réserve que ce seuil de performance soit "
                     "lui-même correctement justifié."
                 ),
+                topic="no_comparator",
             ))
         else:
             gaps.append(ClaimStudyGap(
@@ -657,6 +672,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                     "non éliminables. Pour soutenir une revendication d'outcome, le counterfactuel "
                     "doit être observé."
                 ),
+                topic="no_comparator",
             ))
 
     # Population/anatomical usage studied outside the device's CE-marked scope —
