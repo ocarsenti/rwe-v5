@@ -317,11 +317,27 @@ def _build_design_node(comparison_report: "Optional[ComparisonReport]") -> Graph
         if g.dimension == "design" and "comparateur" not in g.description.lower()
     ]
     if design_gaps:
+        # Une absence de donnée (ex: centricité non renseignée) n'est pas
+        # une faiblesse confirmée : distinguer les deux au niveau du statut
+        # du nœud, pas seulement dans le texte. Sévérité seule NE SUFFIT
+        # PAS comme signal (vérifié : le gap "suivi 12-24 mois" est aussi
+        # LOW alors que c'est une faiblesse confirmée, pas une absence de
+        # donnée) — le marqueur utilisé est donc la formulation exacte
+        # "ne peut pas être évalué", introduite spécifiquement pour les cas
+        # d'absence de donnée dans study_object.py. Même famille de
+        # limite que le filtre "comparateur" ci-dessus : heuristique
+        # textuelle, pas un champ structuré (ClaimStudyGap n'a pas de
+        # sous-type dédié) — fragile si la formulation change ailleurs
+        # sans que ce filtre soit mis à jour en conséquence.
+        has_confirmed_weakness = any(
+            "ne peut pas être évalué" not in g.description for g in design_gaps
+        )
+        status = NodeStatus.GAP if has_confirmed_weakness else NodeStatus.UNKNOWN
         return GraphNode(
             "design",
             NodeType.DESIGN,
             "; ".join(g.description for g in design_gaps),
-            status=NodeStatus.GAP,
+            status=status,
             justification="; ".join(g.has_critique for g in design_gaps if g.has_critique) or None,
         )
     return GraphNode(
