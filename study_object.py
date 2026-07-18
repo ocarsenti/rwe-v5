@@ -653,30 +653,46 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
             ),
         ))
 
-    # Single-center (or unknown centricity) study for an outcome claim — effects
-    # observed at a single site may reflect local factors (expertise de l'opérateur,
-    # sélection des patients, adhérence au protocole propre au centre) rather than
-    # an effect generalizable to d'autres centres. Same style as the has_comparator
-    # rule above: flagged only for outcome-level claims (C/D).
-    if (
-        study.is_multicentric is False or study.is_multicentric is None
-    ) and claim.level in (ClaimLevel.C, ClaimLevel.D):
+    # Single-center study for an outcome claim — effects observed at a single
+    # site may reflect local factors (expertise de l'opérateur, sélection des
+    # patients, adhérence au protocole propre au centre) rather than an effet
+    # généralisable à d'autres centres. Flagged only for outcome-level claims
+    # (C/D). KNOWN monocentric (is_multicentric is False) and UNKNOWN
+    # centricity (is_multicentric is None) are deliberately NOT merged: an
+    # absence of information is not the same claim as a confirmed weakness,
+    # and conflating the two turns missing data into a false negative signal
+    # (cf. échange du 2026-07-18 sur ce point précis).
+    if study.is_multicentric is False and claim.level in (ClaimLevel.C, ClaimLevel.D):
         gaps.append(ClaimStudyGap(
             dimension="design",
             severity="MEDIUM",
             description=(
-                "Étude mono-centrique ou centricité non renseignée pour une "
-                "revendication d'outcome (niveau C/D)."
+                "Étude mono-centrique pour une revendication d'outcome (niveau C/D)."
             ),
             has_critique=(
-                "Une étude menée dans un seul centre (ou dont le caractère "
-                "multicentrique n'est pas documenté) expose à un risque de biais lié "
+                "Une étude menée dans un seul centre expose à un risque de biais lié "
                 "au site : l'expertise de l'opérateur, la sélection des patients et "
                 "l'adhérence au protocole propres à ce centre peuvent expliquer tout "
                 "ou partie du bénéfice observé, sans que celui-ci soit généralisable "
                 "à d'autres centres. Une étude multicentrique, ou à défaut une "
                 "justification explicite de la représentativité du centre unique, est "
                 "requise pour soutenir une revendication d'outcome."
+            ),
+        ))
+    elif study.is_multicentric is None and claim.level in (ClaimLevel.C, ClaimLevel.D):
+        gaps.append(ClaimStudyGap(
+            dimension="design",
+            severity="LOW",
+            description=(
+                "Centricité de l'étude non renseignée pour une revendication "
+                "d'outcome (niveau C/D) — ce point ne peut pas être évalué."
+            ),
+            has_critique=(
+                "L'information sur le caractère mono- ou multicentrique de l'étude "
+                "n'est pas disponible dans les données transmises au moteur. Ceci "
+                "n'est ni une confirmation ni une infirmation d'un risque de biais "
+                "lié au site : c'est une absence de donnée. Documenter la centricité "
+                "de l'étude permettrait d'évaluer ce point."
             ),
         ))
 
