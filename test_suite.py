@@ -4444,8 +4444,8 @@ def _make_comparison_report(gaps: list[ClaimStudyGap], overall: OverallRisk) -> 
     )
 
 
-def _gap(dimension: str, severity: str, description: str, topic: str | None = None) -> ClaimStudyGap:
-    return ClaimStudyGap(dimension=dimension, severity=severity, description=description, has_critique=None, topic=topic)
+def _gap(dimension: str, severity: str, description: str, topic: str | None = None, related_bias_flag=None) -> ClaimStudyGap:
+    return ClaimStudyGap(dimension=dimension, severity=severity, description=description, has_critique=None, topic=topic, related_bias_flag=related_bias_flag)
 
 
 class TestGapRepairEngine(unittest.TestCase):
@@ -4657,7 +4657,7 @@ class TestGapRepairEngine(unittest.TestCase):
 
     def test_endpoint_surrogate_two_actions(self):
         claim = self._c_claim()
-        gaps = [_gap("endpoint", "HIGH", "Critère principal = surrogate non validé réglementairement dans cette indication.")]
+        gaps = [_gap("endpoint", "HIGH", "Critère principal = surrogate non validé réglementairement dans cette indication.", topic="surrogate_not_validated", related_bias_flag=BiasFlag.SURROGATE_RISK)]
         report = _make_comparison_report(gaps, OverallRisk.HIGH)
         plan = repair_comparison(report, claim)
         types = [a.repair_type for a in plan.actions]
@@ -4666,7 +4666,7 @@ class TestGapRepairEngine(unittest.TestCase):
 
     def test_endpoint_circularity_blocking(self):
         claim = self._c_claim()
-        gaps = [_gap("endpoint", "CRITICAL", "Critère principal circulaire : le dispositif mesure ce qu'il traite.")]
+        gaps = [_gap("endpoint", "CRITICAL", "Critère principal circulaire : le dispositif mesure ce qu'il traite.", related_bias_flag=BiasFlag.CIRCULARITY_RISK)]
         report = _make_comparison_report(gaps, OverallRisk.CRITICAL)
         plan = repair_comparison(report, claim)
         self.assertFalse(plan.is_fully_repairable)
@@ -4675,7 +4675,7 @@ class TestGapRepairEngine(unittest.TestCase):
 
     def test_endpoint_adjudication_low_effort(self):
         claim = self._c_claim()
-        gaps = [_gap("endpoint", "MEDIUM", "Critère objectif principal sans adjudication indépendante documentée (pas de CEC mentionné).")]
+        gaps = [_gap("endpoint", "MEDIUM", "Critère objectif principal sans adjudication indépendante documentée (pas de CEC mentionné).", topic="adjudication_missing")]
         report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
         plan = repair_comparison(report, claim)
         self.assertTrue(plan.is_fully_repairable)
@@ -4685,7 +4685,7 @@ class TestGapRepairEngine(unittest.TestCase):
 
     def test_endpoint_multiplicity_low_effort(self):
         claim = self._c_claim()
-        gaps = [_gap("endpoint", "MEDIUM", "Multiplicité des critères de jugement principaux (2 critères co-primaires) sans hiérarchisation statistique pré-spécifiée.")]
+        gaps = [_gap("endpoint", "MEDIUM", "Multiplicité des critères de jugement principaux (2 critères co-primaires) sans hiérarchisation statistique pré-spécifiée.", topic="endpoint_multiplicity")]
         report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
         plan = repair_comparison(report, claim)
         self.assertTrue(plan.is_fully_repairable)

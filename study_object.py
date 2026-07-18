@@ -384,6 +384,13 @@ class ClaimStudyGap:
     # par study.study_design, pas par has_comparator) simplement parce que
     # leur texte mentionnait "comparateur" en passant.
     topic: Optional[str] = None
+    # Pour les gaps de dimension="endpoint" issus d'un flag déjà structuré
+    # (epistemic_output.bias_flags) : réutilise directement l'enum BiasFlag
+    # existant, pas un `topic` générique — le signal structuré est déjà là,
+    # pas besoin d'en inventer un nouveau. None quand le gap n'est pas issu
+    # d'un BiasFlag (ex: multiplicité, adjudication — cf. topic ci-dessus
+    # pour ces cas).
+    related_bias_flag: Optional[BiasFlag] = None
 
     def to_dict(self) -> dict:
         return {
@@ -393,6 +400,7 @@ class ClaimStudyGap:
             "has_critique": self.has_critique,
             "evidence_status": self.evidence_status.value,
             "topic": self.topic,
+            "related_bias_flag": self.related_bias_flag.value if self.related_bias_flag else None,
         }
 
 
@@ -1161,6 +1169,7 @@ def _endpoint_gaps(
                         "non de l'évolution clinique réelle du patient. "
                         "Un critère strictement indépendant (données administratives, CEC) est requis."
                     ),
+                    related_bias_flag=BiasFlag.CIRCULARITY_RISK,
                 ))
             elif bd.flag == BiasFlag.SURROGATE_RISK:
                 # Check if any primary endpoint is marked feasibility-accepted
@@ -1187,6 +1196,8 @@ def _endpoint_gaps(
                             "des critères cliniques durs (registre, PMSI/SNDS, données de "
                             "morbi-mortalité à 36–60 mois)."
                         ),
+                        related_bias_flag=BiasFlag.SURROGATE_RISK,
+                        topic="surrogate_feasibility_accepted",
                     ))
                 else:
                     _has_known_surrogate = any(
@@ -1219,6 +1230,8 @@ def _endpoint_gaps(
                             "dans cette indication."
                         ),
                         has_critique=_critique,
+                        related_bias_flag=BiasFlag.SURROGATE_RISK,
+                        topic="surrogate_not_validated",
                     ))
             elif bd.flag == BiasFlag.DETECTION_BIAS:
                 gaps.append(ClaimStudyGap(
@@ -1237,6 +1250,7 @@ def _endpoint_gaps(
                         "dispositif (CEC, données administratives) est requis pour isoler "
                         "l'effet clinique."
                     ),
+                    related_bias_flag=BiasFlag.DETECTION_BIAS,
                 ))
             elif bd.flag == BiasFlag.PROTOCOL_FIXED_ENDPOINT:
                 gaps.append(ClaimStudyGap(
@@ -1257,6 +1271,7 @@ def _endpoint_gaps(
                         "de façon symétrique dans les deux bras est requis pour établir une "
                         "comparaison interprétable."
                     ),
+                    related_bias_flag=BiasFlag.PROTOCOL_FIXED_ENDPOINT,
                 ))
             elif bd.flag == BiasFlag.NO_COMPARATOR:
                 pass  # covered in design gaps
@@ -1289,6 +1304,7 @@ def _endpoint_gaps(
                 "hiérarchie de test pré-spécifiée dans le plan d'analyse statistique, "
                 "verrouillée avant la levée de l'aveugle, est requise."
             ),
+            topic="endpoint_multiplicity",
         ))
 
     # Check study-level endpoint adjudication gap (independent of epistemic output)
@@ -1320,6 +1336,7 @@ def _endpoint_gaps(
                     "classification est non contrôlé et l'objectivité de la mesure ne peut "
                     "être garantie."
                 ),
+                topic="adjudication_missing",
             ))
 
     return gaps

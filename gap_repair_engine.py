@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from models import ClinicalClaim, ClaimLevel
+from models import ClinicalClaim, ClaimLevel, BiasFlag
 from study_object import ClaimStudyGap, ComparisonReport, EvidenceStatus, OverallRisk
 
 if TYPE_CHECKING:
@@ -1009,14 +1009,41 @@ def _repair_endpoint_gap(
     claim: ClinicalClaim,
     epistemic_output: Optional["EngineOutput"],
 ) -> tuple[list[GapRepairAction], bool]:
+    """Dispatch sur ClaimStudyGap.related_bias_flag / .topic plutôt que sur un
+    matching de mots-clés dans gap.description — corrigé le 2026-07-18, même
+    principe que _repair_design_gap(). related_bias_flag réutilise l'enum
+    BiasFlag déjà produit par epistemic_output.bias_flags (voir
+    study_object.py:_endpoint_gaps) — pas un `topic` générique — pour les 5
+    gaps qui en découlent directement ; topic reste utilisé pour les 2 gaps
+    indépendants de tout BiasFlag (multiplicité, adjudication) et pour
+    distinguer les deux sous-cas de SURROGATE_RISK.
+
+    Un septième cas, PROTOCOL_FIXED_ENDPOINT, ne matchait auparavant AUCUN
+    mot-clé et tombait dans le fallback générique (item 7) — corrigé ici
+    avec sa propre suggestion.
+    """
     actions = []
-    desc = gap.description.lower()
+
+    if gap.evidence_status == EvidenceStatus.UNKNOWN:
+        return [GapRepairAction(
+            gap_dimension="endpoint",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.DOCUMENT_MISSING_DATA,
+            description="Documenter la donnée manquante",
+            specific_suggestion=(
+                f"{gap.description} Ce point n'est ni une faiblesse confirmée ni "
+                "écarté : c'est une donnée absente du dossier transmis."
+            ),
+            effort=GapRepairEffort.LOW,
+            removes_risk=[],
+        )], False
+
+    is_circularity_gap = gap.related_bias_flag == BiasFlag.CIRCULARITY_RISK
+    is_detection_gap = gap.related_bias_flag == BiasFlag.DETECTION_BIAS
 
     # 1. Delegate to existing repair_plan_v2 ONLY for circularity/detection gaps.
     # Skip MEDIATOR repairs — they propose intermediate steps for already-valid outcome
     # endpoints, which inverts the logic (the outcome IS the target, not what to replace).
-    is_circularity_gap = "circulaire" in desc
-    is_detection_gap = "détection" in desc or "alerte" in desc or "monitoring" in desc
     if (is_circularity_gap or is_detection_gap) and epistemic_output and epistemic_output.repair_plan_v2:
         plan = epistemic_output.repair_plan_v2
         for block in plan.endpoint_repairs:
@@ -1060,14 +1087,9 @@ def _repair_endpoint_gap(
         return actions, True  # blocking — nouvelle étude nécessaire pour claim clinique
 
     # 3. SURROGATE_RISK
-    if "surrogate" in desc or "substitution" in desc:
+    if gap.related_bias_flag == BiasFlag.SURROGATE_RISK:
         anchors = _domain_objective_anchors(getattr(claim, "domain", "") or "")
-        # Check if any primary endpoint is flagged as feasibility-accepted
-        _primary_eps = [ep for ep in (getattr(claim, "endpoints", None) or []) if ep.is_primary]
-        _is_feasibility = any(
-            getattr(ep, "is_feasibility_accepted_surrogate", False) for ep in _primary_eps
-        )
-        if _is_feasibility:
+        if gap.topic == "surrogate_feasibility_accepted":
             # Surrogate accepted by default of feasibility — lighter repair path
             actions.append(GapRepairAction(
                 gap_dimension="endpoint",
@@ -1123,8 +1145,8 @@ def _repair_endpoint_gap(
             ))
         return actions, False
 
-    # 4. DETECTION_BIAS (fallback)
-    if "détection" in desc or "alerte" in desc or "monitoring" in desc:
+    # 4. DETECTION_BIAS (fallback si pas de repair_plan_v2 exploitable)
+    if is_detection_gap:
         actions.append(GapRepairAction(
             gap_dimension="endpoint",
             gap_severity=gap.severity,
@@ -1143,8 +1165,30 @@ def _repair_endpoint_gap(
         ))
         return actions, False
 
-    # 5. ADJUDICATION_RISK — CEC pour événements, lecture centralisée pour mesures
-    if "adjudic" in desc:
+    # 5. PROTOCOL_FIXED_ENDPOINT — auparavant ne matchait aucun mot-clé et
+    # tombait dans le fallback générique (item 7).
+    if gap.related_bias_flag == BiasFlag.PROTOCOL_FIXED_ENDPOINT:
+        actions.append(GapRepairAction(
+            gap_dimension="endpoint",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.ENDPOINT_REPLACEMENT,
+            description="Mesurer le critère de façon symétrique dans les deux bras",
+            specific_suggestion=(
+                "La valeur du critère comparatif est fixée à l'avance par le protocole "
+                "dans le bras du dispositif évalué, plutôt que mesurée comme résultat : "
+                "toute supériorité observée est tautologique par construction. "
+                "Remplacer par un critère mesuré de façon strictement symétrique dans les "
+                "deux bras — même méthode, même moment, même évaluateur — pour que la "
+                "comparaison porte sur un résultat réel plutôt que sur un paramètre de "
+                "design."
+            ),
+            effort=GapRepairEffort.HIGH,
+            removes_risk=["comparaison tautologique", "asymétrie de mesure entre bras"],
+        ))
+        return actions, False
+
+    # 6. ADJUDICATION_RISK — CEC pour événements, lecture centralisée pour mesures
+    if gap.topic == "adjudication_missing":
         primary_ep_names = " ".join(
             ep.name.lower() for ep in claim.endpoints if ep.is_primary
         )
@@ -1189,8 +1233,8 @@ def _repair_endpoint_gap(
         ))
         return actions, False
 
-    # 6. Endpoint multiplicity without hierarchy (ENTERRA II pattern)
-    if "multiplicité" in desc:
+    # 7. Endpoint multiplicity without hierarchy (ENTERRA II pattern)
+    if gap.topic == "endpoint_multiplicity":
         actions.append(GapRepairAction(
             gap_dimension="endpoint",
             gap_severity=gap.severity,
@@ -1210,7 +1254,9 @@ def _repair_endpoint_gap(
         ))
         return actions, False
 
-    # 7. Fallback générique endpoint
+    # 8. Fallback générique endpoint — n'a plus vocation qu'à être un vrai
+    # filet de sécurité (gap sans related_bias_flag ni topic reconnu),
+    # signale un site de création oublié plutôt que de deviner en silence.
     actions.append(GapRepairAction(
         gap_dimension="endpoint",
         gap_severity=gap.severity,
