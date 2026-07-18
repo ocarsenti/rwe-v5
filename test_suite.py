@@ -4444,8 +4444,8 @@ def _make_comparison_report(gaps: list[ClaimStudyGap], overall: OverallRisk) -> 
     )
 
 
-def _gap(dimension: str, severity: str, description: str) -> ClaimStudyGap:
-    return ClaimStudyGap(dimension=dimension, severity=severity, description=description, has_critique=None)
+def _gap(dimension: str, severity: str, description: str, topic: str | None = None) -> ClaimStudyGap:
+    return ClaimStudyGap(dimension=dimension, severity=severity, description=description, has_critique=None, topic=topic)
 
 
 class TestGapRepairEngine(unittest.TestCase):
@@ -4582,7 +4582,7 @@ class TestGapRepairEngine(unittest.TestCase):
 
     def test_design_open_label_subjective_two_actions(self):
         claim = self._c_claim()
-        gaps = [_gap("design", "HIGH", "Critère principal patient-rapporté (PRO/subjectif) sans aveugle ni sham.")]
+        gaps = [_gap("design", "HIGH", "Critère principal patient-rapporté (PRO/subjectif) sans aveugle ni sham.", topic="subjective_no_blinding")]
         report = _make_comparison_report(gaps, OverallRisk.HIGH)
         plan = repair_comparison(report, claim)
         types = [a.repair_type for a in plan.actions]
@@ -4591,7 +4591,7 @@ class TestGapRepairEngine(unittest.TestCase):
 
     def test_design_patient_blinded_medium_single_action(self):
         claim = self._c_claim()
-        gaps = [_gap("design", "MEDIUM", "Critère principal patient-rapporté (PRO/subjectif), patient en aveugle du traitement mais pas de sham — risque résiduel de biais d'expectation.")]
+        gaps = [_gap("design", "MEDIUM", "Critère principal patient-rapporté (PRO/subjectif), patient en aveugle du traitement mais pas de sham — risque résiduel de biais d'expectation.", topic="subjective_no_blinding")]
         report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
         plan = repair_comparison(report, claim)
         types = [a.repair_type for a in plan.actions]
@@ -4601,7 +4601,7 @@ class TestGapRepairEngine(unittest.TestCase):
 
     def test_design_subgroup_confirmation_high_effort(self):
         claim = self._c_claim()
-        gaps = [_gap("design", "HIGH", "Critère principal non significatif sur la population analysée ; la revendication s'appuie sur un résultat significatif dans un sous-groupe dont le caractère pré-spécifié n'est pas confirmé.")]
+        gaps = [_gap("design", "HIGH", "Critère principal non significatif sur la population analysée ; la revendication s'appuie sur un résultat significatif dans un sous-groupe dont le caractère pré-spécifié n'est pas confirmé.", topic="subgroup_only_significant")]
         report = _make_comparison_report(gaps, OverallRisk.HIGH)
         plan = repair_comparison(report, claim)
         self.assertEqual(len(plan.non_repairable_gaps), 0)
@@ -4612,7 +4612,7 @@ class TestGapRepairEngine(unittest.TestCase):
 
     def test_design_short_followup_extension(self):
         claim = self._c_claim()
-        gaps = [_gap("design", "MEDIUM", "Suivi de 2.0 mois pour revendication chaîne causale complète.")]
+        gaps = [_gap("design", "MEDIUM", "Suivi de 2.0 mois pour revendication chaîne causale complète.", topic="follow_up_insufficient")]
         report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
         plan = repair_comparison(report, claim)
         types = [a.repair_type for a in plan.actions]
@@ -4621,7 +4621,7 @@ class TestGapRepairEngine(unittest.TestCase):
 
     def test_design_confounding_not_blocking_medium_effort(self):
         claim = self._c_claim()
-        gaps = [_gap("design", "HIGH", "Traitements concomitants présents dans la population d'étude, non décrits ou non contrôlés (facteur de confusion).")]
+        gaps = [_gap("design", "HIGH", "Traitements concomitants présents dans la population d'étude, non décrits ou non contrôlés (facteur de confusion).", topic="confounding_concomitant")]
         report = _make_comparison_report(gaps, OverallRisk.HIGH)
         plan = repair_comparison(report, claim)
         self.assertEqual(len(plan.non_repairable_gaps), 0)
@@ -4632,7 +4632,7 @@ class TestGapRepairEngine(unittest.TestCase):
 
     def test_design_analysis_set_per_protocol_low_effort_not_blocking(self):
         claim = self._c_claim()
-        gaps = [_gap("design", "HIGH", "Analyse primaire prévue en per-protocol plutôt qu'en intention de traiter (ITT), pour une revendication d'outcome (niveau C/D).")]
+        gaps = [_gap("design", "HIGH", "Analyse primaire prévue en per-protocol plutôt qu'en intention de traiter (ITT), pour une revendication d'outcome (niveau C/D).", topic="per_protocol_not_itt")]
         report = _make_comparison_report(gaps, OverallRisk.HIGH)
         plan = repair_comparison(report, claim)
         self.assertEqual(len(plan.non_repairable_gaps), 0)
@@ -4643,7 +4643,7 @@ class TestGapRepairEngine(unittest.TestCase):
 
     def test_design_performance_goal_unjustified_low_effort(self):
         claim = self._c_claim()
-        gaps = [_gap("design", "MEDIUM", "Seuil de performance pré-spécifié sans justification clinique documentée pour le seuil de succès retenu.")]
+        gaps = [_gap("design", "MEDIUM", "Seuil de performance pré-spécifié sans justification clinique documentée pour le seuil de succès retenu.", topic="performance_goal_unjustified")]
         report = _make_comparison_report(gaps, OverallRisk.MEDIUM)
         plan = repair_comparison(report, claim)
         self.assertTrue(plan.is_fully_repairable)

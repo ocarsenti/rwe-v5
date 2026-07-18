@@ -10,7 +10,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
 from models import ClinicalClaim, ClaimLevel
-from study_object import ClaimStudyGap, ComparisonReport, OverallRisk
+from study_object import ClaimStudyGap, ComparisonReport, EvidenceStatus, OverallRisk
 
 if TYPE_CHECKING:
     from models import EngineOutput
@@ -40,6 +40,12 @@ class GapRepairType(Enum):
     ANALYSIS_SET_CORRECTION = "analysis_set_correction"
     SUBGROUP_CONFIRMATION = "subgroup_confirmation"
     BASELINE_ADJUSTMENT = "baseline_adjustment"
+    # Pour les gaps evidence_status=UNKNOWN (absence de donnée, pas faiblesse
+    # confirmée) — jamais une "réparation" d'un problème, seulement une
+    # demande de documentation manquante. Cf. échange du 2026-07-18 sur la
+    # distinction UNKNOWN/CONFIRMED : s'applique aussi aux suggestions de
+    # réparation, pas seulement au statut du graphe.
+    DOCUMENT_MISSING_DATA = "document_missing_data"
 
 
 class GapRepairEffort(Enum):
@@ -546,11 +552,43 @@ def _domain_objective_anchors(domain: str) -> str:
 def _repair_design_gap(
     gap: ClaimStudyGap, claim: ClinicalClaim,
 ) -> tuple[list[GapRepairAction], bool]:
+    """Dispatch sur ClaimStudyGap.topic plutôt que sur un matching de mots-clés
+    dans gap.description — corrigé le 2026-07-18. Le matching précédent avait
+    deux défauts distincts, tous deux corrigés ici :
+    (1) fragilité — une reformulation de la description dans study_object.py
+        pouvait faire dériver silencieusement la suggestion de réparation ;
+    (2) inexactitude déjà présente — plusieurs gaps réels (marquage CE,
+        monocentrisme, mono-bras vs objectif de performance, cohorte de
+        contrôle externe) ne matchaient AUCUN mot-clé et tombaient dans le
+        fallback générique "étude non randomisée", une suggestion de
+        réparation inadaptée à leur nature réelle.
+
+    evidence_status est vérifié en premier, indépendamment du topic : un gap
+    UNKNOWN (absence de donnée, cf. échange du 2026-07-18) ne reçoit jamais
+    une suggestion de réparation d'une faiblesse confirmée — seulement une
+    demande de documentation manquante.
+    """
+    if gap.evidence_status == EvidenceStatus.UNKNOWN:
+        return [GapRepairAction(
+            gap_dimension="design",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.DOCUMENT_MISSING_DATA,
+            description="Documenter la donnée manquante",
+            specific_suggestion=(
+                f"{gap.description} Ce point n'est ni une faiblesse confirmée ni "
+                "écarté : c'est une donnée absente du dossier transmis. Fournir "
+                "cette information (protocole, rapport d'étude clinique) permettra "
+                "au moteur de l'évaluer — aucune action de réparation méthodologique "
+                "ne peut être recommandée tant que l'information elle-même manque."
+            ),
+            effort=GapRepairEffort.LOW,
+            removes_risk=[],
+        )], False
+
     actions = []
-    desc = gap.description.lower()
 
     # 1. Exploratory design — CRITICAL, non-repairable
-    if "exploratoire" in desc or gap.severity == "CRITICAL":
+    if gap.topic == "exploratory_design" or gap.severity == "CRITICAL":
         actions.append(GapRepairAction(
             gap_dimension="design",
             gap_severity=gap.severity,
@@ -574,7 +612,7 @@ def _repair_design_gap(
         return actions, True
 
     # 2. Primary analysis set declared as per-protocol rather than ITT
-    if "intention de traiter" in desc:
+    if gap.topic == "per_protocol_not_itt":
         actions.append(GapRepairAction(
             gap_dimension="design",
             gap_severity=gap.severity,
@@ -596,7 +634,7 @@ def _repair_design_gap(
         return actions, False
 
     # 3. Subgroup-only significance of unconfirmed pre-specification (MAIOREGEN PRIME pattern)
-    if "sous-groupe" in desc:
+    if gap.topic == "subgroup_only_significant":
         actions.append(GapRepairAction(
             gap_dimension="design",
             gap_severity=gap.severity,
@@ -620,7 +658,7 @@ def _repair_design_gap(
         return actions, False
 
     # 4. Confounding / uncontrolled co-intervention (SOMNIO pattern)
-    if "confusion" in desc or "concomitant" in desc:
+    if gap.topic == "confounding_concomitant":
         actions.append(GapRepairAction(
             gap_dimension="design",
             gap_severity=gap.severity,
@@ -642,10 +680,8 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 5. Baseline group imbalance (MAIOREGEN PRIME pattern) — distinct from the
-    # confounding branch above (co-interventions during the study, not baseline
-    # comparability).
-    if "comparables à l'inclusion" in desc:
+    # 5. Baseline group imbalance (MAIOREGEN PRIME pattern)
+    if gap.topic == "baseline_imbalance":
         actions.append(GapRepairAction(
             gap_dimension="design",
             gap_severity=gap.severity,
@@ -668,7 +704,7 @@ def _repair_design_gap(
         return actions, False
 
     # 6. Performance goal threshold without clinical justification (SAPIEN 3/ALTERRA pattern)
-    if "seuil de performance" in desc or "seuil de succès" in desc:
+    if gap.topic == "performance_goal_unjustified":
         actions.append(GapRepairAction(
             gap_dimension="design",
             gap_severity=gap.severity,
@@ -687,8 +723,60 @@ def _repair_design_gap(
         ))
         return actions, False
 
+    # 6bis. Single-arm confirmatory vs. performance goal — accepted pivotal design
+    # (EDWARDS SAPIEN 3/ALTERRA pattern), mais reste plus faible qu'un comparatif.
+    # Auparavant matchait AUCUN mot-clé (ne contient ni "seuil de performance" ni
+    # "comparateur" au sens propre) et tombait dans le fallback générique
+    # "étude non randomisée" — inadapté à un design pivot déjà accepté par la HAS
+    # dans certains dossiers réels (cf. avis 7873).
+    if gap.topic == "single_arm_performance_goal":
+        actions.append(GapRepairAction(
+            gap_dimension="design",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.PERFORMANCE_GOAL_JUSTIFICATION,
+            description="Documenter la robustesse de l'objectif de performance",
+            specific_suggestion=(
+                "Ce design mono-bras confirmatoire vs. objectif de performance est un "
+                "design pivot reconnu (FDA/PMA) quand aucun comparateur de modalité "
+                "comparable n'est disponible — il n'est pas exploratoire. Pour renforcer "
+                "l'attribution causale malgré l'absence de counterfactuel concurrent : "
+                "(1) Documenter la justification clinique du seuil de performance retenu "
+                "(donnée de référence historique, consensus, critère réglementaire). "
+                "(2) Si un comparateur devient faisable ultérieurement, envisager un bras "
+                "actif ou SHAM en complément pour une revendication étendue."
+            ),
+            effort=GapRepairEffort.LOW,
+            removes_risk=["seuil de performance non documenté"],
+        ))
+        return actions, False
+
+    # 6ter. External control cohort — a real comparator exists but is non-concurrent
+    # and non-randomized. Auparavant matchait le mot "comparateur" dans sa
+    # description et recevait la suggestion "ajouter un comparateur" — inexacte,
+    # puisqu'un comparateur existe déjà ici ; ce qu'il faut, c'est le renforcer
+    # (appariement, concurrence temporelle), pas en ajouter un depuis rien.
+    if gap.topic == "external_control_cohort":
+        actions.append(GapRepairAction(
+            gap_dimension="design",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.CONTROL_ARM_ADDITION,
+            description="Renforcer la comparabilité de la cohorte de contrôle externe",
+            specific_suggestion=(
+                "Un comparateur existe déjà (cohorte externe), mais non concurrent et "
+                "non randomisé : tendances séculaires, différences de case-mix et écarts "
+                "de méthode de recueil restent des menaces. Options par ordre de "
+                "robustesse : (1) Appariement explicite par score de propension ou "
+                "pondération (IPTW) entre les deux cohortes. (2) Démonstration documentée "
+                "de la comparabilité temporelle et clinique des deux sources. (3) À "
+                "défaut, transformer en bras concurrent randomisé si faisable."
+            ),
+            effort=GapRepairEffort.MEDIUM,
+            removes_risk=["comparateur non concurrent", "biais de sélection temporel"],
+        ))
+        return actions, False
+
     # 7. No comparator for C/D claim
-    if "sans comparateur" in desc or "comparateur" in desc:
+    if gap.topic == "no_comparator":
         _claim_level = getattr(claim, "level", None)
         control_type = (
             "SHAM ou comparateur actif" if _claim_level and _claim_level.value in ("C", "D")
@@ -713,11 +801,55 @@ def _repair_design_gap(
         ))
         return actions, False
 
+    # 7bis. CE marking mismatch — population/usage studied outside the device's
+    # approved scope. N'avait auparavant AUCUNE suggestion dédiée : tombait
+    # dans le fallback générique "étude non randomisée", qui n'a aucun rapport
+    # avec un problème de périmètre réglementaire.
+    if gap.topic == "ce_marking_mismatch":
+        actions.append(GapRepairAction(
+            gap_dimension="design",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.CLAIM_RESTRICTION,
+            description="Restreindre la revendication au périmètre du marquage CE, ou l'étendre",
+            specific_suggestion=(
+                "La population ou l'usage anatomique étudié excède le périmètre du "
+                "marquage CE du dispositif. Options : (1) Restreindre la revendication "
+                "au périmètre effectivement couvert par le marquage CE actuel. "
+                "(2) Engager une procédure d'extension du marquage CE couvrant l'usage "
+                "étudié, avant de soumettre la revendication élargie. (3) Conduire une "
+                "étude dédiée strictement dans le périmètre déjà approuvé."
+            ),
+            effort=GapRepairEffort.HIGH,
+            removes_risk=["usage hors marquage CE", "transposition non justifiée"],
+        ))
+        return actions, False
+
+    # 7ter. Monocentric (evidence_status=CONFIRMED only — UNKNOWN déjà traité en
+    # tout début de fonction). N'avait auparavant AUCUNE suggestion dédiée :
+    # tombait dans le même fallback générique inadapté que ce_marking_mismatch.
+    if gap.topic == "monocentric":
+        actions.append(GapRepairAction(
+            gap_dimension="design",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.STUDY_COMMISSION,
+            description="Étendre l'étude à plusieurs centres, ou justifier la représentativité",
+            specific_suggestion=(
+                "L'étude est menée dans un seul centre pour une revendication d'outcome. "
+                "Options : (1) Étendre le recrutement à plusieurs centres pour une étude "
+                "en cours. (2) Registre ou cohorte multicentrique de confirmation. "
+                "(3) À défaut, documenter explicitement la représentativité du centre "
+                "unique (volume d'activité, profil de patientèle, pratiques cliniques) "
+                "par rapport à la pratique française générale."
+            ),
+            effort=GapRepairEffort.HIGH,
+            removes_risk=["biais lié au site", "généralisabilité non établie"],
+        ))
+        return actions, False
+
     # 8. Open-label with subjective primary — residual-risk MEDIUM (patient already
-    # blinded, cf. study_object.py's SINGLE_BLIND+patient-blinded branch) gets a
-    # lighter-effort suggestion; full HIGH (patient not blinded at all) keeps the
-    # original "convert to SHAM" recommendation.
-    if "patient-rapporté" in desc or "subjectif" in desc or "pro" in desc:
+    # blinded) gets a lighter-effort suggestion; full HIGH (patient not blinded at
+    # all) keeps the original "convert to SHAM" recommendation.
+    if gap.topic == "subjective_no_blinding":
         if gap.severity == "MEDIUM":
             actions.append(GapRepairAction(
                 gap_dimension="design",
@@ -775,8 +907,8 @@ def _repair_design_gap(
         return actions, False
 
     # 9. Short / insufficient follow-up
-    if "suivi" in desc or "mois" in desc:
-        is_durability_only = "durabilité" in desc  # LOW gap (12–24 mois)
+    if gap.topic == "follow_up_insufficient":
+        is_durability_only = gap.severity == "LOW"  # 12–24 mois
         if is_durability_only:
             action_desc = "Étendre le suivi à 24 mois pour confirmer la durabilité"
             suggestion = (
@@ -810,7 +942,10 @@ def _repair_design_gap(
         ))
         return actions, False
 
-    # 10. Non-randomized comparative
+    # 10. Non-randomized comparative — désormais un topic explicite, plus un
+    # fallback implicite. Si un gap design arrive ici sans topic reconnu, c'est
+    # soit ce cas, soit un site de création de gap dans study_object.py oublié
+    # lors de ce refactor (à vérifier plutôt qu'à laisser deviner en silence).
     actions.append(GapRepairAction(
         gap_dimension="design",
         gap_severity=gap.severity,

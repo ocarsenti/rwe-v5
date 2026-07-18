@@ -700,6 +700,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 "transposabilité entre l'usage étudié et le périmètre certifié "
                 "est requise, ou une étude conduite dans le périmètre approuvé."
             ),
+            topic="ce_marking_mismatch",
         ))
 
     # Single-center study for an outcome claim — effects observed at a single
@@ -727,6 +728,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 "justification explicite de la représentativité du centre unique, est "
                 "requise pour soutenir une revendication d'outcome."
             ),
+            topic="monocentric",
         ))
     elif study.is_multicentric is None and claim.level in (ClaimLevel.C, ClaimLevel.D):
         gaps.append(ClaimStudyGap(
@@ -744,6 +746,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 "de l'étude permettrait d'évaluer ce point."
             ),
             evidence_status=EvidenceStatus.UNKNOWN,
+            topic="monocentric",
         ))
 
     # Primary analysis set declared as per-protocol rather than ITT — for an outcome
@@ -774,6 +777,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 "primaire pré-spécifiée ; une analyse per-protocol peut être présentée "
                 "en complément (analyse de sensibilité), jamais en remplacement."
             ),
+            topic="per_protocol_not_itt",
         ))
 
     # Subgroup-only significance — the primary endpoint failed on the analyzed
@@ -816,6 +820,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 "doit être documentée, ou une étude confirmatoire dédiée à ce "
                 "sous-groupe doit être conduite."
             ),
+            topic="subgroup_only_significant",
         ))
 
     # Confounding / uncontrolled co-intervention — the observed effect may not be
@@ -847,6 +852,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 "statistique pré-spécifié (stratification, covariable, sensibilité) sont "
                 "requis pour établir l'attribution causale."
             ),
+            topic="confounding_concomitant",
         ))
 
     # Baseline group imbalance — distinct from concomitant_treatments_present
@@ -884,6 +890,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 "est requis pour établir que l'effet observé n'est pas expliqué par ce "
                 "déséquilibre."
             ),
+            topic="baseline_imbalance",
         ))
 
     # Open-label with subjective primary endpoint — severity depends on WHO is
@@ -926,6 +933,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                     "ce risque résiduel ; à défaut, l'étanchéité du personnel en contact avec "
                     "le patient doit être documentée au protocole."
                 ),
+                topic="subjective_no_blinding",
             ))
         else:
             gaps.append(ClaimStudyGap(
@@ -942,6 +950,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                     "indépendamment de l'effet réel du dispositif. Ce mécanisme fragilise "
                     "l'attribution causale de l'amélioration observée."
                 ),
+                topic="subjective_no_blinding",
             ))
 
     # Exploratory design for C/D claim
@@ -960,6 +969,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 "avec hypothèse pré-enregistrée, critère primaire défini et calcul de puissance "
                 "est requis."
             ),
+            topic="exploratory_design",
         ))
 
     # Single-arm confirmatory design vs. a documented, pre-specified performance
@@ -990,6 +1000,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 "qu'avec un comparateur : le seuil de performance retenu doit lui-même "
                 "être solidement justifié cliniquement."
             ),
+            topic="single_arm_performance_goal",
         ))
 
     # Pre-specified performance goal without documented clinical justification —
@@ -1022,6 +1033,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 "d'établir qu'un résultat au-dessus du seuil équivaut à un "
                 "bénéfice clinique pertinent."
             ),
+            topic="performance_goal_unjustified",
         ))
 
     # Single-arm study compared to an external (historical/registry/literature)
@@ -1055,6 +1067,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 "propension, pondération) et sans démonstration de la comparabilité "
                 "temporelle et clinique des deux cohortes."
             ),
+            topic="external_control_cohort",
         ))
 
     # Non-randomized comparative study for outcome claim
@@ -1078,6 +1091,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 "biais de sélection résiduel ne peut être exclu et la comparaison ne permet pas "
                 "de conclusion causale robuste."
             ),
+            topic="non_randomized_comparative",
         ))
 
     # Follow-up adequacy — two tiers
@@ -1098,6 +1112,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                     "peuvent émerger, et la période couverte n'est pas cliniquement significative. "
                     "Un suivi d'au moins 12 mois est requis ; 24 mois pour les pathologies chroniques."
                 ),
+                topic="follow_up_insufficient",
             ))
         elif fu < 24:
             gaps.append(ClaimStudyGap(
@@ -1114,6 +1129,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                     "à confirmer. Des données complémentaires à 24 mois sont nécessaires pour "
                     "établir la durabilité du bénéfice."
                 ),
+                topic="follow_up_insufficient",
             ))
 
     return gaps
