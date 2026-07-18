@@ -35,6 +35,8 @@ from models import (
     EligibilityShift,
     Endpoint,
     EndpointNature,
+    EndpointRelevanceAlignment,
+    EndpointRelevanceMatchType,
     PopulationAlignment,
     PopulationMatchType,
     ContextAlignment,
@@ -391,6 +393,14 @@ class ClaimStudyGap:
     # d'un BiasFlag (ex: multiplicité, adjudication — cf. topic ci-dessus
     # pour ces cas).
     related_bias_flag: Optional[BiasFlag] = None
+    # Index dans claim.endpoints, pour les gaps dimension="endpoint" qui
+    # portent sur UN endpoint précis (ex: claim_endpoint_mismatch) — permet
+    # à review_causal_graph.py de rattacher le gap au bon nœud endpoint_N
+    # sans comparer de texte. None pour les gaps qui ne portent pas sur un
+    # endpoint précis (device/population/context/design), ou pour les gaps
+    # endpoint issus de BiasFlag (déjà rattachés via EndpointAnalysis.flags
+    # dans la boucle d'assemblage du graphe, pas besoin d'index ici).
+    endpoint_index: Optional[int] = None
 
     def to_dict(self) -> dict:
         return {
@@ -401,6 +411,7 @@ class ClaimStudyGap:
             "evidence_status": self.evidence_status.value,
             "topic": self.topic,
             "related_bias_flag": self.related_bias_flag.value if self.related_bias_flag else None,
+            "endpoint_index": self.endpoint_index,
         }
 
 
@@ -461,6 +472,10 @@ def compare_claim_to_study(
 
     gaps.extend(_design_gaps(claim, study))
     gaps.extend(_endpoint_gaps(claim, study, epistemic_output))
+    for i, ep in enumerate(claim.endpoints):
+        gap = _endpoint_relevance_gap(ep, i)
+        if gap:
+            gaps.append(gap)
 
     overall_risk = _compute_overall_risk(gaps)
     has_critique = _simulate_has_critique(gaps, claim, study)
@@ -590,6 +605,64 @@ def _population_gap(alignment: PopulationAlignment) -> ClaimStudyGap | None:
         severity=severity,
         description=desc,
         has_critique=critique_map[severity],
+    )
+
+
+def _endpoint_relevance_gap(endpoint: Endpoint, endpoint_index: int) -> ClaimStudyGap | None:
+    """Le critère mesuré représente-t-il l'effet revendiqué par la claim ?
+    Distinct des BiasFlag sur endpoint (circularité, surrogate, biais de
+    détection) qui portent sur la QUALITÉ de la mesure — ceci porte sur son
+    SUJET. Corpus HAS réel, taxonomie T03 : "critère de jugement... ne
+    correspond pas" (RAPPORT_MF_58_AVIS.md), sous-cas non couvert par
+    SURROGATE_RISK. Ajouté le 2026-07-18.
+    """
+    alignment = endpoint.relevance_alignment
+    if alignment is None:
+        return None  # non évalué — pas de gap (ni GAP ni UNKNOWN, cf. design node pour ce cas)
+    m = alignment.relevance_match_type
+    if m == EndpointRelevanceMatchType.MATCHES:
+        return None
+    severity_map = {
+        EndpointRelevanceMatchType.PARTIAL: "MEDIUM",
+        EndpointRelevanceMatchType.MISMATCH: "HIGH",
+        EndpointRelevanceMatchType.UNKNOWN: "LOW",
+    }
+    severity = severity_map[m]
+    critique_map = {
+        "MEDIUM": (
+            "Le critère de jugement ne recouvre que partiellement l'effet revendiqué : "
+            "un lien doit être explicitement établi entre ce qui est mesuré et ce qui est "
+            "affirmé, faute de quoi la revendication n'est que partiellement soutenue par "
+            "cette donnée."
+        ),
+        "HIGH": (
+            "Le critère de jugement principal ne mesure pas l'effet revendiqué par le "
+            "dispositif. Une amélioration observée sur ce critère ne permet pas de conclure "
+            "à l'effet affirmé dans la revendication, quelle que soit par ailleurs la "
+            "qualité méthodologique de sa mesure."
+        ),
+        "LOW": (
+            "L'adéquation entre le critère de jugement mesuré et l'effet revendiqué n'est "
+            "pas documentée. Ce point ne peut être évalué sans description explicite du "
+            "lien entre le critère et l'effet affirmé."
+        ),
+    }
+    desc = (
+        f"Endpoint mesuré ({alignment.endpoint_description}) "
+        f"vs. effet revendiqué ({alignment.claimed_effect_description}). "
+        f"{alignment.justification}"
+    )
+    return ClaimStudyGap(
+        dimension="endpoint",
+        severity=severity,
+        description=desc,
+        has_critique=critique_map[severity],
+        evidence_status=(
+            EvidenceStatus.UNKNOWN if m == EndpointRelevanceMatchType.UNKNOWN
+            else EvidenceStatus.CONFIRMED
+        ),
+        topic="claim_endpoint_mismatch",
+        endpoint_index=endpoint_index,
     )
 
 

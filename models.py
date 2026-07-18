@@ -521,6 +521,11 @@ class Endpoint:
     is_feasibility_accepted_surrogate: bool = False
     is_independently_adjudicated: bool = False
     value_fixed_by_protocol: bool = False
+    # Le critère mesure-t-il ce que la claim revendique ? Distinct de nature/
+    # causal_role (qualité de la mesure) — voir EndpointRelevanceAlignment.
+    # None = non évalué (LLM extraction pas encore branchée dessus, ou
+    # endpoint non-primaire pour lequel la question n'a pas été posée).
+    relevance_alignment: Optional["EndpointRelevanceAlignment"] = None
 
 
 @dataclass
@@ -852,6 +857,22 @@ class PopulationMatchType(Enum):
     UNKNOWN = "UNKNOWN"
 
 
+class EndpointRelevanceMatchType(Enum):
+    """Le critère mesuré représente-t-il l'effet revendiqué par la claim ?
+    Distinct de EndpointNature/CausalRole/BiasFlag (qui portent sur la
+    QUALITÉ de la mesure — circularité, validation, biais) : ceci porte sur
+    le SUJET de la mesure — mesure-t-elle la bonne chose, indépendamment de
+    sa qualité méthodologique. Corpus HAS réel, catégorie T03
+    ("critère de jugement... ne correspond pas"), sous-cas non couvert par
+    SURROGATE_RISK (cf. échange du 2026-07-18 : RAPPORT_MF_58_AVIS.md /
+    REPORT_MF_D_PERTINENCE.md, cnedimts_analysis).
+    """
+    MATCHES = "MATCHES"
+    PARTIAL = "PARTIAL"
+    MISMATCH = "MISMATCH"
+    UNKNOWN = "UNKNOWN"
+
+
 class ContextMatchType(Enum):
     SAME_HEALTHCARE_SYSTEM = "SAME_HEALTHCARE_SYSTEM"
     PARTIALLY_COMPARABLE = "PARTIALLY_COMPARABLE"
@@ -1101,6 +1122,22 @@ class DeviceAlignment:
             "device_match_type": self.device_match_type.value,
             "device_description_claim": self.device_description_claim,
             "device_description_study": self.device_description_study,
+            "justification": self.justification,
+        }
+
+
+@dataclass
+class EndpointRelevanceAlignment:
+    relevance_match_type: EndpointRelevanceMatchType
+    claimed_effect_description: str
+    endpoint_description: str
+    justification: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "relevance_match_type": self.relevance_match_type.value,
+            "claimed_effect_description": self.claimed_effect_description,
+            "endpoint_description": self.endpoint_description,
             "justification": self.justification,
         }
 

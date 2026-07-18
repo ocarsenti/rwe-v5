@@ -1187,6 +1187,33 @@ def _repair_endpoint_gap(
         ))
         return actions, False
 
+    # claim_endpoint_mismatch — le critère mesuré ne représente pas l'effet
+    # revendiqué (taxonomie HAS T03, sous-cas non couvert par SURROGATE_RISK
+    # cf. échange du 2026-07-18). Distinct de PROTOCOL_FIXED_ENDPOINT (qui
+    # porte sur la symétrie de la mesure entre bras) : ici le problème est
+    # que le SUJET de la mesure ne correspond pas au SUJET de la claim.
+    if gap.topic == "claim_endpoint_mismatch":
+        actions.append(GapRepairAction(
+            gap_dimension="endpoint",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.ENDPOINT_REPLACEMENT,
+            description="Remplacer ou compléter le critère par un endpoint représentant l'effet revendiqué",
+            specific_suggestion=(
+                f"{gap.description} Le critère mesuré doit correspondre directement à "
+                "l'effet affirmé par la revendication clinique — indépendamment de sa "
+                "qualité méthodologique par ailleurs (validation, adjudication, aveugle). "
+                "Options : (1) Remplacer le critère principal par un endpoint mesurant "
+                "directement l'effet revendiqué. (2) Si le critère actuel a un lien "
+                "indirect documenté avec l'effet revendiqué, produire cette justification "
+                "explicitement (littérature, validation psychométrique). (3) Reformuler la "
+                "revendication pour qu'elle corresponde à ce que le critère mesure "
+                "réellement, si le critère ne peut être changé."
+            ),
+            effort=GapRepairEffort.HIGH,
+            removes_risk=["critère hors sujet", "revendication non soutenue par la mesure"],
+        ))
+        return actions, False
+
     # 6. ADJUDICATION_RISK — CEC pour événements, lecture centralisée pour mesures
     if gap.topic == "adjudication_missing":
         primary_ep_names = " ".join(

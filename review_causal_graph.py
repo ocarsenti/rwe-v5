@@ -221,9 +221,38 @@ def build_review_causal_graph(
     for i, ea in enumerate(endpoint_analyses):
         node_id = f"endpoint_{i}"
         endpoint_ids.append(node_id)
+        # Un endpoint peut être en gap soit via BiasFlag (qualité de la
+        # mesure — ea.flags), soit via un gap de pertinence claim/endpoint
+        # (le sujet de la mesure — ClaimStudyGap.endpoint_index), soit les
+        # deux. Les deux sources sont combinées ici, jamais l'une au prix
+        # de l'autre — évite de recréer le bug "flag écrasé" déjà vu.
+        relevance_gap = None
+        if comparison_report is not None:
+            relevance_gap = next(
+                (
+                    g for g in comparison_report.gaps
+                    if g.dimension == "endpoint" and g.topic == "claim_endpoint_mismatch"
+                    and g.endpoint_index == i
+                ),
+                None,
+            )
         has_flags = len(ea.flags) > 0
-        status = NodeStatus.GAP if has_flags else NodeStatus.OK
-        justification = "; ".join(ea.flag_reasons.values()) if ea.flag_reasons else ea.nature_reason
+        justification_parts = []
+        if ea.flag_reasons:
+            justification_parts.append("; ".join(ea.flag_reasons.values()))
+        elif ea.nature_reason:
+            justification_parts.append(ea.nature_reason)
+        if relevance_gap is not None:
+            justification_parts.append(relevance_gap.has_critique)
+        justification = "; ".join(p for p in justification_parts if p) or None
+
+        if relevance_gap is not None and relevance_gap.evidence_status == EvidenceStatus.UNKNOWN and not has_flags:
+            status = NodeStatus.UNKNOWN
+        elif has_flags or (relevance_gap is not None and relevance_gap.evidence_status == EvidenceStatus.CONFIRMED):
+            status = NodeStatus.GAP
+        else:
+            status = NodeStatus.OK
+
         graph.nodes.append(
             GraphNode(
                 node_id,
@@ -355,13 +384,52 @@ def _build_design_node(comparison_report: "Optional[ComparisonReport]") -> Graph
     )
 
 
+def _update_endpoint_node_with_relevance(
+    node: GraphNode, comparison_report: "ComparisonReport"
+) -> GraphNode:
+    """Complète un nœud endpoint_N déjà construit (avant que le
+    ComparisonReport n'existe, ex: dans engine.analyze()) avec le gap de
+    pertinence claim/endpoint, une fois disponible. N'écrase jamais le
+    statut/justification déjà posé par les BiasFlag — les combine.
+    Pré-attach, un statut GAP ne peut venir que de BiasFlag (relevance_gap
+    n'était jamais disponible avant cet appel), donc `had_flags_gap` peut
+    être déduit du statut actuel sans information supplémentaire.
+    """
+    idx = int(node.id.split("_")[1])
+    relevance_gap = next(
+        (
+            g for g in comparison_report.gaps
+            if g.dimension == "endpoint" and g.topic == "claim_endpoint_mismatch"
+            and g.endpoint_index == idx
+        ),
+        None,
+    )
+    if relevance_gap is None:
+        return node
+
+    had_flags_gap = node.status == NodeStatus.GAP
+    justification_parts = [node.justification] if node.justification else []
+    if relevance_gap.has_critique:
+        justification_parts.append(relevance_gap.has_critique)
+    new_justification = "; ".join(justification_parts) or None
+
+    if relevance_gap.evidence_status == EvidenceStatus.UNKNOWN and not had_flags_gap:
+        new_status = NodeStatus.UNKNOWN
+    elif had_flags_gap or relevance_gap.evidence_status == EvidenceStatus.CONFIRMED:
+        new_status = NodeStatus.GAP
+    else:
+        new_status = NodeStatus.OK
+
+    return GraphNode(node.id, node.type, node.label, status=new_status, justification=new_justification)
+
+
 def attach_comparison_report(
     graph: ReviewCausalGraph, comparison_report: "ComparisonReport"
 ) -> ReviewCausalGraph:
-    """Remplace les nœuds population/device/context/design d'un graphe déjà
-    construit, une fois un ComparisonReport disponible (ex: après
-    compare_claim_to_study()). Mutation en place, retourne le même objet
-    pour chaînage."""
+    """Remplace les nœuds population/device/context/design, et complète les
+    nœuds endpoint_N, d'un graphe déjà construit, une fois un
+    ComparisonReport disponible (ex: après compare_claim_to_study()).
+    Mutation en place, retourne le même objet pour chaînage."""
     replacements = {
         "population": _build_dimension_node(comparison_report, "population", "population", NodeType.POPULATION),
         "device": _build_dimension_node(comparison_report, "device", "device", NodeType.DEVICE),
@@ -371,4 +439,6 @@ def attach_comparison_report(
     for i, n in enumerate(graph.nodes):
         if n.id in replacements:
             graph.nodes[i] = replacements[n.id]
+        elif n.type == NodeType.ENDPOINT:
+            graph.nodes[i] = _update_endpoint_node_with_relevance(n, comparison_report)
     return graph
