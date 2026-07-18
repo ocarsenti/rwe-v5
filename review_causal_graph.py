@@ -19,6 +19,24 @@ dans case1_7943_share.html) : `causal_structure` est toujours un PARAMÈTRE
 de build_review_causal_graph(), jamais recalculé ici. Ce module ne doit
 jamais dupliquer une logique de décision déjà présente ailleurs —
 uniquement l'assembler.
+
+Couverture des dimensions de ComparisonReport.gaps (study_object.py) :
+    device      -> nœud "device"
+    population  -> nœud "population"
+    context     -> nœud "context"
+    design      -> nœud "design", à l'EXCLUSION des gaps relatifs au
+                   comparateur (déjà représentés par le nœud "comparator",
+                   alimenté par BiasFlag.NO_COMPARATOR — même condition de
+                   déclenchement exacte des deux côtés, cf.
+                   causal_graph_builder.py:162-171 vs
+                   study_object.py:_design_gaps, HIGH branch). Le filtre
+                   utilisé est une recherche du mot "comparateur" dans la
+                   description — heuristique imparfaite (même famille de
+                   limite que le matching par mots-clés déjà connu dans
+                   endpoint_classifier.py), documentée plutôt que masquée.
+    endpoint    -> NON représenté par un nœud dédié : ce sont déjà les
+                   nœuds endpoint_N existants (EndpointAnalysis.flags),
+                   ajouter un nœud de plus dupliquerait l'information.
 """
 
 from __future__ import annotations
@@ -47,6 +65,9 @@ class NodeType(Enum):
     ENDPOINT = "ENDPOINT"
     COMPARATOR = "COMPARATOR"
     POPULATION = "POPULATION"
+    DEVICE = "DEVICE"
+    CONTEXT = "CONTEXT"
+    DESIGN = "DESIGN"
     CONCLUSION = "CONCLUSION"
 
 
@@ -149,12 +170,12 @@ def build_review_causal_graph(
     Ne relance AUCUNE extraction LLM et ne redécide AUCUN flag.
 
     comparison_report est optionnel car engine.analyze() ne reçoit pas de
-    StudyObject — quand ce module est appelé depuis analyze(), le nœud
-    population reste UNKNOWN (honnête : le moteur ne voit pas encore la
-    population réelle à ce stade du pipeline). Un appelant qui dispose
-    d'un ComparisonReport (via study_object.compare_claim_to_study) peut
-    soit le passer directement ici, soit appeler attach_comparison_report()
-    après coup sur un graphe déjà construit.
+    StudyObject — quand ce module est appelé depuis analyze(), les nœuds
+    population/device/context/design restent UNKNOWN (honnête : le moteur
+    ne voit pas encore l'étude réelle à ce stade du pipeline). Un appelant
+    qui dispose d'un ComparisonReport (via study_object.compare_claim_to_
+    study) peut soit le passer directement ici, soit appeler
+    attach_comparison_report() après coup sur un graphe déjà construit.
     """
     graph = ReviewCausalGraph(claim_text=claim.text, causal_structure=causal_structure)
 
@@ -206,8 +227,17 @@ def build_review_causal_graph(
         source = "intervention" if ea.causal_role == CausalRole.INDEPENDENT else "mechanism"
         graph.edges.append(DAGEdge(source, node_id))
 
-    graph.nodes.append(_build_population_node(comparison_report))
+    graph.nodes.append(_build_dimension_node(comparison_report, "population", "population", NodeType.POPULATION))
     graph.edges.append(DAGEdge("intervention", "population"))
+
+    graph.nodes.append(_build_dimension_node(comparison_report, "device", "device", NodeType.DEVICE))
+    graph.edges.append(DAGEdge("intervention", "device"))
+
+    graph.nodes.append(_build_dimension_node(comparison_report, "context", "context", NodeType.CONTEXT))
+    graph.edges.append(DAGEdge("intervention", "context"))
+
+    graph.nodes.append(_build_design_node(comparison_report))
+    graph.edges.append(DAGEdge("mechanism", "design"))
 
     conclusion_id = "conclusion"
     graph.nodes.append(
@@ -224,38 +254,80 @@ def build_review_causal_graph(
     for eid in endpoint_ids:
         graph.edges.append(DAGEdge(eid, conclusion_id))
     graph.edges.append(DAGEdge("comparator", conclusion_id))
+    graph.edges.append(DAGEdge("design", conclusion_id))
 
     return graph
 
 
-def _build_population_node(comparison_report: "Optional[ComparisonReport]") -> GraphNode:
+_DIMENSION_OK_LABELS = {
+    "population": "Population étudiée conforme à l'indication revendiquée",
+    "device": "Dispositif étudié conforme au dispositif revendiqué",
+    "context": "Contexte de l'étude conforme au système de santé cible",
+}
+
+
+def _build_dimension_node(
+    comparison_report: "Optional[ComparisonReport]",
+    dimension: str,
+    node_id: str,
+    node_type: NodeType,
+) -> GraphNode:
+    """Construit un nœud générique à partir d'un ClaimStudyGap de
+    ComparisonReport.gaps, pour les dimensions à statut simple (0 ou 1 gap
+    possible) : population, device, context. `design` a sa propre fonction
+    car plusieurs gaps peuvent coexister sur cette dimension."""
     if comparison_report is None:
         return GraphNode(
-            "population",
-            NodeType.POPULATION,
+            node_id,
+            node_type,
+            "Non branché — comparison_report non fourni",
+            status=NodeStatus.UNKNOWN,
+            justification=(
+                f"build_review_causal_graph() a été appelé sans comparison_report : "
+                f"impossible d'évaluer la dimension '{dimension}' sans le StudyObject réel."
+            ),
+        )
+    gap = next((g for g in comparison_report.gaps if g.dimension == dimension), None)
+    if gap is not None:
+        return GraphNode(node_id, node_type, gap.description, status=NodeStatus.GAP, justification=gap.has_critique)
+    return GraphNode(
+        node_id, node_type, _DIMENSION_OK_LABELS[dimension], status=NodeStatus.OK, justification=None
+    )
+
+
+def _build_design_node(comparison_report: "Optional[ComparisonReport]") -> GraphNode:
+    """Agrège les gaps dimension="design" (dossier réglementaire au sens
+    large : exploratoire vs. outcome, non-randomisé, mono-bras, durée de
+    suivi, marquage CE...), à l'exclusion des gaps déjà représentés par le
+    nœud "comparator" (voir avertissement en tête de fichier)."""
+    if comparison_report is None:
+        return GraphNode(
+            "design",
+            NodeType.DESIGN,
             "Non branché — comparison_report non fourni",
             status=NodeStatus.UNKNOWN,
             justification=(
                 "build_review_causal_graph() a été appelé sans comparison_report : "
-                "impossible de savoir si la population étudiée correspond à "
-                "l'indication revendiquée sans le StudyObject réel."
+                "impossible d'évaluer les gaps de design sans le StudyObject réel."
             ),
         )
-    population_gap = next(
-        (g for g in comparison_report.gaps if g.dimension == "population"), None
-    )
-    if population_gap is not None:
+    design_gaps = [
+        g
+        for g in comparison_report.gaps
+        if g.dimension == "design" and "comparateur" not in g.description.lower()
+    ]
+    if design_gaps:
         return GraphNode(
-            "population",
-            NodeType.POPULATION,
-            population_gap.description,
+            "design",
+            NodeType.DESIGN,
+            "; ".join(g.description for g in design_gaps),
             status=NodeStatus.GAP,
-            justification=population_gap.has_critique,
+            justification="; ".join(g.has_critique for g in design_gaps if g.has_critique) or None,
         )
     return GraphNode(
-        "population",
-        NodeType.POPULATION,
-        "Population étudiée conforme à l'indication revendiquée",
+        "design",
+        NodeType.DESIGN,
+        "Aucun gap de design identifié (hors comparateur, traité séparément)",
         status=NodeStatus.OK,
         justification=None,
     )
@@ -264,12 +336,17 @@ def _build_population_node(comparison_report: "Optional[ComparisonReport]") -> G
 def attach_comparison_report(
     graph: ReviewCausalGraph, comparison_report: "ComparisonReport"
 ) -> ReviewCausalGraph:
-    """Remplace le nœud population d'un graphe déjà construit, une fois un
-    ComparisonReport disponible (ex: après compare_claim_to_study()).
-    Mutation en place, retourne le même objet pour chaînage."""
-    new_pop_node = _build_population_node(comparison_report)
+    """Remplace les nœuds population/device/context/design d'un graphe déjà
+    construit, une fois un ComparisonReport disponible (ex: après
+    compare_claim_to_study()). Mutation en place, retourne le même objet
+    pour chaînage."""
+    replacements = {
+        "population": _build_dimension_node(comparison_report, "population", "population", NodeType.POPULATION),
+        "device": _build_dimension_node(comparison_report, "device", "device", NodeType.DEVICE),
+        "context": _build_dimension_node(comparison_report, "context", "context", NodeType.CONTEXT),
+        "design": _build_design_node(comparison_report),
+    }
     for i, n in enumerate(graph.nodes):
-        if n.id == "population":
-            graph.nodes[i] = new_pop_node
-            break
+        if n.id in replacements:
+            graph.nodes[i] = replacements[n.id]
     return graph
