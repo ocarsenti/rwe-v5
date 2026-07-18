@@ -34,6 +34,10 @@ Couverture des dimensions de ComparisonReport.gaps (study_object.py) :
                    description — heuristique imparfaite (même famille de
                    limite que le matching par mots-clés déjà connu dans
                    endpoint_classifier.py), documentée plutôt que masquée.
+                   Le statut GAP/UNKNOWN du nœud "design", en revanche, lit
+                   ClaimStudyGap.evidence_status (champ structuré) plutôt
+                   que du texte — corrigé le 2026-07-18, voir EvidenceStatus
+                   dans study_object.py.
     endpoint    -> NON représenté par un nœud dédié : ce sont déjà les
                    nœuds endpoint_N existants (EndpointAnalysis.flags),
                    ajouter un nœud de plus dupliquerait l'information.
@@ -48,9 +52,10 @@ from typing import Optional
 from models import BiasDetection, CausalRole, CausalStructure, ClinicalClaim, DAGEdge, EndpointAnalysis
 
 try:
-    from study_object import ComparisonReport
+    from study_object import ComparisonReport, EvidenceStatus
 except ImportError:  # pragma: no cover - study_object may not always be loaded
     ComparisonReport = None  # type: ignore
+    EvidenceStatus = None  # type: ignore
 
 
 # ---------------------------------------------------------------------------
@@ -317,20 +322,17 @@ def _build_design_node(comparison_report: "Optional[ComparisonReport]") -> Graph
         if g.dimension == "design" and "comparateur" not in g.description.lower()
     ]
     if design_gaps:
-        # Une absence de donnée (ex: centricité non renseignée) n'est pas
-        # une faiblesse confirmée : distinguer les deux au niveau du statut
-        # du nœud, pas seulement dans le texte. Sévérité seule NE SUFFIT
-        # PAS comme signal (vérifié : le gap "suivi 12-24 mois" est aussi
-        # LOW alors que c'est une faiblesse confirmée, pas une absence de
-        # donnée) — le marqueur utilisé est donc la formulation exacte
-        # "ne peut pas être évalué", introduite spécifiquement pour les cas
-        # d'absence de donnée dans study_object.py. Même famille de
-        # limite que le filtre "comparateur" ci-dessus : heuristique
-        # textuelle, pas un champ structuré (ClaimStudyGap n'a pas de
-        # sous-type dédié) — fragile si la formulation change ailleurs
-        # sans que ce filtre soit mis à jour en conséquence.
+        # Une absence de donnée (evidence_status=UNKNOWN) n'est pas une
+        # faiblesse confirmée : distinguer les deux au niveau du statut du
+        # nœud, pas seulement dans le texte. Lit désormais le champ
+        # structuré ClaimStudyGap.evidence_status plutôt que de chercher
+        # une phrase précise dans description — corrige le couplage
+        # texte/logique identifié le 2026-07-18 (le moteur ne "raisonne"
+        # plus sur une formulation humaine). NOT_APPLICABLE est traité
+        # comme UNKNOWN ici (ni l'un ni l'autre n'est une faiblesse
+        # confirmée) ; aucun site d'appel ne l'utilise encore.
         has_confirmed_weakness = any(
-            "ne peut pas être évalué" not in g.description for g in design_gaps
+            g.evidence_status == EvidenceStatus.CONFIRMED for g in design_gaps
         )
         status = NodeStatus.GAP if has_confirmed_weakness else NodeStatus.UNKNOWN
         return GraphNode(

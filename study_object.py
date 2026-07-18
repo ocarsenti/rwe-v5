@@ -333,12 +333,44 @@ class StudyObject:
 # ComparisonReport — Claim ↔ Study gap analysis
 # ---------------------------------------------------------------------------
 
+class EvidenceStatus(Enum):
+    """Distingue la NATURE épistémique d'un gap, indépendamment de sa
+    formulation textuelle. Ajouté suite à un problème identifié le
+    2026-07-18 : review_causal_graph.py décidait auparavant si un gap
+    "design" reflétait une faiblesse confirmée ou une simple absence de
+    donnée en cherchant la phrase exacte "ne peut pas être évalué" dans
+    `description` — un raisonnement du moteur qui dépendait d'une
+    formulation humaine plutôt que d'une métadonnée structurée. Ce champ
+    remplace ce couplage texte/logique.
+
+    CONFIRMED     — faiblesse méthodologique établie à partir d'une donnée
+                    connue (ex: is_multicentric is False)
+    UNKNOWN       — impossible à évaluer par absence de donnée transmise
+                    au moteur (ex: is_multicentric is None). Ne doit
+                    JAMAIS être traité comme une faiblesse confirmée —
+                    c'est précisément la distinction que ce champ existe
+                    pour préserver.
+    NOT_APPLICABLE — la question ne se pose pas dans ce contexte (ex: pas
+                    besoin d'aveugle pour un critère objectif en chirurgie).
+                    Pas encore utilisé par un site d'appel à ce jour ;
+                    prévu pour des cas futurs plutôt que deviné maintenant.
+    """
+    CONFIRMED = "CONFIRMED"
+    UNKNOWN = "UNKNOWN"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+
+
 @dataclass
 class ClaimStudyGap:
     dimension: str    # "device", "population", "context", "design", "endpoint"
     severity: str     # "LOW", "MEDIUM", "HIGH", "CRITICAL"
     description: str
     has_critique: str
+    # Défaut CONFIRMED : tous les sites d'appel existants (gaps réels connus)
+    # restent inchangés sans modification. Seul le gap de centricité inconnue
+    # positionne explicitement UNKNOWN — migration minimale, cf. échange du
+    # 2026-07-18.
+    evidence_status: EvidenceStatus = EvidenceStatus.CONFIRMED
 
     def to_dict(self) -> dict:
         return {
@@ -346,6 +378,7 @@ class ClaimStudyGap:
             "severity": self.severity,
             "description": self.description,
             "has_critique": self.has_critique,
+            "evidence_status": self.evidence_status.value,
         }
 
 
@@ -694,6 +727,7 @@ def _design_gaps(claim: ClinicalClaim, study: StudyObject) -> list[ClaimStudyGap
                 "lié au site : c'est une absence de donnée. Documenter la centricité "
                 "de l'étude permettrait d'évaluer ce point."
             ),
+            evidence_status=EvidenceStatus.UNKNOWN,
         ))
 
     # Primary analysis set declared as per-protocol rather than ITT — for an outcome
