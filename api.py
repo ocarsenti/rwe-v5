@@ -39,6 +39,7 @@ from gold_dataset import process_all_cases, generate_gold_dataset, ALL_CASES
 from llm_claim_parser import parse_claim_smart
 from translations import translate_engine_output
 from study_object import enrich_claim_with_study_object, compare_claim_to_study
+from review_causal_graph import attach_comparison_report
 from llm_evidence_parser import (
     _parse_study_object_result,
     parse_study_object_with_llm_consensus,
@@ -549,8 +550,10 @@ def diagnose_repair_endpoint(req: DiagnoseRepairRequest):
     study = _parse_study_object_result(study_json, claim.intervention, claim.text)
     enrich_claim_with_study_object(claim, study)
     epistemic = analyze(claim, lang=req.lang)
-    epistemic_dict = translate_engine_output(epistemic.to_dict(), lang=req.lang)
     report = compare_claim_to_study(claim, study, epistemic_output=epistemic)
+    if epistemic.review_causal_graph is not None:
+        attach_comparison_report(epistemic.review_causal_graph, report)
+    epistemic_dict = translate_engine_output(epistemic.to_dict(), lang=req.lang)
     repair = repair_comparison(report, claim, epistemic_output=epistemic)
 
     gaps = [
@@ -681,8 +684,10 @@ async def diagnose_premium_endpoint(
     # 3. Enrich claim + run full pipeline
     enrich_claim_with_study_object(claim, study)
     epistemic = analyze(claim, lang=lang)
-    epistemic_dict = translate_engine_output(epistemic.to_dict(), lang=lang)
     report = compare_claim_to_study(claim, study, epistemic_output=epistemic)
+    if epistemic.review_causal_graph is not None:
+        attach_comparison_report(epistemic.review_causal_graph, report)
+    epistemic_dict = translate_engine_output(epistemic.to_dict(), lang=lang)
     repair = repair_comparison(report, claim, epistemic_output=epistemic)
 
     result = _build_gap_response(report, repair, claim, epistemic)
