@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 from models import (
@@ -12,6 +13,12 @@ from models import (
     EndpointAnalysis,
     EndpointNature,
 )
+
+# Première utilisation de `logging` dans ce codebase (2026-07-18) — choix
+# volontaire de la bibliothèque standard plutôt qu'un mécanisme maison,
+# pour rester intégrable sans configuration supplémentaire dans n'importe
+# quel pipeline (stdout, fichier, service de logs...).
+logger = logging.getLogger(__name__)
 
 
 HARD_CLINICAL_MARKERS = [
@@ -134,17 +141,46 @@ def _match_nature(endpoint: Endpoint) -> tuple[EndpointNature, str]:
     # must win over the content-based SUBJECTIVE/OBJECTIVE classification.
     marker = _first_marker_match(INSTRUMENTED_MARKERS, text)
     if marker:
+        _log_nature_disagreement(endpoint, EndpointNature.INSTRUMENTED, marker)
         return EndpointNature.INSTRUMENTED, f"matched INSTRUMENTED marker '{marker}'"
 
     marker = _first_marker_match(SUBJECTIVE_MARKERS, text)
     if marker:
+        _log_nature_disagreement(endpoint, EndpointNature.SUBJECTIVE, marker)
         return EndpointNature.SUBJECTIVE, f"matched SUBJECTIVE marker '{marker}'"
 
     marker = _first_marker_match(OBJECTIVE_MARKERS, text)
     if marker:
+        _log_nature_disagreement(endpoint, EndpointNature.OBJECTIVE, marker)
         return EndpointNature.OBJECTIVE, f"matched OBJECTIVE marker '{marker}'"
 
     return endpoint.nature, "no marker matched; defaulted to endpoint.nature"
+
+
+def _log_nature_disagreement(
+    endpoint: Endpoint, marker_nature: EndpointNature, marker: str
+) -> None:
+    """Journalise silencieusement (WARNING, jamais bloquant) quand le
+    verdict par mots-clés diffère de la nature déjà posée sur l'endpoint
+    (LLM, JSON, ou toute autre source amont). Ajouté le 2026-07-18 suite au
+    cas FIQ/FIBROREM, où ce désaccord serait passé inaperçu : le mot-clé
+    écrasait silencieusement l'autre source, sans aucune trace.
+
+    Ne tranche PAS qui a raison — les deux sources peuvent se tromper (le
+    mot-clé n'écrase pas nécessairement une extraction LLM : endpoint.nature
+    peut lui-même déjà être le résultat d'un fallback par mots-clés côté
+    llm_evidence_parser.py quand le JSON source ne précisait rien). Sert
+    uniquement à mesurer la fréquence réelle des désaccords sur des vrais
+    dossiers, pour décider s'il faut enrichir le vocabulaire ou construire
+    un mécanisme plus élaboré — pas pour bloquer ou solliciter qui que ce
+    soit à l'exécution.
+    """
+    if endpoint.nature != marker_nature:
+        logger.warning(
+            "endpoint_classifier: nature disagreement on endpoint %r — "
+            "pre-set nature=%s vs marker-derived nature=%s (marker matched: %r)",
+            endpoint.name, endpoint.nature.value, marker_nature.value, marker,
+        )
 
 
 def _match_causal_role(endpoint: Endpoint, nature: EndpointNature) -> CausalRole:
