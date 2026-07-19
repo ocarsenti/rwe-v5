@@ -121,6 +121,7 @@ FIBREPIK_JSON = {
             "name": "score FIQ à 3 mois (réduction ≥14%)",
             "is_primary": True,
             "time_point": "3 mois",
+            "description": "Réduction cliniquement pertinente du FIQ ≥14% entre J0 et 3 mois — auto-questionnaire complété par le patient avant consultation médicale",
             "is_validated_surrogate": False,
             "is_independently_adjudicated": False,
             "result_direction": "superior",

@@ -117,6 +117,13 @@ class StudyEndpoint:
     name: str
     is_primary: bool = False
     time_point: str = ""
+    # Ajouté le 2026-07-18 : absent jusqu'ici, ce qui privait la
+    # classification nature/causal_role de tout texte au-delà du nom brut
+    # de l'endpoint pour les endpoints issus de l'étude (cf. cas FIQ/
+    # FIBROREM — "score FIQ à 3 mois" seul ne suffit pas, la mention
+    # "auto-questionnaire complété par le patient" qui le distingue d'une
+    # mesure objective ne vivait que côté ClinicalClaim, jamais transmise).
+    description: str = ""
     is_validated_surrogate: bool = False
     is_feasibility_accepted_surrogate: bool = False
     is_independently_adjudicated: bool = False
@@ -136,6 +143,7 @@ class StudyEndpoint:
             "name": self.name,
             "is_primary": self.is_primary,
             "time_point": self.time_point,
+            "description": self.description,
             "is_validated_surrogate": self.is_validated_surrogate,
             "is_feasibility_accepted_surrogate": self.is_feasibility_accepted_surrogate,
             "is_independently_adjudicated": self.is_independently_adjudicated,
@@ -1494,6 +1502,7 @@ def enrich_claim_with_study_object(
                 nature=ep.nature,
                 causal_role=ep.causal_role,
                 is_primary=ep.is_primary,
+                description=ep.description,
                 is_validated_surrogate=ep.is_validated_surrogate,
                 is_feasibility_accepted_surrogate=ep.is_feasibility_accepted_surrogate,
                 is_independently_adjudicated=ep.is_independently_adjudicated,
