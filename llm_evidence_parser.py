@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 
 import anthropic
 
+from endpoint_classifier import INSTRUMENTED_MARKERS, OBJECTIVE_MARKERS, SUBJECTIVE_MARKERS, _first_marker_match
 from models import (
     CarePathwayMatch,
     CausalRole,
@@ -1258,6 +1259,33 @@ def parse_study_object_with_llm_consensus(
     return study, unstable_fields
 
 
+def _classify_nature_from_text(ep: dict) -> EndpointNature:
+    """Filet de sécurité quand le JSON d'étude ne fournit pas (ou fournit une
+    valeur invalide pour) le champ "nature" d'un endpoint. Auparavant :
+    défaut codé en dur sur EndpointNature.OBJECTIVE, silencieusement — un
+    endpoint réellement subjectif (questionnaire patient) sans champ
+    "nature" explicite se retrouvait donc classé OBJECTIVE avant même que
+    endpoint_classifier._match_nature() n'ait la moindre chance de le
+    reclasser correctement (son propre filet de sécurité fait confiance à
+    endpoint.nature quand aucun marqueur ne matche — donc hériter d'un
+    mauvais défaut ici se propage). Corrigé le 2026-07-18 (cas FIQ/
+    FIBROREM) : réutilise les mêmes listes de marqueurs et le même ordre de
+    priorité (INSTRUMENTED > SUBJECTIVE > OBJECTIVE) que le classificateur
+    principal, plutôt que de dupliquer une logique différente ici.
+    Dernier recours si aucun marqueur ne matche : OBJECTIVE reste le défaut
+    (EndpointNature n'a pas de valeur UNKNOWN) — risque résiduel documenté,
+    pas éliminé.
+    """
+    text = f"{ep.get('name', '')} {ep.get('description', '')}".lower()
+    if _first_marker_match(INSTRUMENTED_MARKERS, text):
+        return EndpointNature.INSTRUMENTED
+    if _first_marker_match(SUBJECTIVE_MARKERS, text):
+        return EndpointNature.SUBJECTIVE
+    if _first_marker_match(OBJECTIVE_MARKERS, text):
+        return EndpointNature.OBJECTIVE
+    return EndpointNature.OBJECTIVE
+
+
 def _parse_study_object_result(
     data: dict,
     claim_device: str,
@@ -1335,7 +1363,7 @@ def _parse_study_object_result(
             is_independently_adjudicated=bool(ep.get("is_independently_adjudicated", False)),
             result_direction=result_dir,
             reached_significance=ep.get("reached_significance"),
-            nature=_NATURE_MAP.get(ep.get("nature", "OBJECTIVE"), EndpointNature.OBJECTIVE),
+            nature=_NATURE_MAP.get(ep.get("nature"), None) or _classify_nature_from_text(ep),
             causal_role=_CAUSAL_ROLE_MAP.get(ep.get("causal_role", "INDEPENDENT"), CausalRole.INDEPENDENT),
             value_fixed_by_protocol=bool(ep.get("value_fixed_by_protocol", False)),
         ))

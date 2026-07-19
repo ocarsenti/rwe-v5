@@ -62,11 +62,18 @@ SUBJECTIVE_MARKERS = [
     # English
     "pain", "qol", "quality of life", "satisfaction", "anxiety",
     "depression", "fatigue", "well-being", "comfort", "patient-reported",
-    "self-reported", "perception", "symptom score",
-    # French
+    "self-reported", "perception", "symptom score", "questionnaire",
+    "self-administered questionnaire", "patient-administered",
+    # French. "échelle" est plus large que les autres marqueurs (une échelle
+    # peut aussi être clinicien-rapportée) — ajouté le 2026-07-18 car les
+    # échelles patient les plus courantes du domaine (EVA, PSQI, HAD, FIQ)
+    # sont presque toujours qualifiées d'"échelle" dans les descriptions
+    # d'étude ; compromis assumé plutôt qu'une couverture nulle pour ces
+    # instruments (cf. le cas FIQ/FIBROREM qui a motivé cet ajout).
     "douleur", "qualité de vie", "satisfaction", "anxiété",
     "dépression", "fatigue", "bien-être", "confort", "auto-rapporté",
     "auto-évalué", "auto-déclaré", "perception", "score de symptômes",
+    "questionnaire", "auto-questionnaire", "échelle",
 ]
 
 OBJECTIVE_MARKERS = [
