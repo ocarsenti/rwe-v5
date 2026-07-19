@@ -4783,7 +4783,7 @@ def _rcg_endpoint_analysis(ep: Endpoint, flags=None, flag_reasons=None) -> "_RCG
 
 class TestReviewCausalGraph(unittest.TestCase):
 
-    def test_basic_structure_ten_nodes(self):
+    def test_basic_structure_eleven_nodes(self):
         claim = _rcg_claim()
         eas = [_rcg_endpoint_analysis(claim.endpoints[0])]
         graph = build_review_causal_graph(claim, eas, CausalStructure.DIRECT, [])
@@ -4791,7 +4791,7 @@ class TestReviewCausalGraph(unittest.TestCase):
         self.assertEqual(
             node_ids,
             {"claim", "intervention", "mechanism", "comparator", "endpoint_0",
-             "population", "device", "context", "design", "conclusion"},
+             "population", "device", "context", "design", "measurement_bias", "conclusion"},
         )
 
     def test_is_acyclic(self):
@@ -4901,6 +4901,27 @@ class TestReviewCausalGraph(unittest.TestCase):
         path = graph.explain_path("conclusion")
         self.assertEqual(path[0].id, "claim")
         self.assertEqual(path[-1].id, "conclusion")
+
+    def test_measurement_bias_split_from_design(self):
+        """subjective_no_blinding doit aller dans measurement_bias, jamais
+        apparaître dans le label de design — extrait le 2026-07-18 suite à
+        la vérification de co-occurrence sur le corpus HAS (94 avis :
+        T04 co-occurre avec T02 dans 44% des cas, avec T01 dans 64%)."""
+        claim = _rcg_claim()
+        eas = [_rcg_endpoint_analysis(claim.endpoints[0])]
+        gaps = [
+            _gap("design", "HIGH", "Critère principal patient-rapporté sans aveugle ni sham.", topic="subjective_no_blinding"),
+            _gap("design", "MEDIUM", "Suivi de 3 mois insuffisant.", topic="follow_up_insufficient"),
+        ]
+        report = _make_comparison_report(gaps, OverallRisk.HIGH)
+        graph = build_review_causal_graph(claim, eas, CausalStructure.DIRECT, [], report)
+
+        design_label = graph._node("design").label.lower()
+        mb_node = graph._node("measurement_bias")
+        self.assertNotIn("aveugle", design_label)
+        self.assertIn("suivi", design_label)
+        self.assertEqual(mb_node.status, NodeStatus.GAP)
+        self.assertIn("aveugle", mb_node.label.lower())
 
     def test_endpoint_node_gap_from_bias_flag_alone(self):
         claim = _rcg_claim()

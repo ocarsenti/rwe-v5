@@ -97,6 +97,13 @@ class NodeType(Enum):
     DEVICE = "DEVICE"
     CONTEXT = "CONTEXT"
     DESIGN = "DESIGN"
+    # Extrait de DESIGN le 2026-07-18 : le corpus HAS réel (94 avis) montre
+    # que T04 (biais de mesure/aveugle) co-occurre avec T02 (design
+    # inadéquat) dans 17/39 avis (44%) et avec T01 (comparateur) dans
+    # 27/42 avis (64%) — fréquent, pas un cas rare. Fondre systématiquement
+    # ce sujet dans le nœud design masquait une distinction que le corpus
+    # traite lui-même comme une catégorie à part entière.
+    MEASUREMENT_BIAS = "MEASUREMENT_BIAS"
     CONCLUSION = "CONCLUSION"
 
 
@@ -297,6 +304,9 @@ def build_review_causal_graph(
     graph.nodes.append(_build_design_node(comparison_report))
     graph.edges.append(DAGEdge("mechanism", "design"))
 
+    graph.nodes.append(_build_measurement_bias_node(comparison_report))
+    graph.edges.append(DAGEdge("mechanism", "measurement_bias"))
+
     conclusion_id = "conclusion"
     graph.nodes.append(
         GraphNode(
@@ -313,6 +323,7 @@ def build_review_causal_graph(
         graph.edges.append(DAGEdge(eid, conclusion_id))
     graph.edges.append(DAGEdge("comparator", conclusion_id))
     graph.edges.append(DAGEdge("design", conclusion_id))
+    graph.edges.append(DAGEdge("measurement_bias", conclusion_id))
 
     return graph
 
@@ -356,52 +367,85 @@ def _build_dimension_node(
 def _build_design_node(comparison_report: "Optional[ComparisonReport]") -> GraphNode:
     """Agrège les gaps dimension="design" (dossier réglementaire au sens
     large : exploratoire vs. outcome, non-randomisé, mono-bras, durée de
-    suivi, marquage CE...), à l'exclusion des gaps déjà représentés par le
-    nœud "comparator" (voir avertissement en tête de fichier)."""
+    suivi, marquage CE...), à l'exclusion des gaps déjà représentés par les
+    nœuds "comparator" (topic="no_comparator") et "measurement_bias"
+    (topic="subjective_no_blinding", extrait le 2026-07-18 — voir
+    MEASUREMENT_BIAS ci-dessus)."""
+    return _build_aggregated_gap_node(
+        comparison_report,
+        node_id="design",
+        node_type=NodeType.DESIGN,
+        excluded_topics={"no_comparator", "subjective_no_blinding"},
+        empty_label="Aucun gap de design identifié (hors comparateur et biais de mesure, traités séparément)",
+        no_report_label="Non branché — comparison_report non fourni",
+        no_report_justification=(
+            "build_review_causal_graph() a été appelé sans comparison_report : "
+            "impossible d'évaluer les gaps de design sans le StudyObject réel."
+        ),
+    )
+
+
+def _build_measurement_bias_node(comparison_report: "Optional[ComparisonReport]") -> GraphNode:
+    """Isole le gap topic="subjective_no_blinding" (critère principal
+    patient-rapporté sans aveugle ni sham) dans son propre nœud. Extrait de
+    "design" le 2026-07-18 : sur 94 avis CNEDiMTS réels, T04 (biais de
+    mesure/aveugle — la catégorie du corpus la plus proche) co-occurre avec
+    T02 (design) dans 44% des avis qui ont l'un ou l'autre, et avec T01
+    (comparateur) dans 64% des cas — fréquent, pas un cas marginal."""
+    return _build_aggregated_gap_node(
+        comparison_report,
+        node_id="measurement_bias",
+        node_type=NodeType.MEASUREMENT_BIAS,
+        included_topics={"subjective_no_blinding"},
+        empty_label="Aucun biais de mesure identifié",
+        no_report_label="Non branché — comparison_report non fourni",
+        no_report_justification=(
+            "build_review_causal_graph() a été appelé sans comparison_report : "
+            "impossible d'évaluer le biais de mesure sans le StudyObject réel."
+        ),
+    )
+
+
+def _build_aggregated_gap_node(
+    comparison_report: "Optional[ComparisonReport]",
+    node_id: str,
+    node_type: NodeType,
+    empty_label: str,
+    no_report_label: str,
+    no_report_justification: str,
+    excluded_topics: "Optional[set[str]]" = None,
+    included_topics: "Optional[set[str]]" = None,
+) -> GraphNode:
+    """Factorise la logique commune à _build_design_node() et
+    _build_measurement_bias_node() : agréger plusieurs ClaimStudyGap de
+    dimension="design" en un seul nœud, avec la même distinction
+    GAP/UNKNOWN basée sur evidence_status que partout ailleurs dans ce
+    module. `excluded_topics` XOR `included_topics` selon qu'on définit le
+    nœud par ce qu'il exclut (design = tout sauf X) ou par ce qu'il inclut
+    (measurement_bias = seulement X)."""
     if comparison_report is None:
         return GraphNode(
-            "design",
-            NodeType.DESIGN,
-            "Non branché — comparison_report non fourni",
-            status=NodeStatus.UNKNOWN,
-            justification=(
-                "build_review_causal_graph() a été appelé sans comparison_report : "
-                "impossible d'évaluer les gaps de design sans le StudyObject réel."
-            ),
+            node_id, node_type, no_report_label,
+            status=NodeStatus.UNKNOWN, justification=no_report_justification,
         )
-    design_gaps = [
-        g
-        for g in comparison_report.gaps
-        if g.dimension == "design" and g.topic != "no_comparator"
-    ]
-    if design_gaps:
+    gaps = [g for g in comparison_report.gaps if g.dimension == "design"]
+    if included_topics is not None:
+        gaps = [g for g in gaps if g.topic in included_topics]
+    if excluded_topics is not None:
+        gaps = [g for g in gaps if g.topic not in excluded_topics]
+    if gaps:
         # Une absence de donnée (evidence_status=UNKNOWN) n'est pas une
         # faiblesse confirmée : distinguer les deux au niveau du statut du
-        # nœud, pas seulement dans le texte. Lit désormais le champ
-        # structuré ClaimStudyGap.evidence_status plutôt que de chercher
-        # une phrase précise dans description — corrige le couplage
-        # texte/logique identifié le 2026-07-18 (le moteur ne "raisonne"
-        # plus sur une formulation humaine). NOT_APPLICABLE est traité
-        # comme UNKNOWN ici (ni l'un ni l'autre n'est une faiblesse
-        # confirmée) ; aucun site d'appel ne l'utilise encore.
-        has_confirmed_weakness = any(
-            g.evidence_status == EvidenceStatus.CONFIRMED for g in design_gaps
-        )
+        # nœud, pas seulement dans le texte — cf. échange du 2026-07-18.
+        has_confirmed_weakness = any(g.evidence_status == EvidenceStatus.CONFIRMED for g in gaps)
         status = NodeStatus.GAP if has_confirmed_weakness else NodeStatus.UNKNOWN
         return GraphNode(
-            "design",
-            NodeType.DESIGN,
-            "; ".join(g.description for g in design_gaps),
+            node_id, node_type,
+            "; ".join(g.description for g in gaps),
             status=status,
-            justification="; ".join(g.has_critique for g in design_gaps if g.has_critique) or None,
+            justification="; ".join(g.has_critique for g in gaps if g.has_critique) or None,
         )
-    return GraphNode(
-        "design",
-        NodeType.DESIGN,
-        "Aucun gap de design identifié (hors comparateur, traité séparément)",
-        status=NodeStatus.OK,
-        justification=None,
-    )
+    return GraphNode(node_id, node_type, empty_label, status=NodeStatus.OK, justification=None)
 
 
 def _update_endpoint_node_with_relevance(
@@ -446,15 +490,16 @@ def _update_endpoint_node_with_relevance(
 def attach_comparison_report(
     graph: ReviewCausalGraph, comparison_report: "ComparisonReport"
 ) -> ReviewCausalGraph:
-    """Remplace les nœuds population/device/context/design, et complète les
-    nœuds endpoint_N, d'un graphe déjà construit, une fois un
-    ComparisonReport disponible (ex: après compare_claim_to_study()).
+    """Remplace les nœuds population/device/context/design/measurement_bias,
+    et complète les nœuds endpoint_N, d'un graphe déjà construit, une fois
+    un ComparisonReport disponible (ex: après compare_claim_to_study()).
     Mutation en place, retourne le même objet pour chaînage."""
     replacements = {
         "population": _build_dimension_node(comparison_report, "population", "population", NodeType.POPULATION),
         "device": _build_dimension_node(comparison_report, "device", "device", NodeType.DEVICE),
         "context": _build_dimension_node(comparison_report, "context", "context", NodeType.CONTEXT),
         "design": _build_design_node(comparison_report),
+        "measurement_bias": _build_measurement_bias_node(comparison_report),
     }
     for i, n in enumerate(graph.nodes):
         if n.id in replacements:
