@@ -222,7 +222,12 @@ def build_review_causal_graph(
 
     level_label = claim.level.value if claim.level else "UNKNOWN"
     graph.nodes.append(GraphNode("mechanism", NodeType.MECHANISM, level_label))
-    graph.edges.append(DAGEdge("intervention", "mechanism"))
+    # Rattaché à "claim" (et non "intervention") depuis le 2026-07-21 : claim.level
+    # est un champ de ClinicalClaim, au même titre que claim.text -- ce n'est pas
+    # une propriété dérivée du dispositif. Cf. discussion sur le graphe POPPINS :
+    # les nœuds d'évaluation doivent être rattachés à ce qui les détermine
+    # réellement (l'affirmation) plutôt qu'au voisin de chaîne le plus proche.
+    graph.edges.append(DAGEdge("claim", "mechanism"))
 
     comparator_flag = next(
         (bd for bd in bias_detections if bd.flag.value == "NO_COMPARATOR"), None
@@ -293,13 +298,21 @@ def build_review_causal_graph(
         graph.edges.append(DAGEdge(source, node_id))
 
     graph.nodes.append(_build_dimension_node(comparison_report, "population", "population", NodeType.POPULATION))
-    graph.edges.append(DAGEdge("intervention", "population"))
+    # Rattaché à "claim" depuis le 2026-07-21 : le gap population compare la
+    # population revendiquée (indication) à la population étudiée -- il dépend
+    # de ce qui est affirmé, pas du dispositif en tant que tel.
+    graph.edges.append(DAGEdge("claim", "population"))
 
     graph.nodes.append(_build_dimension_node(comparison_report, "device", "device", NodeType.DEVICE))
     graph.edges.append(DAGEdge("intervention", "device"))
 
     graph.nodes.append(_build_dimension_node(comparison_report, "context", "context", NodeType.CONTEXT))
-    graph.edges.append(DAGEdge("intervention", "context"))
+    # Rattaché à "claim" depuis le 2026-07-21 : les conditions d'usage évaluées
+    # ici sont celles affirmées par la revendication, pas une propriété du
+    # dispositif indépendamment de ce qui est revendiqué. "device" reste seul
+    # rattaché à "intervention" -- la conformité CE est un fait sur le
+    # dispositif lui-même, pas une comparaison avec la revendication.
+    graph.edges.append(DAGEdge("claim", "context"))
 
     graph.nodes.append(_build_design_node(comparison_report))
     graph.edges.append(DAGEdge("mechanism", "design"))
