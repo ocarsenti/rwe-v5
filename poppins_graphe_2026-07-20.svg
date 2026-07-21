@@ -47,8 +47,8 @@
 
 <g class="node c-gray">
 <rect x="310" y="192" width="220" height="56" rx="8"/>
-<text class="th" x="420" y="210" text-anchor="middle" dominant-baseline="central">Niveau de la claim</text>
-<text class="ts" x="420" y="228" text-anchor="middle" dominant-baseline="central">OUTCOME</text>
+<text class="th" x="420" y="210" text-anchor="middle" dominant-baseline="central">Type de revendication</text>
+<text class="ts" x="420" y="228" text-anchor="middle" dominant-baseline="central">Outcome clinique</text>
 </g>
 
 <g class="node c-teal">
@@ -84,7 +84,7 @@
 <g class="node c-teal">
 <rect x="310" y="364" width="220" height="56" rx="8" stroke-width="1"/>
 <text class="th" x="420" y="382" text-anchor="middle" dominant-baseline="central">Conclusion</text>
-<text class="ts" x="420" y="400" text-anchor="middle" dominant-baseline="central">Structure DIRECT</text>
+<text class="ts" x="420" y="400" text-anchor="middle" dominant-baseline="central">Inférence causale directe</text>
 </g>
 
 <g class="node c-coral">
