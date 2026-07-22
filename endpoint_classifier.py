@@ -59,8 +59,22 @@ INSTRUMENTED_MARKERS = [
     "sensor", "automated", "ai-generated", "algorithm", "app-reported",
     "connected", "digital biomarker", "time-to-treatment",
     # French
+    # NB (2026-07-22, cas AXOMOVE) : "télésurveillance"/"surveillance" ont été
+    # RETIRÉS de cette liste. Ce sont des mots de CANAL DE TRANSMISSION (le
+    # dossier appartient à la catégorie réglementaire "télésurveillance"), pas
+    # des marqueurs de MÉCANISME DE GÉNÉRATION de la valeur — contrairement à
+    # "capteur"/"automatisé"/"algorithme" qui, eux, désignent bien le dispositif
+    # comme producteur de la mesure. Avec ces deux mots dans la liste, un simple
+    # questionnaire auto-rapporté par le patient (PROM) était classé INSTRUMENTED/
+    # CIRCULAR dès qu'il était transmis via une plateforme de télésurveillance —
+    # ce qui est systématique dans TOUT dossier LATM télésurveillance, quel que
+    # soit l'endpoint. Testé : un PROM identique classé SUBJECTIVE/INDEPENDENT
+    # quand décrit via "l'application" devenait INSTRUMENTED/CIRCULAR simplement
+    # en le décrivant via "l'opérateur de télésurveillance" — aucun changement
+    # de contenu clinique, seul le mot de canal changeait. Un vrai endpoint
+    # capté par capteur reste couvert par "capteur"/"automatisé"/"algorithme".
     "délai jusqu'à détection", "alerte", "généré par le dispositif",
-    "télésurveillance", "surveillance", "capteur", "automatisé",
+    "capteur", "automatisé",
     "généré par ia", "algorithme", "signalé par l'application",
     "connecté", "biomarqueur numérique", "délai jusqu'au traitement",
 ]
@@ -100,8 +114,15 @@ OBJECTIVE_MARKERS = [
 
 
 def _marker_pattern(marker: str) -> re.Pattern[str]:
-    """Compile a marker into a word-boundary regex (avoids false positives like "lab" in "label")."""
-    return re.compile(rf"\b{re.escape(marker)}\b")
+    """Compile a marker into a word-boundary regex (avoids false positives like "lab" in "label").
+
+    Trailing 's' is optional (2026-07-22, cas AXOMOVE) so that a singular marker
+    like "alerte" also matches the plural "alertes" as it appears verbatim in
+    real HAS avis text (e.g. "peuvent faire l'objet d'alertes") — without this,
+    DETECTION_BIAS silently failed to fire on any endpoint description phrased
+    in the plural, which is the common case in French regulatory prose.
+    """
+    return re.compile(rf"\b{re.escape(marker)}s?\b")
 
 
 def _first_marker_match(markers: list[str], text: str) -> str | None:
