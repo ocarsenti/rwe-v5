@@ -65,6 +65,27 @@ aujourd'hui cloisonnés (aucun code ne mélange TargetDAG et
 ReviewCausalGraph), mais un futur lecteur du code doit garder cette
 distinction en tête — DAGEdge ne garantit par elle-même aucune des deux
 sémantiques, c'est le graphe qui la porte.
+
+Précision supplémentaire (discussion du 2026-07-21, à propos de l'arête
+mechanism -> design) : "dépendance d'argumentation" ci-dessus se lit
+précisément comme "pour évaluer B, le moteur a besoin de connaître A" —
+PAS "A cause B" au sens causal/statistique/biologique. mechanism -> design
+est un bon exemple limite : claim.level (le champ qui alimente le nœud
+"mechanism") n'a scientifiquement aucun rapport causal avec la
+randomisation ou le multicentrisme d'un protocole — ce sont des propriétés
+du protocole, pas de la revendication. L'arête est pourtant valide
+aujourd'hui, parce que les 5 occurrences de
+`claim.level in (ClaimLevel.C, ClaimLevel.D)` dans _design_gaps()
+(study_object.py) n'apparaissent QUE comme condition d'activation de
+règles ("est-ce que je regarde ce critère pour cette revendication"),
+jamais pour calculer la valeur ou la sévérité d'un gap. C'est donc une
+dépendance de SÉLECTION DE RÈGLES, pas de calcul — elle relève bien du
+raisonnement du moteur, pas du monde réel.
+Cette validité est conditionnelle : si cette logique de gating par
+claim.level sort un jour de _design_gaps() (et des autres fonctions
+_*_gaps()) vers un dispatcher de règles indépendant en amont, l'arête
+mechanism -> design perdra sa justification actuelle et devra être
+réévaluée à ce moment-là — pas avant.
 """
 
 from __future__ import annotations
