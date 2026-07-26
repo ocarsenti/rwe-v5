@@ -145,10 +145,10 @@ if __name__ == "__main__":
     import sys
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-    ns = {}
     import io
     from contextlib import redirect_stdout
     _rwe_dir = os.path.dirname(os.path.abspath(__file__))
+    ns = {"__file__": os.path.join(_rwe_dir, "test_odysight_repair.py")}
     with redirect_stdout(io.StringIO()):
         exec(compile(open(os.path.join(_rwe_dir, "test_odysight_repair.py"), encoding="utf-8").read(),
                       "test_odysight_repair.py", "exec"), ns)
