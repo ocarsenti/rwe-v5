@@ -202,6 +202,7 @@ def ingest_engine_diagnostics(conn):
         ("INSPIRE IV", "test_inspire_repair.py"),
         ("TRIPLE ACTION", "case_triple_action.py"),
         ("I-STOP", "case_istop.py"),
+        ("SOMNIO", "case_somnio.py"),
     ]
 
     import io
@@ -282,6 +283,8 @@ def ingest_manually_verified_decisions(conn):
          "DEFAVORABLE", "INSUFFISANT", "DISPOSITIF_PORTE_EXTERNE"),  # avis CNEDIMTS-7620, 28/01/2025
         ("I-STOP", "LPPR", "DiLo Medical / Apis Technologies", 2024, "DEFAVORABLE", "INSUFFISANT",
          "IMPLANT_PASSIF"),  # avis CNEDIMTS-7439, 26/03/2024 (SR, renouvellement intra-GHS)
+        ("SOMNIO", "LPPR", "RESMED / MEMENTOR DE GmbH", 2025, "DEFAVORABLE", "INSUFFISANT",
+         "DISPOSITIF_NUMERIQUE"),  # avis CNEDIMTS-7781, 15/07/2025
     ]
     n = 0
     for device_name, device_type, company, year, decision, sa_level, device_category in rows:
