@@ -12,6 +12,28 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=True)
 
 import io
 
+# --- Persistance optionnelle pour la base de patterns (apprentissage cross-
+# dossiers). Désactivée par défaut (opt-in via variable d'environnement) et
+# jamais bloquante : toute erreur ici est journalisée sans jamais interrompre
+# une requête API réelle. Si persist_case.py est absent, l'API continue de
+# fonctionner normalement sans persistance.
+_PERSIST_LEARNING = os.environ.get("EVIDENCEABLE_PERSIST_LEARNING", "0") == "1"
+try:
+    from persist_case import persist_diagnosis as _persist_diagnosis
+except Exception:
+    _persist_diagnosis = None
+
+
+def _maybe_persist(case_label, claim, result, comparison=None):
+    """Persiste le diagnostic si l'option est activée — ne lève jamais."""
+    if not _PERSIST_LEARNING or _persist_diagnosis is None:
+        return
+    try:
+        _persist_diagnosis(case_label, claim, result, comparison, source_script="api_live")
+    except Exception as exc:  # ne jamais faire échouer une requête réelle pour ça
+        print(f"[persist_case] persistance ignorée (non bloquant) : {exc}")
+
+
 from typing import Optional
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -181,6 +203,7 @@ def review_endpoint(req: ReviewRequest):
         domain=req.domain,
     )
     result = analyze(claim)
+    _maybe_persist(req.intervention or req.text[:60], claim, result)
     return result.to_dict()
 
 
@@ -231,6 +254,8 @@ def smart_review_endpoint(req: SmartReviewRequest):
     output = result.to_dict()
     output = translate_engine_output(output, lang=req.lang)
     output["_parse_info"] = parse_info
+
+    _maybe_persist(parsed.intervention or req.text[:60], parsed, result)
 
     return output
 

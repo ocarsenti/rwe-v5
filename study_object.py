@@ -241,6 +241,14 @@ class StudyObject:
     # alpha-splitting) — cf. avis CNEDiMTS ENTERRA II 7254: accepted but with a
     # downgraded ASA specifically because of endpoint multiplicity without hierarchy.
     endpoint_hierarchy_prespecified: Optional[bool] = None
+    # Distinct from endpoint_hierarchy_prespecified above (which is about multiple
+    # CO-PRIMARY endpoints without hierarchy): this is about a single primary
+    # endpoint accompanied by MANY secondary endpoints explored without any
+    # documented control of the type-I error rate. cf. avis CNEDiMTS FIBROREM
+    # 7689: "Critères de jugement secondaires multiples et non hiérarchisés...
+    # Résultats intéressants à titre exploratoire mais non conclusifs" — a
+    # distinct and far more common pattern than the co-primary case.
+    secondary_endpoints_alpha_correction: Optional[bool] = None
 
     # Statistics
     primary_analysis_set: AnalysisSet = AnalysisSet.UNKNOWN
@@ -323,6 +331,7 @@ class StudyObject:
             "dropout_rate_pct": self.dropout_rate_pct,
             "endpoints": [e.to_dict() for e in self.endpoints],
             "endpoint_hierarchy_prespecified": self.endpoint_hierarchy_prespecified,
+            "secondary_endpoints_alpha_correction": self.secondary_endpoints_alpha_correction,
             "primary_analysis_set": self.primary_analysis_set.value,
             "sample_size_calculation_provided": self.sample_size_calculation_provided,
             "study_countries": self.study_countries,
@@ -1386,6 +1395,45 @@ def _endpoint_gaps(
                 "verrouillée avant la levée de l'aveugle, est requise."
             ),
             topic="endpoint_multiplicity",
+        ))
+
+    # Secondary endpoint multiplicity without alpha correction — distinct from
+    # the co-primary case above. A single primary endpoint accompanied by many
+    # secondary endpoints explored without any documented control of the
+    # type-I error rate: findings on individual secondary endpoints are
+    # exploratory only and cannot be presented as confirmatory. cf. avis
+    # CNEDiMTS FIBROREM 7689: "Critères de jugement secondaires multiples et
+    # non hiérarchisés avec de nombreuses données manquantes. Résultats
+    # intéressants à titre exploratoire mais non conclusifs." Threshold of 4+
+    # secondary endpoints is a pragmatic default (FIBROREM had 8; a couple of
+    # secondary endpoints alongside a primary one is routine and not, on its
+    # own, a red flag) — not derived from a formal statistical rule, since
+    # the real concern (uncontrolled type-I error inflation) scales with
+    # count but has no universally agreed cutoff.
+    secondary_study_eps = [e for e in study.endpoints if not e.is_primary]
+    if (
+        len(secondary_study_eps) >= 4
+        and study.secondary_endpoints_alpha_correction is not True
+    ):
+        gaps.append(ClaimStudyGap(
+            dimension="endpoint",
+            severity="MEDIUM",
+            description=(
+                f"Multiplicité des critères de jugement secondaires "
+                f"({len(secondary_study_eps)} critères) sans contrôle documenté "
+                "du risque alpha."
+            ),
+            has_critique=(
+                "Lorsqu'un grand nombre de critères secondaires sont explorés sans "
+                "procédure de contrôle de la multiplicité (correction de Bonferroni, "
+                "hiérarchisation, ou statut explicitement exploratoire assumé), la "
+                "probabilité qu'au moins un résultat atteigne la significativité par "
+                "hasard augmente avec le nombre de tests. Les résultats positifs "
+                "isolés sur des critères secondaires non corrigés doivent être "
+                "interprétés comme hypothèse-générateurs, pas comme preuve "
+                "confirmatoire d'un effet du dispositif sur ces dimensions."
+            ),
+            topic="secondary_endpoint_multiplicity",
         ))
 
     # Check study-level endpoint adjudication gap (independent of epistemic output)

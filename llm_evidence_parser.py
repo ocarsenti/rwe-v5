@@ -562,6 +562,15 @@ procédure de contrôle de la multiplicité (hiérarchisation séquentielle, gat
 répartition alpha) est explicitement documentée dans le plan d'analyse statistique. false ou
 null sinon.
 
+## secondary_endpoints_alpha_correction
+Distinct de endpoint_hierarchy_prespecified ci-dessus (qui concerne plusieurs endpoints
+CO-PRIMAIRES) : pertinent quand un seul endpoint est primaire mais que plusieurs endpoints
+secondaires sont explorés (typiquement 4 ou plus). true si le texte documente explicitement
+une correction du risque alpha pour ces critères secondaires (Bonferroni, hiérarchisation,
+statut exploratoire assumé sans revendication confirmatoire). false ou null sinon — y compris
+si le texte source qualifie lui-même ces résultats secondaires d'exploratoires sans
+correction formelle.
+
 ## performance_goal_clinically_justified
 Pertinent uniquement si study_design="SINGLE_ARM_PERFORMANCE_GOAL". true si le texte
 justifie explicitement le seuil de succès retenu (référence à une donnée historique, un
@@ -804,6 +813,7 @@ Réponds en JSON avec ce format exact :
     }}
   ],
   "endpoint_hierarchy_prespecified": <true | false | null>,
+  "secondary_endpoints_alpha_correction": <true | false | null>,
 
   "primary_analysis_set": "<voir liste>",
   "sample_size_calculation_provided": <true | false>,
@@ -1371,6 +1381,7 @@ def _parse_study_object_result(
         ))
 
     obj.endpoint_hierarchy_prespecified = data.get("endpoint_hierarchy_prespecified")
+    obj.secondary_endpoints_alpha_correction = data.get("secondary_endpoints_alpha_correction")
 
     obj.primary_analysis_set = _ANALYSIS_SET_MAP.get(
         data.get("primary_analysis_set", "UNKNOWN"), AnalysisSet.UNKNOWN
