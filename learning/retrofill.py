@@ -204,6 +204,8 @@ def ingest_engine_diagnostics(conn):
         ("I-STOP", "case_istop.py"),
         ("SOMNIO", "case_somnio.py"),
         ("EDWARDS SAPIEN 3 (ASR I / Deharo)", "case_edwards_sapien3_deharo.py"),
+        ("MAIOREGEN PRIME", "case_maioregen_prime.py"),
+        ("VIS-RX", "case_visrx.py"),
     ]
 
     import io
@@ -289,6 +291,10 @@ def ingest_manually_verified_decisions(conn):
         ("EDWARDS SAPIEN 3 (ASR I / Deharo)", "LPPR", "EDWARDS LIFESCIENCES", 2024, "DEFAVORABLE",
          "ASR I refusee, maintien ASR V (SR global du dispositif par ailleurs Suffisant)",
          "IMPLANT_PASSIF"),  # avis CNEDIMTS-7350, 26/03/2024 — revendication de revalorisation ASR seulement
+        ("MAIOREGEN PRIME", "LPPR", "FINCERAMICA", 2025, "DEFAVORABLE", "INSUFFISANT",
+         "IMPLANT_PASSIF"),  # avis CNEDIMTS-7282, 06/05/2025, primo-inscription
+        ("VIS-RX", "LPPR", "TERUMO FRANCE / GENTUITY", 2026, "DEFAVORABLE", "INSUFFISANT",
+         "DISPOSITIF_PORTE_EXTERNE"),  # avis CNEDIMTS-8145, 09/06/2026, primo-inscription
     ]
     n = 0
     for device_name, device_type, company, year, decision, sa_level, device_category in rows:
