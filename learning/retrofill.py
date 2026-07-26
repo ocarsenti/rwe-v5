@@ -203,6 +203,7 @@ def ingest_engine_diagnostics(conn):
         ("TRIPLE ACTION", "case_triple_action.py"),
         ("I-STOP", "case_istop.py"),
         ("SOMNIO", "case_somnio.py"),
+        ("EDWARDS SAPIEN 3 (ASR I / Deharo)", "case_edwards_sapien3_deharo.py"),
     ]
 
     import io
@@ -285,6 +286,9 @@ def ingest_manually_verified_decisions(conn):
          "IMPLANT_PASSIF"),  # avis CNEDIMTS-7439, 26/03/2024 (SR, renouvellement intra-GHS)
         ("SOMNIO", "LPPR", "RESMED / MEMENTOR DE GmbH", 2025, "DEFAVORABLE", "INSUFFISANT",
          "DISPOSITIF_NUMERIQUE"),  # avis CNEDIMTS-7781, 15/07/2025
+        ("EDWARDS SAPIEN 3 (ASR I / Deharo)", "LPPR", "EDWARDS LIFESCIENCES", 2024, "DEFAVORABLE",
+         "ASR I refusee, maintien ASR V (SR global du dispositif par ailleurs Suffisant)",
+         "IMPLANT_PASSIF"),  # avis CNEDIMTS-7350, 26/03/2024 — revendication de revalorisation ASR seulement
     ]
     n = 0
     for device_name, device_type, company, year, decision, sa_level, device_category in rows:
