@@ -31,7 +31,9 @@ from models import (
     CarePathwayMatch,
     CausalRole,
     ClinicalClaim,
+    ComparatorAlignment,
     ComparatorFeasibility,
+    ComparatorMatchType,
     ContextAlignment,
     ContextMatchType,
     DeviceAlignment,
@@ -1422,6 +1424,22 @@ def _parse_study_object_result(
             study_country=study_country,
             target_country="France",
             justification=ctx.get("justification", ""),
+        )
+
+    # Comparateur étudié vs. comparateur REVENDIQUÉ par le demandeur (distinct de
+    # comparator_type, qui décrit seulement la nature du bras contrôle réellement
+    # utilisé). Cf. avis INFINITY (5980) — ajouté le 2026-07-27.
+    comp = data.get("comparator_alignment", {})
+    if comp:
+        obj.comparator_alignment = ComparatorAlignment(
+            comparator_match_type=ComparatorMatchType(
+                comp.get("comparator_match_type", "UNKNOWN")
+            ),
+            comparator_description_claim=comp.get("comparator_description_claim", ""),
+            comparator_description_study=comp.get(
+                "comparator_description_study", obj.comparator_description
+            ),
+            justification=comp.get("justification", ""),
         )
 
     _apply_citation_verification(obj, data, study_text)

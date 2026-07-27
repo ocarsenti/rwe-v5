@@ -176,6 +176,8 @@ def _repair_gap(
     dim = gap.dimension
     if dim == "device":
         return _repair_device_gap(gap, claim)
+    if dim == "comparator":
+        return _repair_comparator_gap(gap, claim)
     if dim == "population":
         return _repair_population_gap(gap, claim)
     if dim == "context":
@@ -299,6 +301,89 @@ def _repair_device_gap(
             ),
             effort=GapRepairEffort.LOW,
             removes_risk=["extrapolation génération dispositif"],
+        ))
+
+    return actions, is_blocking
+
+
+# ---------------------------------------------------------------------------
+# COMPARATOR — comparateur étudié vs. comparateur REVENDIQUÉ (distinct de
+# CONTROL_ARM_ADDITION en dimension "design", qui répare l'absence de TOUT
+# comparateur ; ici un comparateur existe, mais ce n'est pas le bon).
+# Cf. avis INFINITY (5980) — ajouté le 2026-07-27.
+# ---------------------------------------------------------------------------
+
+def _repair_comparator_gap(
+    gap: ClaimStudyGap, claim: ClinicalClaim,
+) -> tuple[list[GapRepairAction], bool]:
+    actions = []
+    is_blocking = False
+
+    if gap.severity == "HIGH":
+        # NO_COMPARATOR_STUDIED — aucune étude vs. le comparateur revendiqué,
+        # quel qu'il soit (au-delà du simple no_comparator design-level : ici
+        # un comparateur *a été* étudié, juste jamais celui revendiqué).
+        actions.append(GapRepairAction(
+            gap_dimension="comparator",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.STUDY_COMMISSION,
+            description="Commanditer une étude comparative face au comparateur revendiqué",
+            specific_suggestion=(
+                "Aucune étude ne compare le dispositif au comparateur revendiqué. "
+                "Commanditer un essai comparatif (idéalement randomisé) direct contre "
+                "ce comparateur, ou une comparaison indirecte ajustée (network "
+                "meta-analysis, matching sur données de registre) si un essai direct "
+                "n'est pas faisable."
+            ),
+            effort=GapRepairEffort.HIGH,
+            removes_risk=["absence de preuve comparative revendiquée"],
+        ))
+        actions.append(GapRepairAction(
+            gap_dimension="comparator",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.CLAIM_RESTRICTION,
+            description="Reformuler la revendication sans positionnement comparatif non étayé",
+            specific_suggestion=(
+                "Alternative immédiate : retirer de la revendication toute affirmation "
+                "de positionnement face au comparateur non étudié, ou la reformuler en "
+                "s'appuyant uniquement sur le comparateur réellement testé."
+            ),
+            effort=GapRepairEffort.LOW,
+            removes_risk=["positionnement comparatif non étayé"],
+        ))
+        is_blocking = True
+
+    else:
+        # DIFFERENT_COMPARATOR (MEDIUM) ou UNKNOWN (LOW) — un comparateur existe,
+        # mais ce n'est pas celui revendiqué.
+        actions.append(GapRepairAction(
+            gap_dimension="comparator",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.BRIDGING_STUDY,
+            description="Comparaison indirecte ou étude pont vers le comparateur revendiqué",
+            specific_suggestion=(
+                "Le comparateur étudié diffère de celui revendiqué. Options : "
+                "(1) Comparaison indirecte ajustée (network meta-analysis, matching) "
+                "reliant les deux comparateurs via un nœud commun. "
+                "(2) Justification clinique explicite de la transposabilité entre "
+                "comparateurs (mécanisme d'action, population cible, standard de soins). "
+                "(3) À défaut, étude comparative dédiée face au comparateur revendiqué."
+            ),
+            effort=GapRepairEffort.MEDIUM,
+            removes_risk=["écart comparateur revendiqué/étudié"],
+        ))
+        actions.append(GapRepairAction(
+            gap_dimension="comparator",
+            gap_severity=gap.severity,
+            repair_type=GapRepairType.CLAIM_RESTRICTION,
+            description="Aligner la revendication sur le comparateur réellement étudié",
+            specific_suggestion=(
+                "Reformuler la revendication pour ne positionner le dispositif que "
+                "face au comparateur effectivement testé, en retirant toute mention "
+                "explicite ou implicite du comparateur non étudié."
+            ),
+            effort=GapRepairEffort.LOW,
+            removes_risk=["écart comparateur revendiqué/étudié"],
         ))
 
     return actions, is_blocking

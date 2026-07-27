@@ -538,6 +538,7 @@ class ClinicalClaim:
     device_alignment: Optional["DeviceAlignment"] = None
     population_alignment: Optional["PopulationAlignment"] = None
     context_alignment: Optional["ContextAlignment"] = None
+    comparator_alignment: Optional["ComparatorAlignment"] = None
     study_design: Optional["StudyDesign"] = None
     n_patients: Optional[int] = None
     has_comparator: Optional[bool] = None
@@ -849,6 +850,31 @@ class DeviceMatchType(Enum):
     UNKNOWN = "UNKNOWN"
 
 
+class ComparatorMatchType(Enum):
+    """Le comparateur effectivement étudié correspond-il au comparateur REVENDIQUÉ
+    par le demandeur (claim.comparator, distinct du comparateur RETENU par HAS,
+    qui peut être différent des deux) ?
+
+    Distinct de comparator_type (SHAM/PLACEBO/ACTIVE/...), qui décrit la NATURE du
+    bras contrôle réellement utilisé dans l'étude. ComparatorMatchType décrit
+    l'ADÉQUATION entre ce bras contrôle et celui que le demandeur revendique comme
+    pertinent — un comparateur peut être ACTIVE (qualité interne correcte) tout en
+    étant un comparateur DIFFERENT_COMPARATOR de celui revendiqué (écart claim/étude).
+
+    Cf. avis CNEDiMTS INFINITY prothèse de cheville (5980, 10/03/2020) : comparateur
+    revendiqué par le demandeur = arthrodèse ; comparateur effectivement étudié =
+    autres prothèses de cheville du registre. HAS relève explicitement l'absence de
+    toute étude comparant au comparateur revendiqué, mais retient malgré tout un SA
+    Suffisant en substituant son propre comparateur (les autres prothèses) à celui
+    du demandeur — un écart claim/étude que ComparatorMatchType.DIFFERENT_COMPARATOR
+    est destiné à capturer, alors qu'il passait inaperçu du moteur jusqu'ici.
+    """
+    EXACT_COMPARATOR = "EXACT_COMPARATOR"      # étudié = revendiqué
+    DIFFERENT_COMPARATOR = "DIFFERENT_COMPARATOR"  # étudié ≠ revendiqué, mais comparateur existe
+    NO_COMPARATOR_STUDIED = "NO_COMPARATOR_STUDIED"  # aucun comparateur, quel qu'il soit
+    UNKNOWN = "UNKNOWN"
+
+
 class PopulationMatchType(Enum):
     EXACT_INDICATION = "EXACT_INDICATION"
     NARROWER_SUBGROUP = "NARROWER_SUBGROUP"
@@ -1122,6 +1148,22 @@ class DeviceAlignment:
             "device_match_type": self.device_match_type.value,
             "device_description_claim": self.device_description_claim,
             "device_description_study": self.device_description_study,
+            "justification": self.justification,
+        }
+
+
+@dataclass
+class ComparatorAlignment:
+    comparator_match_type: ComparatorMatchType
+    comparator_description_claim: str
+    comparator_description_study: str
+    justification: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "comparator_match_type": self.comparator_match_type.value,
+            "comparator_description_claim": self.comparator_description_claim,
+            "comparator_description_study": self.comparator_description_study,
             "justification": self.justification,
         }
 

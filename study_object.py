@@ -29,7 +29,9 @@ from models import (
     CausalRole,
     ClaimLevel,
     ClinicalClaim,
+    ComparatorAlignment,
     ComparatorFeasibility,
+    ComparatorMatchType,
     DeviceAlignment,
     DeviceMatchType,
     EligibilityShift,
@@ -267,6 +269,13 @@ class StudyObject:
     device_alignment: Optional[DeviceAlignment] = None
     population_alignment: Optional[PopulationAlignment] = None
     context_alignment: Optional[ContextAlignment] = None
+    # Comparateur étudié vs. comparateur REVENDIQUÉ par le demandeur — distinct de
+    # comparator_type (nature du bras contrôle) et de comparator_feasibility
+    # (faisabilité d'un comparateur quelconque). Cf. avis INFINITY (5980) : ajouté
+    # le 2026-07-27 après constat que enrich_claim_with_study_object() écrasait
+    # silencieusement le comparateur revendiqué par celui de l'étude, sans jamais
+    # signaler l'écart quand HAS elle-même le documentait noir sur blanc.
+    comparator_alignment: Optional[ComparatorAlignment] = None
 
     # Multi-study source document (cf. avis CNEDiMTS VIS-RX 8145: source text described
     # 3 distinct studies — Quimby et al. 2025, no comparator, and Nishi et al. 2023, the
@@ -333,6 +342,7 @@ class StudyObject:
             "device_alignment": self.device_alignment.to_dict() if self.device_alignment else None,
             "population_alignment": self.population_alignment.to_dict() if self.population_alignment else None,
             "context_alignment": self.context_alignment.to_dict() if self.context_alignment else None,
+            "comparator_alignment": self.comparator_alignment.to_dict() if self.comparator_alignment else None,
             "multiple_studies_detected": self.multiple_studies_detected,
             "other_studies_mentioned": self.other_studies_mentioned,
             "citation_rejected_fields": self.citation_rejected_fields,
@@ -372,7 +382,7 @@ class EvidenceStatus(Enum):
 
 @dataclass
 class ClaimStudyGap:
-    dimension: str    # "device", "population", "context", "design", "endpoint"
+    dimension: str    # "device", "population", "context", "comparator", "design", "endpoint"
     severity: str     # "LOW", "MEDIUM", "HIGH", "CRITICAL"
     description: str
     has_critique: str
@@ -478,6 +488,11 @@ def compare_claim_to_study(
         if gap:
             gaps.append(gap)
 
+    if study.comparator_alignment:
+        gap = _comparator_gap(study.comparator_alignment)
+        if gap:
+            gaps.append(gap)
+
     gaps.extend(_design_gaps(claim, study))
     gaps.extend(_endpoint_gaps(claim, study, epistemic_output))
     for i, ep in enumerate(claim.endpoints):
@@ -557,6 +572,60 @@ def _device_gap(alignment: DeviceAlignment, study: StudyObject) -> ClaimStudyGap
         severity=severity,
         description=desc,
         has_critique=critique_map[severity],
+    )
+
+
+def _comparator_gap(alignment: ComparatorAlignment) -> ClaimStudyGap | None:
+    """Le comparateur étudié correspond-il au comparateur REVENDIQUÉ par le
+    demandeur ? Distinct de _design_gaps' no_comparator (qui vérifie seulement si
+    UN comparateur, quel qu'il soit, était présent) — ici on vérifie si c'est LE
+    BON comparateur. Cf. avis INFINITY (5980) : comparateur revendiqué = arthrodèse,
+    comparateur étudié = autres prothèses de cheville ; HAS documente l'écart
+    explicitement mais retient un comparateur de substitution — le moteur doit
+    signaler cet écart plutôt que le masquer via un simple remplacement silencieux.
+    """
+    m = alignment.comparator_match_type
+    if m == ComparatorMatchType.EXACT_COMPARATOR:
+        return None
+    severity_map = {
+        ComparatorMatchType.DIFFERENT_COMPARATOR: "MEDIUM",
+        ComparatorMatchType.NO_COMPARATOR_STUDIED: "HIGH",
+        ComparatorMatchType.UNKNOWN: "LOW",
+    }
+    critique_map = {
+        "MEDIUM": (
+            "Le comparateur effectivement étudié n'est pas celui revendiqué par le "
+            "demandeur. Une supériorité ou une non-infériorité établie face à un "
+            "comparateur donné ne peut être extrapolée à un autre comparateur sans "
+            "justification explicite de leur comparabilité clinique — même si HAS "
+            "peut, par ailleurs, retenir un comparateur de substitution pour "
+            "l'évaluation du service rendu."
+        ),
+        "HIGH": (
+            "Aucune étude ne compare le dispositif au comparateur revendiqué par le "
+            "demandeur, quel qu'il soit. Le positionnement thérapeutique affirmé "
+            "dans la revendication n'est soutenu par aucune donnée comparative "
+            "directe, quelle que soit par ailleurs la qualité des données "
+            "disponibles vis-à-vis d'autres comparateurs."
+        ),
+        "LOW": (
+            "L'adéquation entre le comparateur étudié et le comparateur revendiqué "
+            "n'est pas documentée. Ce point ne peut être évalué sans description "
+            "explicite du comparateur que la revendication entend viser."
+        ),
+    }
+    severity = severity_map[m]
+    desc = (
+        f"Comparateur étudié ({alignment.comparator_description_study}) "
+        f"≠ comparateur revendiqué ({alignment.comparator_description_claim}). "
+        f"{alignment.justification}"
+    )
+    return ClaimStudyGap(
+        dimension="comparator",
+        severity=severity,
+        description=desc,
+        has_critique=critique_map[severity],
+        topic="claim_comparator_mismatch",
     )
 
 
@@ -1517,5 +1586,7 @@ def enrich_claim_with_study_object(
         claim.population_alignment = study.population_alignment
     if study.context_alignment is not None:
         claim.context_alignment = study.context_alignment
+    if study.comparator_alignment is not None:
+        claim.comparator_alignment = study.comparator_alignment
 
     return claim
