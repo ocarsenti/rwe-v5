@@ -393,6 +393,25 @@ class SmartCASRequest(BaseModel):
     lang: str = "fr"
 
 
+def _safe_enum(enum_cls, value, default):
+    """Construct an enum member from an LLM-sourced string, falling back to
+    `default` instead of raising on any value the enum doesn't define.
+
+    Direct `EnumCls(value)` construction is fragile against LLM output: the
+    prompt cannot guarantee the model only ever returns defined members (e.g.
+    it may reasonably answer "UNKNOWN" for a dimension whose enum has no
+    UNKNOWN member, such as EligibilityShift). Found 2026-07-27 via a 500 on
+    /api/diagnose-premium (HELLOBETTER Insomnie PDF): `EligibilityShift("UNKNOWN")`
+    raised ValueError and crashed the whole request instead of degrading to a
+    sane default — the same failure mode existed for every other enum
+    constructed the same way in this function, not just this one call site.
+    """
+    try:
+        return enum_cls(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def _run_smart_cas(claim_text: str, study_text: str, lang: str) -> dict | None:
     """Parse claim + study with LLM, then evaluate CAS. Shared by /api/smart-cas
     and /api/diagnose-premium (CAS alignment folded into the full report)."""
@@ -405,23 +424,23 @@ def _run_smart_cas(claim_text: str, study_text: str, lang: str) -> dict | None:
     ca = parsed.get("context_alignment", {})
 
     device = DeviceAlignment(
-        device_match_type=DeviceMatchType(da.get("device_match_type", "UNKNOWN")),
+        device_match_type=_safe_enum(DeviceMatchType, da.get("device_match_type"), DeviceMatchType.UNKNOWN),
         device_description_claim=da.get("device_description_claim", ""),
         device_description_study=da.get("device_description_study", ""),
         justification=da.get("justification", ""),
     )
     population = PopulationAlignment(
-        population_match_type=PopulationMatchType(pa.get("population_match_type", "UNKNOWN")),
+        population_match_type=_safe_enum(PopulationMatchType, pa.get("population_match_type"), PopulationMatchType.UNKNOWN),
         population_description_claim=pa.get("population_description_claim", ""),
         population_description_study=pa.get("population_description_study", ""),
         subgroup_description=pa.get("subgroup_description", ""),
-        eligibility_shift=EligibilityShift(pa.get("eligibility_shift", "NONE")),
+        eligibility_shift=_safe_enum(EligibilityShift, pa.get("eligibility_shift"), EligibilityShift.NONE),
         justification=pa.get("justification", ""),
     )
     context = ContextAlignment(
-        context_match_type=ContextMatchType(ca.get("context_match_type", "UNKNOWN")),
-        care_pathway_match=CarePathwayMatch(ca.get("care_pathway_match", "UNKNOWN")),
-        organization_dependency=OrganizationDependency(ca.get("organization_dependency", "LOW")),
+        context_match_type=_safe_enum(ContextMatchType, ca.get("context_match_type"), ContextMatchType.UNKNOWN),
+        care_pathway_match=_safe_enum(CarePathwayMatch, ca.get("care_pathway_match"), CarePathwayMatch.UNKNOWN),
+        organization_dependency=_safe_enum(OrganizationDependency, ca.get("organization_dependency"), OrganizationDependency.LOW),
         study_country=ca.get("study_country", ""),
         target_country=ca.get("target_country", "France"),
         justification=ca.get("justification", ""),

@@ -275,6 +275,25 @@ _SAME_SYSTEM_COUNTRIES = {
     "italie", "italy", "espagne", "spain", "autriche", "austria",
 }
 
+def _safe_enum(enum_cls, value, default):
+    """Construct an enum member from LLM-sourced JSON, falling back to `default`
+    instead of raising on any value the enum doesn't define.
+
+    Direct `EnumCls(value)` construction is fragile against LLM output: nothing
+    guarantees the model only ever returns defined members — e.g. it may
+    reasonably answer "UNKNOWN" for a dimension whose enum has no UNKNOWN member
+    (EligibilityShift, CarePathwayMatch, OrganizationDependency). Found
+    2026-07-27 via a 500 on /api/diagnose-premium (HELLOBETTER Insomnie PDF,
+    then again on OrganizationDependency after the first fix) — the same
+    fragile pattern was duplicated across both the Mode 1 and Mode 2 parsing
+    functions in this file, plus a third copy in api.py's _run_smart_cas.
+    """
+    try:
+        return enum_cls(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def _resolve_context_match(llm_match: str, study_country: str) -> ContextMatchType:
     """Override LLM context classification when study is conducted in France or equivalent system."""
     country_lower = (study_country or "").lower().strip()
@@ -358,7 +377,7 @@ def _parse_result(data: dict, claim_device: str, claim_indication: str) -> Study
     dev = data.get("device_alignment", {})
     if dev:
         result.device_alignment = DeviceAlignment(
-            device_match_type=DeviceMatchType(dev.get("device_match_type", "UNKNOWN")),
+            device_match_type=_safe_enum(DeviceMatchType, dev.get("device_match_type"), DeviceMatchType.UNKNOWN),
             device_description_claim=claim_device,
             device_description_study=dev.get("device_description_study", ""),
             justification=dev.get("justification", ""),
@@ -367,10 +386,10 @@ def _parse_result(data: dict, claim_device: str, claim_indication: str) -> Study
     pop = data.get("population_alignment", {})
     if pop:
         result.population_alignment = PopulationAlignment(
-            population_match_type=PopulationMatchType(pop.get("population_match_type", "UNKNOWN")),
+            population_match_type=_safe_enum(PopulationMatchType, pop.get("population_match_type"), PopulationMatchType.UNKNOWN),
             population_description_claim=claim_indication,
             population_description_study=pop.get("population_description_study", ""),
-            eligibility_shift=EligibilityShift(pop.get("eligibility_shift", "NONE")),
+            eligibility_shift=_safe_enum(EligibilityShift, pop.get("eligibility_shift"), EligibilityShift.NONE),
             justification=pop.get("justification", ""),
         )
 
@@ -379,8 +398,8 @@ def _parse_result(data: dict, claim_device: str, claim_indication: str) -> Study
         study_country = ctx.get("study_country", "")
         result.context_alignment = ContextAlignment(
             context_match_type=_resolve_context_match(ctx.get("context_match_type", "UNKNOWN"), study_country),
-            care_pathway_match=CarePathwayMatch(ctx.get("care_pathway_match", "PARTIAL")),
-            organization_dependency=OrganizationDependency(ctx.get("organization_dependency", "MEDIUM")),
+            care_pathway_match=_safe_enum(CarePathwayMatch, ctx.get("care_pathway_match"), CarePathwayMatch.PARTIAL),
+            organization_dependency=_safe_enum(OrganizationDependency, ctx.get("organization_dependency"), OrganizationDependency.MEDIUM),
             study_country=study_country,
             target_country="France",
             justification=ctx.get("justification", ""),
@@ -718,6 +737,21 @@ context_match_type : SAME_HEALTHCARE_SYSTEM | PARTIALLY_COMPARABLE | DIFFERENT_S
 care_pathway_match : YES | PARTIAL | NO
 organization_dependency : LOW | MEDIUM | HIGH
 
+## Alignement comparateur (comparator_alignment)
+Distinct de comparator_type (nature du bras contrôle réellement utilisé : SHAM/ACTIVE/...) :
+compare le comparateur ÉTUDIÉ au comparateur REVENDIQUÉ par le demandeur (fourni dans le
+texte de la revendication ou du dossier, pas le comparateur que HAS retient elle-même le
+cas échéant — ce sont parfois deux choses différentes).
+
+comparator_match_type : EXACT_COMPARATOR | DIFFERENT_COMPARATOR | NO_COMPARATOR_STUDIED | UNKNOWN
+- "EXACT_COMPARATOR" : le comparateur étudié est celui que le demandeur revendique
+- "DIFFERENT_COMPARATOR" : un comparateur existe dans l'étude mais ce n'est pas celui revendiqué
+  (ex: revendiqué = arthrodèse, étudié = autres prothèses de cheville)
+- "NO_COMPARATOR_STUDIED" : aucune étude ne compare au comparateur revendiqué, quel qu'il soit
+- "UNKNOWN" : le comparateur revendiqué n'est pas identifiable dans le texte fourni
+Si aucun comparateur n'est explicitement revendiqué dans le texte source, réponds "UNKNOWN"
+plutôt que de supposer qu'il coïncide avec le comparateur étudié.
+
 ## Citations de vérification (champs critiques)
 Ces champs pilotent directement la détection de biais et le score CAS — pour chacun,
 fournis en plus, dans l'objet "citations", une citation VERBATIM (copiée mot pour mot
@@ -832,6 +866,12 @@ Réponds en JSON avec ce format exact :
     "care_pathway_match": "YES" | "PARTIAL" | "NO",
     "organization_dependency": "LOW" | "MEDIUM" | "HIGH",
     "study_country": "<pays principal>",
+    "justification": "<explication>"
+  }},
+  "comparator_alignment": {{
+    "comparator_match_type": "<voir liste>",
+    "comparator_description_claim": "<comparateur revendiqué par le demandeur, ou null si non identifiable>",
+    "comparator_description_study": "<comparateur effectivement étudié>",
     "justification": "<explication>"
   }},
 
@@ -1396,7 +1436,7 @@ def _parse_study_object_result(
     dev = data.get("device_alignment", {})
     if dev:
         obj.device_alignment = DeviceAlignment(
-            device_match_type=DeviceMatchType(dev.get("device_match_type", "UNKNOWN")),
+            device_match_type=_safe_enum(DeviceMatchType, dev.get("device_match_type"), DeviceMatchType.UNKNOWN),
             device_description_claim=claim_device,
             device_description_study=dev.get("device_description_study", ""),
             justification=dev.get("justification", ""),
@@ -1405,10 +1445,10 @@ def _parse_study_object_result(
     pop = data.get("population_alignment", {})
     if pop:
         obj.population_alignment = PopulationAlignment(
-            population_match_type=PopulationMatchType(pop.get("population_match_type", "UNKNOWN")),
+            population_match_type=_safe_enum(PopulationMatchType, pop.get("population_match_type"), PopulationMatchType.UNKNOWN),
             population_description_claim=claim_indication,
             population_description_study=pop.get("population_description_study", ""),
-            eligibility_shift=EligibilityShift(pop.get("eligibility_shift", "NONE")),
+            eligibility_shift=_safe_enum(EligibilityShift, pop.get("eligibility_shift"), EligibilityShift.NONE),
             justification=pop.get("justification", ""),
         )
 
@@ -1417,9 +1457,9 @@ def _parse_study_object_result(
         study_country = ctx.get("study_country", "")
         obj.context_alignment = ContextAlignment(
             context_match_type=_resolve_context_match(ctx.get("context_match_type", "UNKNOWN"), study_country),
-            care_pathway_match=CarePathwayMatch(ctx.get("care_pathway_match", "PARTIAL")),
-            organization_dependency=OrganizationDependency(
-                ctx.get("organization_dependency", "MEDIUM")
+            care_pathway_match=_safe_enum(CarePathwayMatch, ctx.get("care_pathway_match"), CarePathwayMatch.PARTIAL),
+            organization_dependency=_safe_enum(
+                OrganizationDependency, ctx.get("organization_dependency"), OrganizationDependency.MEDIUM
             ),
             study_country=study_country,
             target_country="France",
@@ -1432,8 +1472,8 @@ def _parse_study_object_result(
     comp = data.get("comparator_alignment", {})
     if comp:
         obj.comparator_alignment = ComparatorAlignment(
-            comparator_match_type=ComparatorMatchType(
-                comp.get("comparator_match_type", "UNKNOWN")
+            comparator_match_type=_safe_enum(
+                ComparatorMatchType, comp.get("comparator_match_type"), ComparatorMatchType.UNKNOWN
             ),
             comparator_description_claim=comp.get("comparator_description_claim", ""),
             comparator_description_study=comp.get(
