@@ -236,9 +236,32 @@ _OUTCOME_KB = {
                       "treatment escalation rate", "emergency admission for vision loss"],
     "pain": ["total analgesic consumption (morphine-equivalent mg/day)",
              "6-minute walk test distance", "return-to-work rate",
-             "nocturnal actigraphy sleep efficiency"],
+             "nocturnal actigraphy sleep efficiency", "score FIQ (Fibromyalgia Impact Questionnaire)"],
     "cardiology": ["all-cause mortality", "hospitalization rate from insurance claims",
-                   "MACE (major adverse cardiovascular events)", "functional capacity (6MWT)"],
+                   "MACE (major adverse cardiovascular events)", "functional capacity (6MWT)",
+                   "TLF — target lesion failure (adjudicated composite)"],
+    # Ajoutés le 2026-07-27 (Option 1, cf. échange avec Olivier) : transcrits depuis les
+    # 17 cas du corpus de calibration où le moteur a déjà validé domaine+endpoint réels
+    # contre de vrais avis HAS — pas inventés. Filtrés à la main : exclus les endpoints
+    # dont le CONCEPT est explicitement remis en cause par le moteur ou par HAS
+    # elle-même (ex. VIS-RX "volume de contraste injecté" → surrogate_not_validated ;
+    # I-STOP "auto-questionnaire non validé" → invalidité assumée dans son propre nom).
+    # Les gaps adjudication_missing/endpoint_multiplicity NE disqualifient PAS un
+    # endpoint ici — ce sont des lacunes de process (qui valide, comment corriger
+    # l'alpha), pas des critiques du choix clinique lui-même.
+    "orthopedics": ["taux de révision/reprise cumulé à N ans (registre ou étude dédiée)",
+                    "taux de survie de l'implant (Kaplan-Meier)",
+                    "score IKDC subjectif", "score fonctionnel spécifique validé (AOFAS, WOMAC...)"],
+    "pulmonology": ["VEMS (FEV1 % prédit) — variation à 12 mois",
+                    "taux d'exacerbations", "distance au test de marche de 6 minutes",
+                    "qualité de vie respiratoire (SGRQ)"],
+    "sleep_medicine": ["sévérité de l'insomnie (score ISI, adjudiqué/objectivé)",
+                       "indice d'apnées-hypopnées (IAH) à la polysomnographie de titration",
+                       "qualité du sommeil (PSQI)"],
+    "gynecology": ["score de qualité de vie spécifique validé (UFS-QoL...)",
+                   "réduction du volume/symptômes à imagerie indépendante"],
+    "neurodegenerative": ["score MoCA (Montreal Cognitive Assessment)",
+                          "score cognitif composite validé et adjudiqué"],
 }
 
 _DOMAIN_MAP = {
@@ -247,6 +270,28 @@ _DOMAIN_MAP = {
     "neurology": "stroke", "stroke": "stroke", "emergency neurology": "stroke",
     "pain": "pain", "pain management": "pain", "chronic pain": "pain",
     "cardiology": "cardiology", "heart": "cardiology",
+    # Ajoutés le 2026-07-27 (Option 1) — mappage des chaînes domain= réellement
+    # utilisées dans les 17 cas du corpus (parfois en français, parfois libres,
+    # non normalisées avant aujourd'hui — même limitation de fond que celle déjà
+    # documentée pour generate_design_space : rien ne garantit qu'un futur appelant
+    # utilise exactement l'une de ces chaînes).
+    "orthopedics": "orthopedics", "orthopédie": "orthopedics",
+    "orthopédie / rééducation fonctionnelle de la marche": "orthopedics",
+    "orthopédie / réparation cartilagineuse": "orthopedics",
+    "pulmonology": "pulmonology",
+    "sleep_medicine": "sleep_medicine", "somnologie": "sleep_medicine",
+    "psychiatrie / troubles du sommeil": "sleep_medicine",
+    "gynecology": "gynecology",
+    "fibromyalgie / douleur chronique": "pain",
+    # NON résolu : BRAINXPERT utilise domain="neurology" — exactement la même
+    # chaîne que le mappage AVC existant ci-dessus, alors qu'il s'agit d'un cas
+    # cognitif (score MoCA), pas d'AVC aigu. Pas de clé séparée ajoutée ici car
+    # elle serait inatteignable (une seule chaîne "neurology", un seul mappage
+    # possible) — nécessiterait que l'appelant distingue explicitement le
+    # sous-domaine (ex. "neurology_stroke" vs "neurology_cognitive") avant qu'on
+    # puisse le router correctement. La table "neurodegenerative" dans
+    # _OUTCOME_KB existe déjà (score MoCA) mais reste inutilisée tant que ce
+    # point n'est pas tranché.
 }
 
 
@@ -305,8 +350,18 @@ def compute_endpoint_families(
 ) -> list[EndpointFamily]:
     families = []
 
+    # Ajoutés le 2026-07-27 (Option 1) : marqueurs physiologiques instrumentés
+    # (VEMS, IAH) et score de sévérité de l'insomnie (ISI) reclassés ici plutôt
+    # que dans BIOMARKER — ce sont, dans les vrais dossiers du corpus
+    # (SOMNIO/HELLOBETTER pour ISI, essais pneumologie pour VEMS), les critères
+    # RÉGLEMENTAIREMENT PRINCIPAUX observés, pas des adjuvants secondaires.
     hard_clinical = [o for o in dag.outcomes if any(
-        kw in o.lower() for kw in ["mortality", "rankin", "complication", "mace", "recurrent", "acuity"]
+        kw in o.lower() for kw in [
+            "mortality", "rankin", "complication", "mace", "recurrent", "acuity",
+            "révision", "reprise", "survie de l'implant", "tlf", "target lesion failure",
+            "ikdc", "aofas", "womac", "vems", "fev1", "iah", "apnées-hypopnées",
+            "sévérité de l'insomnie", "score isi",
+        ]
     )]
     if hard_clinical:
         families.append(EndpointFamily(
@@ -327,8 +382,14 @@ def compute_endpoint_families(
             regulatory_weight="PRIMARY",
         ))
 
+    # Ajoutés le 2026-07-27 (Option 1) : scores patient-rapportés de qualité de
+    # vie et composites cognitifs — restent SECONDARY (adjuvants réels observés
+    # dans le corpus, pas les critères principaux retenus par HAS).
     biomarker = [o for o in dag.outcomes if any(
-        kw in o.lower() for kw in ["analgesic", "actigraphy", "walk test", "vo2", "biomarker"]
+        kw in o.lower() for kw in [
+            "analgesic", "actigraphy", "walk test", "vo2", "biomarker",
+            "psqi", "sgrq", "ufs-qol", "moca", "qualité de vie",
+        ]
     )]
     if biomarker:
         families.append(EndpointFamily(

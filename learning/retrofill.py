@@ -77,6 +77,8 @@ CREATE TABLE IF NOT EXISTS engine_diagnostics (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     case_label TEXT NOT NULL,          -- ex: ODYSIGHT, ZEPHYR (nom du cas rwe-v5)
     intervention TEXT,
+    domain TEXT,                       -- claim.domain — pour alimenter la KB du mode DESIGN
+    primary_endpoint TEXT,             -- nom du 1er endpoint is_primary=True de la claim
     source_script TEXT,                -- script test_*.py d'origine, pour traçabilité
     overall_risk TEXT,                 -- LOW/MEDIUM/HIGH/CRITICAL
     n_gaps INTEGER,
@@ -237,14 +239,19 @@ def ingest_engine_diagnostics(conn):
             comparison = ns.get("report") or ns.get("comparison")
 
         intervention = claim.intervention if claim else None
+        domain = claim.domain if claim else None
+        primary_endpoint = None
+        if claim and claim.endpoints:
+            primary = next((e for e in claim.endpoints if e.is_primary), claim.endpoints[0])
+            primary_endpoint = primary.name
         overall_risk = str(comparison.overall_risk).split(".")[-1] if comparison else None
         n_gaps = len(comparison.gaps) if comparison else None
 
         cur = conn.execute(
             """INSERT OR IGNORE INTO engine_diagnostics
-               (case_label, intervention, source_script, overall_risk, n_gaps)
-               VALUES (?, ?, ?, ?, ?)""",
-            (label, intervention, script, overall_risk, n_gaps),
+               (case_label, intervention, domain, primary_endpoint, source_script, overall_risk, n_gaps)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (label, intervention, domain, primary_endpoint, script, overall_risk, n_gaps),
         )
         diag_id = cur.lastrowid
         if diag_id == 0:
