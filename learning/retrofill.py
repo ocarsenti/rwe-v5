@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS engine_bias_flags (
 CREATE TABLE IF NOT EXISTS engine_gaps (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     diagnostic_id INTEGER REFERENCES engine_diagnostics(id),
-    dimension TEXT NOT NULL,           -- device/population/context/design/endpoint
+    dimension TEXT NOT NULL,           -- device/population/context/comparator/design/endpoint
     topic TEXT,                        -- sous-catégorie, ex: follow_up_insufficient
     severity TEXT                      -- LOW/MEDIUM/HIGH/CRITICAL
 );
