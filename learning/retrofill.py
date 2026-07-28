@@ -207,6 +207,10 @@ def ingest_engine_diagnostics(conn):
         ("MAIOREGEN PRIME", "case_maioregen_prime.py"),
         ("VIS-RX", "case_visrx.py"),
         ("IMPLANTS OSSEUX SUR MESURE 3DI EN PEEK", "case_3di_peek.py"),
+        ("FIREHAWK LIBERTY", "test_firehawk_liberty_repair.py"),
+        ("INFINITY (primo-inscription 2020)", "test_infinity_ankle_repair.py"),
+        ("INFINITY (renouvellement 2025)", "test_infinity_renewal_2025_repair.py"),
+        ("HELLOBETTER Insomnie", "test_hellobetter_insomnie_repair.py"),
     ]
 
     import io
