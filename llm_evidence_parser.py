@@ -485,11 +485,18 @@ _SYSTEM_PROMPT_FULL = """Tu es un expert en évaluation clinique et réglementai
 true si le texte décrit **plusieurs études cliniques distinctes** du dispositif revendiqué
 (auteurs/années différents, ou populations/designs clairement séparés) plutôt qu'une seule
 étude. Ne compte pas comme une deuxième étude : une méta-analyse qui regroupe les mêmes
-données, ou une simple mention en référence sans description propre. Si true, remplis quand
-même le Study Object avec la première étude clairement décrite (ne cherche PAS à deviner
-laquelle est la plus pertinente ni à fusionner les études entre elles) et liste les études
-identifiées dans "other_studies_mentioned" (ex: "Nishi et al. 2023", "Quimby et al. 2025") —
-c'est à l'utilisateur de préciser ensuite laquelle est l'étude pivot, pas au modèle de trancher.
+données, ou une simple mention en référence sans description propre.
+
+Si une étude cible est explicitement désignée dans le message utilisateur (balise
+"ÉTUDE CIBLE"), extrais UNIQUEMENT cette étude, ignore toutes les autres même si elles sont
+plus proéminentes dans le texte, et mets "multiple_studies_detected" à false (le tri a déjà
+été fait par l'utilisateur — ta tâche n'est plus de détecter l'ambiguïté mais de l'ignorer).
+
+Sinon (aucune étude cible désignée), si true, remplis quand même le Study Object avec la
+première étude clairement décrite (ne cherche PAS à deviner laquelle est la plus pertinente
+ni à fusionner les études entre elles) et liste les études identifiées dans
+"other_studies_mentioned" (ex: "Nishi et al. 2023", "Quimby et al. 2025") — c'est à
+l'utilisateur de préciser ensuite laquelle est l'étude pivot, pas au modèle de trancher.
 
 ## study_design
 - "RCT" : essai contrôlé randomisé
@@ -772,7 +779,7 @@ _USER_TEMPLATE_FULL = """Analyse ce texte d'étude clinique et extrais le Study 
 
 **Dispositif revendiqué** : {claim_device}
 **Indication revendiquée** : {claim_indication}
-
+{target_study_instruction}
 **Texte de l'étude** :
 {study_text}
 
@@ -1095,10 +1102,24 @@ def _call_llm_for_study_object_raw(
     study_text: str,
     claim_device: str,
     claim_indication: str,
+    target_study: str | None = None,
 ) -> dict:
     """Single LLM call → raw parsed JSON dict. No mapping to StudyObject. Thread-safe
-    (each call gets its own response; the shared client is a plain HTTP wrapper)."""
+    (each call gets its own response; the shared client is a plain HTTP wrapper).
+
+    target_study: when set, scope extraction to only that named study within a
+    multi-study document (e.g. "Behrendt et al. 2020") — the user's answer to a
+    prior study_selection_required response. Cf. 2026-07-27 multi-study instability
+    fix: full HAS avis PDFs routinely bundle 3-4 distinct studies, and asking the
+    model to guess which one is "the" pivot study produces run-to-run instability.
+    """
     client = _get_client()
+
+    target_study_instruction = (
+        f'\n**ÉTUDE CIBLE** : "{target_study}" — extrais UNIQUEMENT cette étude, '
+        f"ignore toutes les autres études mentionnées dans le texte.\n"
+        if target_study else ""
+    )
 
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
@@ -1110,6 +1131,7 @@ def _call_llm_for_study_object_raw(
             "content": _USER_TEMPLATE_FULL.format(
                 claim_device=claim_device,
                 claim_indication=claim_indication,
+                target_study_instruction=target_study_instruction,
                 study_text=study_text,
             ),
         }],
@@ -1131,6 +1153,7 @@ def parse_study_object_with_llm(
     claim_device: str,
     claim_indication: str,
     return_raw: bool = False,
+    target_study: str | None = None,
 ) -> StudyObject | tuple[StudyObject, dict]:
     """Parse a full study text (protocol / article / CER) into a complete StudyObject.
 
@@ -1143,7 +1166,7 @@ def parse_study_object_with_llm(
     If return_raw=True, also returns the raw parsed LLM JSON (dict) alongside the
     StudyObject — useful for archiving to detect that instability across runs.
     """
-    data = _call_llm_for_study_object_raw(study_text, claim_device, claim_indication)
+    data = _call_llm_for_study_object_raw(study_text, claim_device, claim_indication, target_study=target_study)
     study = _parse_study_object_result(data, claim_device, claim_indication, study_text=study_text)
     if return_raw:
         return study, data
@@ -1278,10 +1301,17 @@ def parse_study_object_with_llm_consensus(
     claim_device: str,
     claim_indication: str,
     n_calls: int = 3,
+    target_study: str | None = None,
 ) -> tuple[StudyObject, list[str]]:
     """Run n_calls parallel LLM parses of the same study and merge them via per-field
     majority vote — the production fix for temperature=0 instability (see
     parse_study_object_with_llm's docstring for why a single call isn't enough).
+
+    target_study: when set, scope every parallel parse to only that named study —
+    see _call_llm_for_study_object_raw's docstring. Pass the value the caller chose
+    from a prior response's `candidate_studies` list (see api.py's
+    diagnose_premium_endpoint: multi-study PDFs return study_selection_required
+    instead of an analysis until this is supplied).
 
     Returns (consensus StudyObject, unstable_fields): unstable_fields lists the dotted
     JSON field paths where the n_calls parses did not unanimously agree (excluding
@@ -1291,7 +1321,7 @@ def parse_study_object_with_llm_consensus(
     _get_client()  # initialize before spawning threads, avoid a lazy-init race
     with ThreadPoolExecutor(max_workers=n_calls) as pool:
         futures = [
-            pool.submit(_call_llm_for_study_object_raw, study_text, claim_device, claim_indication)
+            pool.submit(_call_llm_for_study_object_raw, study_text, claim_device, claim_indication, target_study)
             for _ in range(n_calls)
         ]
         raw_results = [f.result() for f in futures]

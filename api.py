@@ -633,6 +633,7 @@ async def diagnose_premium_endpoint(
     domain: str = Form(""),
     lang: str = Form("fr"),
     pdf_file: UploadFile = File(None),
+    target_study: str = Form(""),
     x_guest_token: Optional[str] = Header(None),
 ):
     """Premium endpoint: PDF abstract → full StudyObject → gaps + repair plan.
@@ -642,6 +643,14 @@ async def diagnose_premium_endpoint(
     supported single-study design) — but a document bundling several distinct studies
     (e.g. a full HAS avis citing 3 separate publications) is out of contract and produces
     an unreliable extraction.
+
+    Multi-study handling (2026-07-27): rather than silently analyzing an arbitrary
+    "first" study from a bundled document — the source of the run-to-run instability
+    documented in the project — the endpoint now stops before computing any risk
+    analysis and returns `study_selection_required: true` with a `candidate_studies`
+    list. Call again with `target_study` set to the caller's choice (or a free-text
+    description if the study of interest isn't in the list) to get a scoped, stable
+    analysis of that study alone.
     """
     # Guest token required — testing phase, access granted manually with a quota
     if not x_guest_token:
@@ -677,6 +686,7 @@ async def diagnose_premium_endpoint(
             study_text=pdf_text,
             claim_device=intervention or claim_text[:80],
             claim_indication=claim_text,
+            target_study=target_study.strip() or None,
         )
 
         pdf_info = {
@@ -687,7 +697,43 @@ async def diagnose_premium_endpoint(
             "chars_extracted": len(pdf_text),
         }
 
-        cas = _run_smart_cas(claim_text, pdf_text, lang)
+        # Gate: a bundled multi-study document produces an unreliable "first study
+        # guessed" analysis (run-to-run instability — see docstring). Stop here and
+        # ask the caller to pick one, instead of silently returning a risk verdict
+        # computed from an arbitrary study. Skipped once the caller has already
+        # supplied target_study (their answer to a prior such response).
+        if study.multiple_studies_detected and not target_study.strip():
+            candidate_studies = [s for s in ([study.acronym] + study.other_studies_mentioned) if s]
+            consume_token(x_guest_token)
+            return {
+                "study_selection_required": True,
+                "candidate_studies": candidate_studies,
+                "message": (
+                    "Ce document décrit plusieurs études distinctes ({studies}). "
+                    "Choisissez celle à analyser et renvoyez la requête avec le "
+                    "paramètre target_study renseigné (reprenez le libellé exact de "
+                    "la liste, ou décrivez l'étude si elle n'y figure pas)."
+                    if lang != "en" else
+                    "This document describes multiple distinct studies ({studies}). "
+                    "Choose one to analyze and resend the request with target_study "
+                    "set (reuse the exact label from the list, or describe the study "
+                    "if it isn't listed)."
+                ).format(studies=", ".join(candidate_studies) or "?"),
+                "pdf": pdf_info,
+            }
+
+        # _run_smart_cas goes through a separate prompt module (llm_cas_parser.py)
+        # that doesn't know about target_study — scope it via a text-level instruction
+        # rather than refactoring that module today. Cheap, not as robust as the
+        # structured target_study param above, but keeps this secondary "cas" field
+        # from silently re-introducing the multi-study instability we just gated above.
+        cas_input_text = pdf_text
+        if target_study.strip():
+            cas_input_text = (
+                f"[Analyse uniquement l'étude suivante : \"{target_study.strip()}\". "
+                f"Ignore toute autre étude mentionnée dans le texte ci-dessous.]\n\n{pdf_text}"
+            )
+        cas = _run_smart_cas(claim_text, cas_input_text, lang)
     else:
         # No PDF — return early with just epistemic analysis
         epistemic = analyze(claim, lang=lang)

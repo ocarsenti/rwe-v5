@@ -465,9 +465,27 @@ def generate_design_space(
     endpoint_families: list[EndpointFamily],
 ) -> DesignSpace:
     text = f"{claim_text} {dag.intervention}".lower()
-    is_emergency = any(kw in text for kw in ["emergency", "triage", "stroke", "acute"])
-    is_subjective = any(kw in text for kw in ["pain", "quality of life", "fatigue", "anxiety"])
-    is_device = any(kw in text for kw in ["device", "wristband", "app", "system", "monitor"])
+
+    # Élargi le 2026-07-27 : les 3 listes ne contenaient que des mots-clés anglais
+    # ("emergency", "pain", "device"...) alors que les revendications réelles du
+    # produit sont en français (FIREHAWK LIBERTY, INFINITY...) — aucun mot-clé ne
+    # matchait jamais, donc ces 3 booléens étaient systématiquement False sur tout
+    # le corpus de calibration, et le classement des designs ne variait jamais
+    # selon le contenu de la revendication. Gardés bilingues (pas seulement
+    # français) pour ne pas casser un usage anglophone existant éventuel.
+    is_emergency = any(kw in text for kw in [
+        "emergency", "triage", "stroke", "acute",
+        "urgence", "urgent", "aigu", "aiguë", "accident vasculaire cérébral", "avc",
+    ])
+    is_subjective = any(kw in text for kw in [
+        "pain", "quality of life", "fatigue", "anxiety",
+        "douleur", "qualité de vie", "anxiété", "fatigue", "sommeil", "insomnie",
+    ])
+    is_device = any(kw in text for kw in [
+        "device", "wristband", "app", "system", "monitor",
+        "dispositif", "prothèse", "endoprothèse", "stent", "cathéter", "implant",
+        "implantable", "chirurgie", "chirurgical",
+    ])
 
     primary_eps = []
     for f in endpoint_families:
@@ -507,6 +525,20 @@ def generate_design_space(
         if is_subjective and profile["type"] == EvidenceDesignType.INDIVIDUAL_RCT:
             biases.append("sham control recommended for subjective endpoints")
 
+        # Précédemment calculé mais jamais utilisé (code mort). Branché le
+        # 2026-07-27 : un dispositif implantable/chirurgical rend le double
+        # aveugle par chirurgie fictive rarement acceptable en pratique et
+        # éthiquement discutable — l'RCT individuel classique perd un peu
+        # d'acceptabilité pour ce motif précis, au profit d'un RCT pragmatique
+        # (bras actif ouvert + adjudication indépendante), déjà la norme dans
+        # les essais de dispositifs médicaux (cf. TARGET ALL COMERS, en ouvert).
+        if is_device and profile["type"] == EvidenceDesignType.INDIVIDUAL_RCT:
+            acceptability -= 0.05
+            biases.append("double aveugle par chirurgie fictive rarement acceptable pour un dispositif implantable")
+        if is_device and profile["type"] == EvidenceDesignType.PRAGMATIC_RCT:
+            acceptability += 0.03
+            biases.append("comparateur actif en ouvert + adjudication indépendante : norme pour les dispositifs médicaux")
+
         candidates.append(DesignCandidate(
             design_type=profile["type"],
             design_name=profile["name"],
@@ -517,7 +549,16 @@ def generate_design_space(
             has_acceptability=round(max(0.0, min(1.0, acceptability)), 2),
         ))
 
-    candidates.sort(key=lambda c: c.has_acceptability, reverse=True)
+    # Corrigé le 2026-07-27 : le tri ne portait que sur l'acceptabilité, jamais
+    # sur la faisabilité — donc même quand is_emergency faisait chuter la
+    # faisabilité de l'RCT individuel de 0,20, ça ne changeait jamais son rang,
+    # puisque son acceptabilité de base (0,95) restait la plus haute de la table
+    # et n'était jamais elle-même pénalisée par ce mécanisme. Score composite :
+    # l'acceptabilité réglementaire reste dominante (poids 0,7, c'est le signal
+    # que HAS regarde en premier), la faisabilité opérationnelle pèse le reste
+    # (0,3) — assez pour qu'un design difficile à réaliser puisse être doublé
+    # par un design légèrement moins "idéal" sur le papier mais réalisable.
+    candidates.sort(key=lambda c: 0.7 * c.has_acceptability + 0.3 * c.feasibility, reverse=True)
     return DesignSpace(candidates=candidates)
 
 
@@ -542,5 +583,10 @@ def compute_regulatory_manifold(design_space: DesignSpace) -> RegulatoryManifold
             regulatory_acceptability=regulatory_acceptability,
         ))
 
-    points.sort(key=lambda p: p.regulatory_acceptability, reverse=True)
+    # Corrigé le 2026-07-27 (même raison que generate_design_space) : trier
+    # uniquement sur regulatory_acceptability ignorait operational_complexity
+    # (dérivé de la faisabilité), qui n'était donc jamais utilisé nulle part
+    # pour le classement final malgré son calcul — best_point() choisissait
+    # toujours l'RCT individuel, faisabilité ou pas.
+    points.sort(key=lambda p: 0.7 * p.regulatory_acceptability + 0.3 * (1.0 - p.operational_complexity), reverse=True)
     return RegulatoryManifold(points=points)

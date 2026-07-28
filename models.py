@@ -471,7 +471,15 @@ class RegulatoryManifold:
         return {"points": [p.to_dict() for p in self.points]}
 
     def best_point(self) -> ManifoldPoint:
-        return max(self.points, key=lambda p: p.regulatory_acceptability - p.bias_risk)
+        # Corrigé le 2026-07-27 : formule indépendante de compute_regulatory_manifold's
+        # sort — les deux pouvaient désigner un design "optimal" différent (ignorait
+        # operational_complexity, donc l'RCT individuel gagnait toujours ici même
+        # quand le classement des points le plaçait après un design plus faisable).
+        # RegulatoryManifold n'est construit qu'à un seul endroit
+        # (compute_regulatory_manifold), toujours pré-trié par la même formule
+        # composite — best_point() renvoie donc simplement points[0] plutôt que
+        # de recalculer un critère différent qui peut diverger.
+        return self.points[0]
 
 
 @dataclass
