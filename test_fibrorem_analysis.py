@@ -5,8 +5,8 @@ Sources :
 - Étude FIBREPIK (NCT05058092, Chipon et al. 2022, rapport 22/11/2023)
 """
 
-import sys
-sys.path.insert(0, "/home/olive/rwe-v5")
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from llm_evidence_parser import _parse_study_object_result
 from models import ClinicalClaim, Endpoint, EndpointNature, CausalRole
@@ -71,10 +71,20 @@ FIBREPIK_JSON = {
     "who_is_blinded": None,
     "allocation_concealment": False,  # La randomisation réalisée par les coachs — non en aveugle
     "protocol_registered_before_enrollment": True,
+    "is_multicentric": True,  # 8 centres en France (7 hôpitaux + 1 cabinet libéral) — absent du script initial
 
     "has_comparator": True,
     "comparator_type": "standard_of_care",
     "comparator_description": "Prise en charge conventionnelle standardisée de la douleur seule (sans bracelet ni accompagnement personnalisé)",
+
+    # cf. avis, "Commentaires" : "Données sur les traitements pharmacologiques
+    # contre la douleur pris par les patients à l'inclusion non disponibles.
+    # Comparabilité des groupes discutable" — biais de confusion majeur.
+    "concomitant_treatments_present": True,
+    "concomitant_treatments_controlled": False,
+    "concomitant_treatments_description": (
+        "Liste des traitements antalgiques pris à l'inclusion non fournie par le demandeur."
+    ),
 
     "n_patients": 170,
     "age_min": 18,
@@ -138,6 +148,69 @@ FIBREPIK_JSON = {
         },
         {
             "name": "Pittsburgh Sleep Quality Index",
+            "is_primary": False,
+            "time_point": "3 mois",
+            "is_validated_surrogate": False,
+            "is_independently_adjudicated": False,
+            "result_direction": "not_reported",
+            "reached_significance": None,
+        },
+        {
+            "name": "Score d'anxiété (échelle HAD)",
+            "is_primary": False,
+            "time_point": "3 mois",
+            "is_validated_surrogate": False,
+            "is_independently_adjudicated": False,
+            "result_direction": "not_reported",
+            "reached_significance": None,
+        },
+        {
+            "name": "Score de dépression (échelle HAD)",
+            "is_primary": False,
+            "time_point": "3 mois",
+            "is_validated_surrogate": False,
+            "is_independently_adjudicated": False,
+            "result_direction": "not_reported",
+            "reached_significance": None,
+        },
+        {
+            "name": "Fatigue générale (questionnaire IMF20)",
+            "is_primary": False,
+            "time_point": "3 mois",
+            "is_validated_surrogate": False,
+            "is_independently_adjudicated": False,
+            "result_direction": "not_reported",
+            "reached_significance": None,
+        },
+        {
+            "name": "Qualité de vie générale (EQ-5D)",
+            "is_primary": False,
+            "time_point": "3 mois",
+            "is_validated_surrogate": False,
+            "is_independently_adjudicated": False,
+            "result_direction": "not_reported",
+            "reached_significance": None,
+        },
+        {
+            "name": "Activité physique (questionnaire GPAC)",
+            "is_primary": False,
+            "time_point": "3 mois",
+            "is_validated_surrogate": False,
+            "is_independently_adjudicated": False,
+            "result_direction": "not_reported",
+            "reached_significance": None,
+        },
+        {
+            "name": "Impression de changement par le clinicien (CGIC)",
+            "is_primary": False,
+            "time_point": "3 mois",
+            "is_validated_surrogate": False,
+            "is_independently_adjudicated": False,
+            "result_direction": "not_reported",
+            "reached_significance": None,
+        },
+        {
+            "name": "Impression de changement par le patient (PGIC)",
             "is_primary": False,
             "time_point": "3 mois",
             "is_validated_surrogate": False,
