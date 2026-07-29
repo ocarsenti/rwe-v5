@@ -90,7 +90,7 @@ function DeckSection({ section }) {
       <p className="text-[11px] font-bold text-accent tracking-wide mb-1">{section.tag}</p>
       <h4 className="font-semibold text-gray-800 mb-3">{section.title}</h4>
 
-      {section.body && <p className="text-sm text-gray-600 leading-relaxed mb-3">{section.body}</p>}
+      {section.body && !section.flow && <p className="text-sm text-gray-600 leading-relaxed mb-3">{section.body}</p>}
 
       {section.quotes && (
         <div className="space-y-2 mb-2">
@@ -102,6 +102,25 @@ function DeckSection({ section }) {
           ))}
         </div>
       )}
+
+      {section.flow && (
+        <div className="space-y-1.5 mb-4">
+          {section.flow.map((step, i) => {
+            const isLast = i === section.flow.length - 1
+            return (
+              <div key={i}>
+                <div className={`rounded-lg px-4 py-2.5 text-sm text-center ${
+                  isLast ? 'bg-red-50 text-red-700 font-semibold border border-red-200' : 'bg-surface text-gray-600'
+                }`}>
+                  {step}
+                </div>
+                {!isLast && <div className="text-center text-gray-300 text-xs py-0.5">↓</div>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {section.body && section.flow && <p className="text-sm text-gray-600 leading-relaxed">{section.body}</p>}
 
       {section.table && (
         <div className="overflow-x-auto">
