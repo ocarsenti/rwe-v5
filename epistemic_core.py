@@ -601,6 +601,17 @@ def generate_design_space(
         "dispositif", "prothèse", "endoprothèse", "stent", "cathéter", "implant",
         "implantable", "chirurgie", "chirurgical",
     ])
+    # Ajouté le 2026-07-29 (objection d'Olivier sur le cas Miroki) : une
+    # présence physique perceptible (robot, animal, thérapeute en personne)
+    # ne peut pas être masquée par un sham — contrairement à un comprimé ou,
+    # parfois, une chirurgie. Le sham/double-blind n'est alors pas juste
+    # "recommandé", il est infaisable ; la bonne pratique est l'évaluation en
+    # aveugle du critère (évaluateur indépendant), pas le masquage de
+    # l'exposition elle-même.
+    is_unblindable_presence = any(kw in text for kw in [
+        "robot", "compagn", "humanoïde", "humanoid",
+        "thérapie assistée par l'animal", "chien d'assistance", "animal-assisted",
+    ])
 
     primary_eps = []
     for f in endpoint_families:
@@ -618,7 +629,10 @@ def generate_design_space(
 
         if identification.blinding_needed and not profile["requires_blinding"]:
             if profile["type"] == EvidenceDesignType.INDIVIDUAL_RCT:
-                biases.append("requires sham/blinding for subjective endpoints")
+                if is_unblindable_presence:
+                    biases.append("exposition non masquable (présence physique) — nécessite une évaluation en aveugle par évaluateur indépendant, pas un sham")
+                else:
+                    biases.append("requires sham/blinding for subjective endpoints")
                 strength += 0.0
             else:
                 biases.append("perception bias (no blinding)")
@@ -637,7 +651,7 @@ def generate_design_space(
         ):
             feasibility += 0.10
 
-        if is_subjective and profile["type"] == EvidenceDesignType.INDIVIDUAL_RCT:
+        if is_subjective and profile["type"] == EvidenceDesignType.INDIVIDUAL_RCT and not is_unblindable_presence:
             biases.append("sham control recommended for subjective endpoints")
 
         # Précédemment calculé mais jamais utilisé (code mort). Branché le

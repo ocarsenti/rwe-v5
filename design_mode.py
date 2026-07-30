@@ -47,10 +47,30 @@ def _build_synthetic_claim(claim_text: str, intervention: str, domain: str) -> C
     )
 
 
+# Ajouté le 2026-07-29 (objection d'Olivier sur le cas Miroki) : une
+# intervention à présence physique perceptible (robot, animal, thérapeute en
+# personne...) ne peut pas être masquée au participant — contrairement à un
+# comprimé (placebo) ou parfois une chirurgie (sham surgery). Le moteur
+# affichait "aveugle/double-blind requis" sans cette distinction, ce qui est
+# techniquement vrai (l'endpoint est subjectif) mais donne une consigne
+# infaisable pour ce type de dispositif. La bonne pratique méthodologique
+# dans ce cas n'est pas d'abandonner l'aveugle, mais de le déplacer : masquer
+# non pas l'EXPOSITION (impossible) mais l'ÉVALUATION du critère (cotation
+# vidéo différée par un évaluateur indépendant, en insu de l'allocation) —
+# c'est la solution standard des essais de robotique/thérapie assistée par
+# l'animal, où le participant ne peut structurellement pas être aveuglé.
+_UNBLINDABLE_PRESENCE_KW = [
+    "robot", "compagn", "humanoïde", "humanoid",
+    "thérapie assistée par l'animal", "chien d'assistance", "animal-assisted",
+]
+
+
 def _build_regulatory_strategy(output: DesignModeOutput) -> str:
     best = output.regulatory_manifold.best_point()
     dag = output.target_dag
     ident = output.identification
+    text = f"{output.claim_text} {output.intervention}".lower()
+    is_unblindable_presence = any(kw in text for kw in _UNBLINDABLE_PRESENCE_KW)
 
     parts = [
         f"Stratégie réglementaire recommandée pour : \"{output.claim_text}\".",
@@ -60,7 +80,15 @@ def _build_regulatory_strategy(output: DesignModeOutput) -> str:
         f"risque biais = {best.bias_risk:.2f}).",
     ]
 
-    if ident.blinding_needed:
+    if ident.blinding_needed and is_unblindable_presence:
+        parts.append(
+            "CONDITION : l'exposition au dispositif ne peut pas être masquée au "
+            "participant (présence physique perceptible) — double aveugle classique "
+            "NON FAISABLE. Recommandé à la place : évaluation en aveugle par un "
+            "évaluateur indépendant (ex. cotation vidéo différée des échelles "
+            "comportementales, en insu de l'allocation)."
+        )
+    elif ident.blinding_needed:
         parts.append("CONDITION : aveugle (sham/double-blind) requis pour les critères subjectifs.")
     if ident.adjudication_needed:
         parts.append("CONDITION : adjudication indépendante requise pour les critères principaux.")
