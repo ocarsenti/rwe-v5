@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CAS_REELS } from '../data/casReels'
+import { CONSEIL_DESIGN_CASES } from '../data/conseilDesignCases'
 
 // ── Petits composants d'UI ────────────────────────────────────────────────────
 
@@ -209,6 +210,148 @@ function DeckDetail({ cas }) {
   return <div className="space-y-6">{cas.sections.map((s, i) => <DeckSection key={i} section={s} />)}</div>
 }
 
+// ── Cas "conseil design" (mode DESIGN, avant dossier) ────────────────────────
+
+function ConseilDesignCard({ cas }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="bg-white rounded-2xl border border-primary/15 shadow-sm">
+      <div className="p-6 md:p-8">
+        <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+          <span className="text-xs font-bold text-gray-400">MODE CONSEIL DESIGN</span>
+          <span className="inline-block text-xs font-bold px-3 py-1 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
+            {cas.status.label}
+          </span>
+        </div>
+        <h3 className="text-3xl font-bold text-primary mb-1">{cas.title}</h3>
+        <p className="text-sm text-gray-500 mb-4 leading-relaxed max-w-2xl">{cas.subtitle}</p>
+
+        <div className="bg-surface rounded-lg p-4 mb-5">
+          <p className="text-sm text-gray-600 italic leading-relaxed">{cas.hook}</p>
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-3 text-sm mb-5">
+          <div className="bg-surface rounded-lg p-3">
+            <p className="text-[10px] font-bold text-gray-400 tracking-wide mb-1">CLAIM SOUMISE AU MOTEUR</p>
+            <p className="text-gray-700">{cas.claimText}</p>
+          </div>
+          <div className="bg-surface rounded-lg p-3">
+            <p className="text-[10px] font-bold text-gray-400 tracking-wide mb-1">INTERVENTION</p>
+            <p className="text-gray-700">{cas.intervention}</p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setOpen(!open)}
+          className="bg-primary hover:bg-primary-light text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-colors"
+        >
+          {open ? 'Réduire' : "Voir la sortie complète du moteur"}
+        </button>
+      </div>
+
+      {open && (
+        <div className="border-t border-gray-100 p-6 md:p-8 bg-surface/50 rounded-b-2xl space-y-8">
+
+          {/* Mécanisme causal */}
+          <div>
+            <p className="text-[11px] font-bold text-accent tracking-wide mb-3">MÉCANISME CAUSAL INFÉRÉ</p>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700">{cas.intervention}</span>
+              {cas.mediators.map((m, i) => (
+                <span key={i} className="flex items-center gap-2">
+                  <span className="text-gray-300">→</span>
+                  <span className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700">{m}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Familles d'endpoints */}
+          <div>
+            <p className="text-[11px] font-bold text-accent tracking-wide mb-3">CRITÈRES DE JUGEMENT — PAR FAMILLE</p>
+            <div className="space-y-3">
+              {cas.endpointFamilies.map((f, i) => (
+                <div key={i} className="bg-white border border-gray-100 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${f.weight === 'PRIMARY' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                      {f.weight}
+                    </span>
+                    <span className="text-xs font-mono text-gray-400">{f.name}</span>
+                    <span className="text-xs text-gray-400">indépendance au dispositif : {f.independence}</span>
+                  </div>
+                  <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
+                    {f.endpoints.map((e, j) => <li key={j}>{e}</li>)}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Critères interdits */}
+          <div>
+            <p className="text-[11px] font-bold text-red-600 tracking-wide mb-2">CRITÈRES CIRCULAIRES — INTERDITS</p>
+            <div className="flex flex-wrap gap-2">
+              {cas.prohibited.map((p, i) => (
+                <span key={i} className="bg-red-50 text-red-700 border border-red-200 rounded-full px-3 py-1 text-xs">{p}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* Espace des designs */}
+          <div>
+            <p className="text-[11px] font-bold text-accent tracking-wide mb-3">ESPACE DES DESIGNS — CLASSÉS PAR FORCE CAUSALE</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="text-left text-[10px] font-bold text-gray-400 tracking-wide">
+                    <th className="pb-2 pr-4">Design</th>
+                    <th className="pb-2 pr-4">Force causale</th>
+                    <th className="pb-2 pr-4">Faisabilité</th>
+                    <th className="pb-2 pr-4">Acceptabilité HAS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cas.designSpace.map((d, i) => (
+                    <tr key={i} className={`border-t border-gray-100 ${d.name === cas.recommended ? 'bg-emerald-50/60' : ''}`}>
+                      <td className="py-2 pr-4 text-gray-700">
+                        {d.name === cas.recommended && <span className="text-emerald-600 font-bold mr-1">★</span>}
+                        {d.name}
+                      </td>
+                      <td className="py-2 pr-4 text-gray-600">{d.strength.toFixed(2)}</td>
+                      <td className="py-2 pr-4 text-gray-600">{d.feasibility.toFixed(2)}</td>
+                      <td className="py-2 pr-4 text-gray-600">{d.acceptability.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Conditions du design recommandé */}
+          <div>
+            <p className="text-[11px] font-bold text-accent tracking-wide mb-2">CONDITIONS DU DESIGN RECOMMANDÉ</p>
+            <ul className="text-sm text-gray-600 space-y-1.5 list-disc list-inside">
+              {cas.conditions.map((c, i) => <li key={i}>{c}</li>)}
+            </ul>
+          </div>
+
+          {/* Réserve méthodologique */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <p className="text-[10px] font-bold text-amber-700 tracking-wide mb-1">RÉSERVE MÉTHODOLOGIQUE</p>
+            <p className="text-sm text-gray-700 leading-relaxed">{cas.caveat}</p>
+          </div>
+
+          {/* Bilan */}
+          <div className="bg-primary/5 border border-primary/10 rounded-xl p-4">
+            <p className="text-[10px] font-bold text-primary/60 tracking-wide mb-1">BILAN</p>
+            <p className="text-sm text-gray-700 leading-relaxed">{cas.bilan}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Card ──────────────────────────────────────────────────────────────────────
 
 function CaseCard({ cas, expanded, onToggle }) {
@@ -290,8 +433,23 @@ export default function CasReels() {
         </div>
       </section>
 
+      {/* CONSEIL DESIGN */}
+      <section className="py-16 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-primary mb-1">Mode conseil design — avant le dossier</h2>
+            <p className="text-sm text-gray-500">Pas d'avis HAS à comparer ici : le moteur intervient en amont, sur une claim et un mécanisme, pour challenger le design avant que les données existent.</p>
+          </div>
+          {CONSEIL_DESIGN_CASES.map((cas) => <ConseilDesignCard key={cas.slug} cas={cas} />)}
+        </div>
+      </section>
+
       {/* GRID */}
       <section className="py-16 px-6">
+        <div className="max-w-5xl mx-auto mb-6">
+          <h2 className="text-2xl font-bold text-primary mb-1">Cas réel — dossiers déjà déposés</h2>
+          <p className="text-sm text-gray-500">Mode review : la sortie du moteur comparée, mot pour mot, à l'avis HAS réel.</p>
+        </div>
         <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-6">
           {CAS_REELS.map((cas) => (
             <CaseCard
