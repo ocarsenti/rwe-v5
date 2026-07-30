@@ -215,6 +215,10 @@ _MEDIATOR_KB = {
     "stimulat": ["tissue activation", "biological response", "physiological effect"],
     "modulat": ["pathway modulation", "biological response", "clinical effect"],
     "remote": ["data transmission", "clinician review", "treatment adjustment"],
+    # Ajouté le 2026-07-29 (cas Miroki/KOKORO) : mécanisme d'un robot/dispositif
+    # de présence rassurante (companion device), distinct des mécanismes
+    # biologiques/instrumentés ci-dessus.
+    "compagn": ["présence rassurante", "réduction du stress anticipatoire", "coopération accrue à la procédure"],
 }
 
 _PROHIBITED_KB = {
@@ -225,6 +229,11 @@ _PROHIBITED_KB = {
     "detection": ["device detection rate", "time-to-detection by device", "AI-flagged positive rate"],
     "neurostimulat": ["stimulation session count", "device activation rate"],
     "stimulat": ["stimulation delivery count", "device output metric"],
+    # Ajouté le 2026-07-29 (cas Miroki/KOKORO) : critères circulaires propres à
+    # un robot compagnon — mesurer l'usage/l'engagement avec le dispositif ne
+    # prouve pas une réduction d'anxiété, seulement que le dispositif a été
+    # utilisé.
+    "compagn": ["device interaction count", "robot engagement duration", "device-reported affect score"],
 }
 
 _OUTCOME_KB = {
@@ -262,6 +271,19 @@ _OUTCOME_KB = {
                    "réduction du volume/symptômes à imagerie indépendante"],
     "neurodegenerative": ["score MoCA (Montreal Cognitive Assessment)",
                           "score cognitif composite validé et adjudiqué"],
+    # Ajouté le 2026-07-29 (cas Miroki/KOKORO, échange avec Olivier) : deux
+    # claims distinctes à ne pas fusionner — anxiété de l'ENFANT (mesurée en
+    # hétéro-évaluation pour les plus jeunes, auto-évaluation sinon) et
+    # anxiété du PARENT (population secondaire). m-YPAS validée pour un moment
+    # unique (préopératoire) — son extrapolation à des mesures répétées
+    # (plusieurs séances) doit être justifiée dans le protocole, pas supposée.
+    "pediatric_anxiety": [
+        "score d'anxiété m-YPAS (hétéro-évaluation, jeune enfant, ≥3 ans)",
+        "score d'anxiété CAM-S (auto-évaluation, enfant 4-10 ans, mesures répétées)",
+        "score STAI-C (auto-évaluation, enfant ≥8-9 ans)",
+        "taux de recours à la sédation/anesthésie générale par séance",
+        "score STAI-Y état (anxiété du parent/accompagnant)",
+    ],
 }
 
 _DOMAIN_MAP = {
@@ -283,6 +305,11 @@ _DOMAIN_MAP = {
     "psychiatrie / troubles du sommeil": "sleep_medicine",
     "gynecology": "gynecology",
     "fibromyalgie / douleur chronique": "pain",
+    # Ajouté le 2026-07-29 (cas Miroki/KOKORO) :
+    "pédiatrie": "pediatric_anxiety",
+    "pédiatrie / anxiété procédurale": "pediatric_anxiety",
+    "anxiété procédurale pédiatrique": "pediatric_anxiety",
+    "radiothérapie pédiatrique": "pediatric_anxiety",
     # NON résolu : BRAINXPERT utilise domain="neurology" — exactement la même
     # chaîne que le mappage AVC existant ci-dessus, alors qu'il s'agit d'un cas
     # cognitif (score MoCA), pas d'AVC aigu. Pas de clé séparée ajoutée ici car
@@ -353,14 +380,23 @@ def compute_endpoint_families(
     # Ajoutés le 2026-07-27 (Option 1) : marqueurs physiologiques instrumentés
     # (VEMS, IAH) et score de sévérité de l'insomnie (ISI) reclassés ici plutôt
     # que dans BIOMARKER — ce sont, dans les vrais dossiers du corpus
-    # (SOMNIO/HELLOBETTER pour ISI, essais pneumologie pour VEMS), les critères
-    # RÉGLEMENTAIREMENT PRINCIPAUX observés, pas des adjuvants secondaires.
+    # Ajoutés le 2026-07-29 (cas Miroki/KOKORO, échange avec Olivier) : scores
+    # d'anxiété procédurale pédiatrique validés (m-YPAS, CAM-S, STAI-C) —
+    # reclassés ici en HARD_CLINICAL selon le même principe que score ISI
+    # (sommeil) : pour un dispositif dont la revendication EST la réduction
+    # de l'anxiété, l'échelle d'anxiété est le critère réglementairement
+    # principal, pas un adjuvant. m-YPAS est validée pour l'anxiété
+    # PRÉOPÉRATOIRE (moment unique) — son usage en mesures répétées
+    # (plusieurs séances/semaines, comme en radiothérapie) est une extrapolation
+    # hors du contexte de validation d'origine, à justifier explicitement dans
+    # le protocole plutôt que supposée équivalente sans discussion.
     hard_clinical = [o for o in dag.outcomes if any(
         kw in o.lower() for kw in [
             "mortality", "rankin", "complication", "mace", "recurrent", "acuity",
             "révision", "reprise", "survie de l'implant", "tlf", "target lesion failure",
             "ikdc", "aofas", "womac", "vems", "fev1", "iah", "apnées-hypopnées",
             "sévérité de l'insomnie", "score isi",
+            "m-ypas", "cam-s", "stai-c",
         ]
     )]
     if hard_clinical:
@@ -371,8 +407,14 @@ def compute_endpoint_families(
             regulatory_weight="PRIMARY",
         ))
 
+    # "sédation"/"anesthésie générale" ajoutés le 2026-07-29 (cas Miroki/KOKORO) :
+    # taux de recours à la sédation par séance — objectif, non auto-rapporté,
+    # indépendant du dispositif, même logique que hospitalisation/admission.
     utilization = [o for o in dag.outcomes if any(
-        kw in o.lower() for kw in ["hospitalization", "admission", "emergency", "icu", "escalation"]
+        kw in o.lower() for kw in [
+            "hospitalization", "admission", "emergency", "icu", "escalation",
+            "sédation", "anesthésie générale",
+        ]
     )]
     if utilization:
         families.append(EndpointFamily(
@@ -385,10 +427,14 @@ def compute_endpoint_families(
     # Ajoutés le 2026-07-27 (Option 1) : scores patient-rapportés de qualité de
     # vie et composites cognitifs — restent SECONDARY (adjuvants réels observés
     # dans le corpus, pas les critères principaux retenus par HAS).
+    # "stai-y" ajouté le 2026-07-29 (cas Miroki/KOKORO) : anxiété du PARENT,
+    # population secondaire par rapport à la claim principale (anxiété de
+    # l'enfant) — reste SECONDARY même si l'instrument lui-même (STAI-Y,
+    # forme adulte) est correctement validé pour cette population-là.
     biomarker = [o for o in dag.outcomes if any(
         kw in o.lower() for kw in [
             "analgesic", "actigraphy", "walk test", "vo2", "biomarker",
-            "psqi", "sgrq", "ufs-qol", "moca", "qualité de vie",
+            "psqi", "sgrq", "ufs-qol", "moca", "qualité de vie", "stai-y",
         ]
     )]
     if biomarker:
