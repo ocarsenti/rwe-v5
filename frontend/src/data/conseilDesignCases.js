@@ -45,11 +45,11 @@ export const CONSEIL_DESIGN_CASES = [
     ],
     recommended: 'Individual RCT with independent endpoint adjudication',
     conditions: [
+      "CONDITION : aveugle (sham/double-blind) requis pour les critères subjectifs — corrigé le 29/07 (voir réserve ci-dessous)",
       "Randomisation nécessaire (comparateur : accompagnement standard sans robot)",
-      "Contrôle sham/comparateur recommandé pour des critères subjectifs (m-YPAS, CAM-S, STAI-C)",
       "Aucune adjudication indépendante requise pour ces critères comportementaux/auto-rapportés",
     ],
-    caveat: "m-YPAS est validée pour l'anxiété PRÉOPÉRATOIRE — un moment unique (induction anesthésique). Son usage en mesures répétées sur plusieurs séances de radiothérapie, comme le prévoit KOKORO, est une extrapolation hors du contexte de validation d'origine : à justifier explicitement dans le protocole, pas à supposer équivalente sans discussion.",
+    caveat: "m-YPAS est validée pour l'anxiété PRÉOPÉRATOIRE — un moment unique (induction anesthésique). Son usage en mesures répétées sur plusieurs séances de radiothérapie, comme le prévoit KOKORO, est une extrapolation hors du contexte de validation d'origine : à justifier explicitement dans le protocole, pas à supposer équivalente sans discussion.\n\nCe cas a aussi servi à trouver un vrai bug du moteur : la détection du besoin d'aveugle (blinding_needed) reposait sur une liste de mots-clés restée en anglais uniquement dans une fonction du moteur, ratant \"anxiété\" en français. Corrigé le 29/07/2026 — le design gagnant n'a pas changé, mais la condition d'aveugle, absente avant correction, apparaît maintenant explicitement dans la sortie ci-dessus.",
     bilan: "Premier cas de la série construit en mode conseil, pas en mode review : le moteur n'a comparé aucune sortie à un avis HAS réel, puisqu'aucun n'existe encore pour ce dispositif. Il a généré l'espace des designs possibles à partir de la seule claim et du seul mécanisme d'intervention — recommandation la plus forte : RCT individuel avec adjudication indépendante des critères, sur des échelles d'anxiété validées plutôt que sur des métriques d'engagement avec le robot lui-même.",
   },
 ]

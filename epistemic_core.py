@@ -171,9 +171,17 @@ def assess_identification(
         "monitoring", "detection", "triage", "alert", "screening",
         "sensor", "remote", "time-to-detection", "time-to-treatment",
     ])
+    # Corrigé le 2026-07-29 (cas Miroki/KOKORO) : même bug bilingue déjà
+    # corrigé le 2026-07-27 dans generate_design_space, mais resté non
+    # synchronisé ici — cette liste, dans cette fonction séparée, n'a jamais
+    # été élargie en français. Conséquence concrète observée : sur une claim
+    # française "l'anxiété des enfants", blinding_needed ressortait à False,
+    # alors que la même claim en anglais ("anxiety") donnait True.
     is_subjective_domain = any(kw in text for kw in [
         "pain", "quality of life", "fatigue", "anxiety", "well-being",
         "satisfaction", "symptom score",
+        "douleur", "qualité de vie", "fatigue", "anxiété", "bien-être",
+        "satisfaction", "score de symptômes",
     ])
 
     randomization = True
