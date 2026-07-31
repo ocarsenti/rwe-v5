@@ -130,8 +130,39 @@ def _build_regulatory_strategy(output: DesignModeOutput) -> str:
         if measured:
             parts.append(f"CONDITION : mesure des médiateurs requise ({', '.join(measured[:2])}).")
 
-    if dag.prohibited_outcomes:
-        parts.append(f"CRITÈRES INTERDITS : {', '.join(dag.prohibited_outcomes[:3])}.")
+    # Ajouté le 2026-07-29 (cas MammoScreen) : sensibilité/spécificité/taux de
+    # détection sont interdits par défaut (_PROHIBITED_KB) car mesurés sans
+    # référence externe, ils sont circulaires — le dispositif juge sa propre
+    # performance. Sous reference_standard_needed, ils cessent de l'être :
+    # mesurés contre un étalon indépendant (biopsie, histologie, suivi), ils
+    # deviennent le critère principal légitime pour ce type de claim. On les
+    # retire donc de la liste affichée comme interdits, et on les présente à
+    # la place comme le critère diagnostique recommandé, avec la condition
+    # explicitement attachée — jamais l'un sans l'autre.
+    _DIAG_PROHIBITED_MARKERS = [
+        "sensitivity", "specificity", "detection rate",
+        "sensibilité", "spécificité", "taux de détection",
+    ]
+    displayed_prohibited = dag.prohibited_outcomes
+    if ident.reference_standard_needed:
+        displayed_prohibited = [
+            p for p in dag.prohibited_outcomes
+            if not any(m in p.lower() for m in _DIAG_PROHIBITED_MARKERS)
+        ]
+        parts.append(
+            "CONDITION : étalon de référence indépendant requis (histologie/biopsie, "
+            "ou suivi clinique confirmé) — la sensibilité et la spécificité ne sont "
+            "un critère principal valable QUE si elles sont mesurées contre ce type "
+            "de référence, jamais contre le jugement du dispositif lui-même."
+        )
+        parts.append(
+            "CRITÈRE DIAGNOSTIQUE RECOMMANDÉ : sensibilité et spécificité vs. étalon "
+            "de référence indépendant, lecteurs en aveugle du résultat de référence "
+            "pendant la lecture index."
+        )
+
+    if displayed_prohibited:
+        parts.append(f"CRITÈRES INTERDITS : {', '.join(displayed_prohibited[:3])}.")
 
     # Reformulé le 2026-07-29 (retour d'Olivier) : afficher plusieurs critères
     # comme également PRIMARY reproduit exactement le gap "endpoint_multiplicity"
@@ -153,13 +184,19 @@ def _build_regulatory_strategy(output: DesignModeOutput) -> str:
     # alors que la survie est l'endpoint clef attendu, l'hospitalisation un
     # signal de sécurité secondaire. Chaque famille porte déjà ce score ; il
     # suffisait de trier dessus au lieu de l'ignorer.
+    # Conditionné le 2026-07-29 (cas MammoScreen) : ce bloc vient du catalogue
+    # _OUTCOME_KB, construit pour des claims THÉRAPEUTIQUES (survie,
+    # hospitalisation...). Pour une claim diagnostique, il reste actif en
+    # parallèle du bloc dédié ci-dessus et sort une deuxième recommandation
+    # contradictoire ("survie globale" à côté de "sensibilité/spécificité").
+    # Supprimé dans ce cas — le bloc diagnostique fait déjà foi.
     primary_families = sorted(
         [f for f in output.endpoint_families if f.regulatory_weight == "PRIMARY"],
         key=lambda f: f.independence_from_device,
         reverse=True,
     )
     all_primary_eps = [e for f in primary_families for e in f.endpoints]
-    if all_primary_eps:
+    if all_primary_eps and not ident.reference_standard_needed:
         principal, *compatible = all_primary_eps
         parts.append(f"CRITÈRE PRINCIPAL RECOMMANDÉ : {principal}.")
         if compatible:

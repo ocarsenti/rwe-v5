@@ -115,6 +115,13 @@ class EvidenceDesignType(Enum):
     CONTROLLED_ITS = "CONTROLLED_ITS"
     TARGET_TRIAL_EMULATION = "TARGET_TRIAL_EMULATION"
     EXTERNAL_CONTROL_COHORT = "EXTERNAL_CONTROL_COHORT"
+    # Ajouté le 2026-07-29 (cas réel MammoScreen, oncologie diagnostique) : les
+    # 8 designs ci-dessus comparent tous deux traitements sur des patients
+    # randomisés — aucun n'est le bon type d'étude pour une claim de
+    # performance diagnostique. Une étude de précision diagnostique compare
+    # une lecture (avec/sans le dispositif) à un étalon de référence
+    # indépendant (histologie, suivi clinique), pas un bras à un autre.
+    DIAGNOSTIC_ACCURACY_STUDY = "DIAGNOSTIC_ACCURACY_STUDY"
 
 
 # ---------------------------------------------------------------------------
@@ -396,6 +403,12 @@ class IdentificationRequirements:
     external_data_needed: bool
     mediator_measurement_needed: bool
     minimum_design_strength: float
+    # Ajouté le 2026-07-29 (cas MammoScreen) : se déclenche pour une claim de
+    # performance diagnostique (sensibilité/spécificité/détection). Sous
+    # cette condition, ces métriques cessent d'être des critères interdits
+    # (circulaires) — mesurées contre un étalon indépendant (biopsie,
+    # histologie, suivi), elles deviennent un critère principal légitime.
+    reference_standard_needed: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -405,6 +418,7 @@ class IdentificationRequirements:
             "external_data_needed": self.external_data_needed,
             "mediator_measurement_needed": self.mediator_measurement_needed,
             "minimum_design_strength": self.minimum_design_strength,
+            "reference_standard_needed": self.reference_standard_needed,
         }
 
 

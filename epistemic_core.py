@@ -151,6 +151,19 @@ _OUTCOME_KW = [
 ]
 
 
+# Ajouté le 2026-07-29 (cas MammoScreen, oncologie diagnostique) : vocabulaire
+# PARTAGÉ entre assess_identification() et generate_design_space() — une
+# seule liste, pas deux maintenues séparément (c'est précisément le bug
+# bilingue du 27/07 puis du 29/07 sur blinding_needed : deux listes du même
+# concept, jamais synchronisées). Toute correction de ce vocabulaire se fait
+# ici, une fois, pour les deux usages.
+_DIAGNOSTIC_ACCURACY_KW = [
+    "sensitivity", "specificity", "diagnostic accuracy", "detection rate",
+    "sensibilité", "spécificité", "précision diagnostique", "taux de détection",
+    "aide au diagnostic", "seconde lecture", "dépistage",
+]
+
+
 def assess_identification(
     claim: ClinicalClaim,
     endpoint_analyses: list[EndpointAnalysis],
@@ -189,6 +202,7 @@ def assess_identification(
     adjudication = has_circular or has_detection or is_device_measurement
     external = has_circular or has_detection or is_device_measurement
     mediator_meas = has_mediation or has_mechanism
+    is_diagnostic_claim = any(kw in text for kw in _DIAGNOSTIC_ACCURACY_KW)
 
     if structure == CausalStructure.CIRCULAR or (is_device_measurement and not endpoint_analyses):
         strength = 0.9
@@ -206,6 +220,7 @@ def assess_identification(
         external_data_needed=external,
         mediator_measurement_needed=mediator_meas,
         minimum_design_strength=strength,
+        reference_standard_needed=is_diagnostic_claim,
     )
 
 
@@ -236,6 +251,11 @@ _MEDIATOR_KB = {
     "surveillance": ["transmission de données", "revue clinique", "ajustement du traitement"],
     "chirurg": ["résection tissulaire", "modification anatomique", "effet thérapeutique"],
     "algorithme": ["analyse du signal/image", "aide à la décision clinique", "action thérapeutique du clinicien"],
+    # Élargi le 2026-07-29 (cas réel MammoScreen) : "algorithme" seul ne
+    # matchait pas la formulation réelle du secteur ("intelligence
+    # artificielle", "IA", "aide au diagnostic").
+    "intelligence artificielle": ["analyse du signal/image", "aide à la décision clinique", "action thérapeutique du clinicien"],
+    "aide au diagnostic": ["analyse du signal/image", "aide à la décision clinique", "action thérapeutique du clinicien"],
     # Ajouté le 2026-07-29 (test 4 cas fictifs oncologie) : thérapie numérique
     # comportementale (app de coaching/suivi symptômes) — mécanisme déjà
     # rencontré dans le corpus réel (POPPINS, HELLOBETTER) mais jamais
@@ -262,6 +282,8 @@ _PROHIBITED_KB = {
     "surveillance": ["taux de transmission de données", "nombre d'alertes envoyées", "durée de port du dispositif"],
     "chirurg": ["taux de réalisation de la chirurgie", "durée opératoire seule", "marge chirurgicale non relue indépendamment"],
     "algorithme": ["sensibilité/spécificité de l'algorithme seule", "nombre d'images analysées", "taux de détection par l'algorithme"],
+    "intelligence artificielle": ["sensibilité/spécificité de l'algorithme seule", "nombre d'images analysées", "taux de détection par l'algorithme"],
+    "aide au diagnostic": ["sensibilité/spécificité de l'algorithme seule", "nombre d'images analysées", "taux de détection par l'algorithme"],
     "coaching": ["taux d'utilisation de l'application", "nombre de sessions de coaching complétées", "score d'engagement applicatif"],
 }
 
@@ -716,6 +738,21 @@ def generate_design_space(
             endpoint_compatibility=primary_eps[:3],
             feasibility=round(max(0.0, min(1.0, feasibility)), 2),
             has_acceptability=round(max(0.0, min(1.0, acceptability)), 2),
+        ))
+
+    # Ajouté le 2026-07-29 (cas MammoScreen) : contrairement aux 8 designs
+    # ci-dessus (toujours présents, ajustés par pénalités/bonus), celui-ci
+    # n'apparaît QUE pour une claim diagnostique — il ne s'agit pas d'une
+    # variante d'essai comparatif, une claim thérapeutique n'a rien à en faire.
+    if identification.reference_standard_needed:
+        candidates.append(DesignCandidate(
+            design_type=EvidenceDesignType.DIAGNOSTIC_ACCURACY_STUDY,
+            design_name="Diagnostic accuracy / reader study vs. independent reference standard",
+            causal_strength=0.85,
+            expected_biases=["reader variability", "case-mix / spectrum bias"],
+            endpoint_compatibility=[],
+            feasibility=0.85,
+            has_acceptability=0.90,
         ))
 
     # Corrigé le 2026-07-27 : le tri ne portait que sur l'acceptabilité, jamais
