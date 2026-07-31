@@ -336,6 +336,7 @@ def infer_target_dag(
     domain: str = "",
 ) -> TargetDAG:
     text = f"{claim_text} {intervention}".lower()
+    coverage_warnings = []
 
     mediators = []
     for kw, meds in _MEDIATOR_KB.items():
@@ -344,6 +345,10 @@ def infer_target_dag(
             break
     if not mediators:
         mediators = ["intermediate clinical process", "clinical decision"]
+        coverage_warnings.append(
+            "MÉCANISME NON RECONNU — aucun mot-clé de _MEDIATOR_KB ne correspond à "
+            "cette intervention ; médiateurs génériques utilisés, à vérifier manuellement."
+        )
 
     prohibited = []
     for kw, proh in _PROHIBITED_KB.items():
@@ -351,6 +356,10 @@ def infer_target_dag(
             prohibited.extend(proh)
     if not prohibited:
         prohibited = ["device-generated measurement endpoint"]
+        coverage_warnings.append(
+            "CRITÈRES INTERDITS NON SPÉCIFIQUES — aucun mécanisme reconnu dans "
+            "_PROHIBITED_KB ; un seul interdit générique proposé, probablement incomplet."
+        )
 
     domain_key = _DOMAIN_MAP.get(domain.lower(), "")
     outcomes = _OUTCOME_KB.get(domain_key, [])
@@ -360,6 +369,11 @@ def infer_target_dag(
             "unplanned hospitalization rate from insurance claims",
             "independently adjudicated clinical event rate",
         ]
+        coverage_warnings.append(
+            f"DOMAINE NON RECONNU ({domain!r}) — critères génériques utilisés (mortalité, "
+            "hospitalisation), sans rapport garanti avec la claim réelle. Ne pas présenter "
+            "cette sortie comme calibrée avant qu'un domaine dédié soit ajouté à _OUTCOME_KB."
+        )
 
     edges = [DAGEdge(source=intervention, target=mediators[0])]
     for i in range(len(mediators) - 1):
@@ -372,6 +386,7 @@ def infer_target_dag(
         outcomes=outcomes,
         prohibited_outcomes=prohibited,
         edges=edges,
+        coverage_warnings=coverage_warnings,
     )
 
 

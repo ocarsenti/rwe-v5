@@ -93,10 +93,23 @@ def _build_regulatory_strategy(output: DesignModeOutput) -> str:
         f"Design le plus défendable, au regard de la claim et des contraintes "
         f"identifiées, pour : \"{output.claim_text}\".",
         f"",
+    ]
+
+    # Ajouté le 2026-07-29 (retour d'Olivier sur la facturation client avant
+    # vérification de couverture KB) : affiché EN PREMIER, avant le design —
+    # un repli générique invisible est le problème qu'on vient de découvrir
+    # sur Miroki (mortalité toutes causes affichée avec 0.95 de confiance).
+    if dag.coverage_warnings:
+        parts.append("⚠️ COUVERTURE KB INCOMPLÈTE SUR CE CAS :")
+        for w in dag.coverage_warnings:
+            parts.append(f"  - {w}")
+        parts.append("")
+
+    parts.append(
         f"{best.design.design_name} — acceptabilité HAS {_score_label(best.regulatory_acceptability)} "
         f"({best.regulatory_acceptability:.2f}), risque de biais {_score_label(best.bias_risk)} "
-        f"(indice {best.bias_risk:.2f}).",
-    ]
+        f"(indice {best.bias_risk:.2f})."
+    )
 
     if ident.blinding_needed and is_unblindable_presence:
         parts.append(

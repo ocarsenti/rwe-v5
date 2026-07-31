@@ -367,6 +367,15 @@ class TargetDAG:
     outcomes: list[str]
     prohibited_outcomes: list[str]
     edges: list[DAGEdge]
+    # Ajouté le 2026-07-29 (retour d'Olivier : "je ne peux pas facturer un
+    # client avant de savoir s'il est dans la KB"). Liste des replis
+    # génériques effectivement utilisés (domaine non reconnu, mécanisme non
+    # reconnu, critères interdits non spécifiques) — vide si tout provient de
+    # la base de connaissances calibrée. Le but n'est pas de compléter la KB
+    # avant chaque cas (impossible, toujours incomplète), mais de rendre
+    # visible, avant toute décision commerciale, quand la sortie s'appuie sur
+    # un défaut générique plutôt que sur une entrée calibrée pour ce domaine.
+    coverage_warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -375,6 +384,7 @@ class TargetDAG:
             "outcomes": self.outcomes,
             "prohibited_outcomes": self.prohibited_outcomes,
             "edges": [e.to_dict() for e in self.edges],
+            "coverage_warnings": self.coverage_warnings,
         }
 
 
@@ -498,6 +508,15 @@ class DesignModeOutput:
     regulatory_strategy: str
     epistemic_manifold: Optional["EpistemicManifoldOutput"] = None
 
+    @property
+    def is_fully_calibrated(self) -> bool:
+        """False si une partie de la sortie repose sur un repli générique
+        (domaine/mécanisme/critères interdits non reconnus par la KB) plutôt
+        que sur une entrée calibrée. Point d'entrée pensé pour un usage en
+        amont d'une décision commerciale : vérifier ce cas AVANT de facturer
+        un client, pas après avoir produit une sortie qui a l'air fiable."""
+        return not self.target_dag.coverage_warnings
+
     def to_dict(self) -> dict:
         d = {
             "mode": self.mode,
@@ -510,6 +529,7 @@ class DesignModeOutput:
             "design_space": self.design_space.to_dict(),
             "regulatory_manifold": self.regulatory_manifold.to_dict(),
             "regulatory_strategy": self.regulatory_strategy,
+            "is_fully_calibrated": self.is_fully_calibrated,
         }
         if self.epistemic_manifold is not None:
             d["epistemic_manifold"] = self.epistemic_manifold.to_dict()
