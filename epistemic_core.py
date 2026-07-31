@@ -227,6 +227,20 @@ _MEDIATOR_KB = {
     # de présence rassurante (companion device), distinct des mécanismes
     # biologiques/instrumentés ci-dessus.
     "compagn": ["présence rassurante", "réduction du stress anticipatoire", "coopération accrue à la procédure"],
+    # Ajoutés le 2026-07-29 (test sur 4 cas fictifs oncologie, avant offre
+    # publique) : "monitoring"/"remote" n'avaient pas d'équivalent français —
+    # "surveillance" en couvre le mécanisme (télésurveillance, objets
+    # connectés). "chirurg" et "algorithme" comblent deux mécanismes absents
+    # jusqu'ici (résection chirurgicale, IA diagnostique), pas propres à
+    # l'oncologie mais découverts par ce test.
+    "surveillance": ["transmission de données", "revue clinique", "ajustement du traitement"],
+    "chirurg": ["résection tissulaire", "modification anatomique", "effet thérapeutique"],
+    "algorithme": ["analyse du signal/image", "aide à la décision clinique", "action thérapeutique du clinicien"],
+    # Ajouté le 2026-07-29 (test 4 cas fictifs oncologie) : thérapie numérique
+    # comportementale (app de coaching/suivi symptômes) — mécanisme déjà
+    # rencontré dans le corpus réel (POPPINS, HELLOBETTER) mais jamais
+    # reporté dans cette KB jusqu'ici.
+    "coaching": ["autogestion des symptômes", "adhésion au traitement renforcée", "adaptation comportementale"],
 }
 
 _PROHIBITED_KB = {
@@ -242,6 +256,13 @@ _PROHIBITED_KB = {
     # prouve pas une réduction d'anxiété, seulement que le dispositif a été
     # utilisé.
     "compagn": ["device interaction count", "robot engagement duration", "device-reported affect score"],
+    # Ajoutés le 2026-07-29 (test sur 4 cas fictifs oncologie) : mêmes principe
+    # que "compagn" — un dispositif qui fonctionne mécaniquement/transmet des
+    # données/détecte quelque chose ne prouve pas de bénéfice patient.
+    "surveillance": ["taux de transmission de données", "nombre d'alertes envoyées", "durée de port du dispositif"],
+    "chirurg": ["taux de réalisation de la chirurgie", "durée opératoire seule", "marge chirurgicale non relue indépendamment"],
+    "algorithme": ["sensibilité/spécificité de l'algorithme seule", "nombre d'images analysées", "taux de détection par l'algorithme"],
+    "coaching": ["taux d'utilisation de l'application", "nombre de sessions de coaching complétées", "score d'engagement applicatif"],
 }
 
 _OUTCOME_KB = {
@@ -297,6 +318,10 @@ _OUTCOME_KB = {
 _DOMAIN_MAP = {
     "ophthalmology": "ophthalmology",
     "oncology": "cancer", "lung cancer": "cancer", "cancer": "cancer",
+    # Ajoutés le 2026-07-29 (offre publique Miroki/oncologie) : seuls les
+    # termes anglais étaient reconnus — testé et confirmé le trou avant de
+    # publier quoi que ce soit.
+    "oncologie": "cancer", "cancérologie": "cancer", "cancer du poumon": "cancer",
     "neurology": "stroke", "stroke": "stroke", "emergency neurology": "stroke",
     "pain": "pain", "pain management": "pain", "chronic pain": "pain",
     "cardiology": "cardiology", "heart": "cardiology",
