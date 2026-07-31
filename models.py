@@ -783,36 +783,6 @@ class EngineOutput:
     # EngineOutput qui ignore ce champ.
     review_causal_graph: Optional["ReviewCausalGraph"] = None
 
-    # Ajouté le 2026-07-29 (même besoin qu'en mode design : vérifier la
-    # couverture KB avant une décision commerciale). Le signal existait déjà
-    # en partie — endpoint_classifier.py pose "no marker matched; defaulted
-    # to endpoint.nature" dans nature_reason quand aucun marqueur ne
-    # correspond — mais n'était nulle part agrégé ni mis en avant. Contrairement
-    # au mode design, un défaut ici ne veut PAS dire "critères inventés" : la
-    # nature retombe sur endpoint.nature (déjà fourni en amont, LLM ou JSON),
-    # donc le risque est plus silencieux encore — aucune valeur n'a l'air
-    # bizarre, la classification peut juste être une supposition non vérifiée
-    # par le vocabulaire connu du moteur plutôt qu'une correspondance confirmée.
-    _UNCLASSIFIED_REASON = "no marker matched; defaulted to endpoint.nature"
-
-    @property
-    def unclassified_endpoints(self) -> list[str]:
-        """Noms des endpoints dont la nature n'a été confirmée par AUCUN
-        marqueur connu du moteur — classification héritée telle quelle de la
-        source amont, jamais vérifiée par la KB de ce module."""
-        return [
-            ea.endpoint.name for ea in self.endpoint_analysis
-            if ea.nature_reason == self._UNCLASSIFIED_REASON
-        ]
-
-    @property
-    def is_fully_calibrated(self) -> bool:
-        """False si au moins un endpoint n'a pu être classifié par aucun
-        marqueur connu — la nature retenue vient alors de la source amont
-        (LLM/JSON), non vérifiée par le vocabulaire du moteur. À vérifier
-        AVANT une décision commerciale, comme l'équivalent en mode design."""
-        return not self.unclassified_endpoints
-
     def to_dict(self) -> dict:
         d = {
             "claim_level": self.claim_level.value,
@@ -844,8 +814,6 @@ class EngineOutput:
             },
             "repair_engine": self._repair_dict(),
             "regulatory_readout": self.regulatory_readout,
-            "is_fully_calibrated": self.is_fully_calibrated,
-            "unclassified_endpoints": self.unclassified_endpoints,
         }
         if self.manifold_position is not None:
             d["epistemic_manifold"] = self.manifold_position.to_dict()

@@ -27,20 +27,11 @@ HARD_CLINICAL_MARKERS = [
     "stroke", "myocardial infarction", "heart failure", "amputation",
     "fracture", "complication", "adverse event", "infection", "recurrence",
     "treatment escalation", "major adverse", "all-cause",
-    "target lesion failure", "target vessel revascularization",
-    "stent thrombosis", "revascularization",
     # French
     "mortalité", "survie", "décès", "hospitalisation", "réhospitalisation",
     "avc", "infarctus", "insuffisance cardiaque", "amputation",
     "fracture", "complication", "événement indésirable", "infection",
     "récidive", "récurrence", "escalade thérapeutique",
-    # Ajoutés le 2026-07-29 (test de couverture sur cas réel FIREHAWK LIBERTY,
-    # échec de classification malgré un cas déjà validé) : critères composites
-    # de cardiologie interventionnelle, absents jusqu'ici de toute liste de
-    # marqueurs.
-    "échec de revascularisation de la lésion cible", "tlf",
-    "revascularisation du vaisseau cible", "tvr",
-    "thrombose de stent",
 ]
 
 # Seuls endpoints dont l'adjudication est triviale (mort = binaire, pas d'interprétation).
@@ -113,19 +104,12 @@ OBJECTIVE_MARKERS = [
     "recurrence", "readmission", "injection", "acuity",
     "functional outcome", "treatment escalation", "adverse event",
     "infection", "analgesic consumption",
-    "target lesion failure", "target vessel revascularization",
-    "stent thrombosis", "revascularization",
     # French
     "mortalité", "survie", "hospitalisation", "complication",
     "biomarqueur", "hémoglobine glyquée", "pression artérielle", "imc",
     "récidive", "récurrence", "réhospitalisation", "injection", "acuité",
     "résultat fonctionnel", "escalade thérapeutique", "événement indésirable",
     "infection", "consommation d'analgésiques",
-    # Ajoutés le 2026-07-29 (test de couverture, cas réel FIREHAWK LIBERTY) :
-    # critères composites de cardiologie interventionnelle.
-    "échec de revascularisation de la lésion cible", "tlf",
-    "revascularisation du vaisseau cible", "tvr",
-    "thrombose de stent",
 ]
 
 
