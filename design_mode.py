@@ -130,39 +130,47 @@ def _build_regulatory_strategy(output: DesignModeOutput) -> str:
         if measured:
             parts.append(f"CONDITION : mesure des médiateurs requise ({', '.join(measured[:2])}).")
 
-    # Ajouté le 2026-07-29 (cas MammoScreen) : sensibilité/spécificité/taux de
-    # détection sont interdits par défaut (_PROHIBITED_KB) car mesurés sans
-    # référence externe, ils sont circulaires — le dispositif juge sa propre
-    # performance. Sous reference_standard_needed, ils cessent de l'être :
-    # mesurés contre un étalon indépendant (biopsie, histologie, suivi), ils
-    # deviennent le critère principal légitime pour ce type de claim. On les
-    # retire donc de la liste affichée comme interdits, et on les présente à
-    # la place comme le critère diagnostique recommandé, avec la condition
-    # explicitement attachée — jamais l'un sans l'autre.
+    # Corrigé le 2026-07-29 : la première version débloquait sensibilité/
+    # spécificité dès que la claim PARLAIT de diagnostic (reference_standard_
+    # needed), sans vérifier qu'une référence indépendante était réellement
+    # DÉCRITE dans le texte — donc une claim "sensibilité de 95%" sans
+    # biopsie ni histologie débloquait quand même le critère. Le déblocage
+    # dépend maintenant de reference_standard_confirmed (présence réelle),
+    # pas seulement du besoin.
     _DIAG_PROHIBITED_MARKERS = [
         "sensitivity", "specificity", "detection rate",
         "sensibilité", "spécificité", "taux de détection",
     ]
     displayed_prohibited = dag.prohibited_outcomes
-    if ident.reference_standard_needed:
+    if ident.reference_standard_confirmed:
         displayed_prohibited = [
             p for p in dag.prohibited_outcomes
             if not any(m in p.lower() for m in _DIAG_PROHIBITED_MARKERS)
         ]
         parts.append(
-            "CONDITION : étalon de référence indépendant requis (histologie/biopsie, "
-            "ou suivi clinique confirmé) — la sensibilité et la spécificité ne sont "
-            "un critère principal valable QUE si elles sont mesurées contre ce type "
-            "de référence, jamais contre le jugement du dispositif lui-même."
+            "CONDITION : étalon de référence indépendant détecté (histologie/biopsie "
+            "ou suivi clinique confirmé) — la sensibilité et la spécificité sont "
+            "acceptées comme critère principal, mesurées contre cette référence, "
+            "lecteurs en aveugle du résultat de référence pendant la lecture index."
         )
         parts.append(
             "CRITÈRE DIAGNOSTIQUE RECOMMANDÉ : sensibilité et spécificité vs. étalon "
-            "de référence indépendant, lecteurs en aveugle du résultat de référence "
-            "pendant la lecture index."
+            "de référence indépendant."
+        )
+    elif ident.reference_standard_needed:
+        parts.append(
+            "CONDITION NON SATISFAITE : cette claim porte sur une performance "
+            "diagnostique (sensibilité/spécificité/taux de détection), mais aucune "
+            "référence indépendante (biopsie, histologie, suivi clinique confirmé) "
+            "n'est décrite dans le texte fourni. Sensibilité/spécificité RESTENT "
+            "interdites comme critère principal tant qu'une référence indépendante "
+            "n'est pas explicitement documentée — sinon le dispositif juge sa "
+            "propre performance, ce qui est circulaire."
         )
 
     if displayed_prohibited:
-        parts.append(f"CRITÈRES INTERDITS : {', '.join(displayed_prohibited[:3])}.")
+        prohibited_unique = list(dict.fromkeys(displayed_prohibited))
+        parts.append(f"CRITÈRES INTERDITS : {', '.join(prohibited_unique[:3])}.")
 
     # Reformulé le 2026-07-29 (retour d'Olivier) : afficher plusieurs critères
     # comme également PRIMARY reproduit exactement le gap "endpoint_multiplicity"

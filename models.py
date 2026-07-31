@@ -409,6 +409,11 @@ class IdentificationRequirements:
     # (circulaires) — mesurées contre un étalon indépendant (biopsie,
     # histologie, suivi), elles deviennent un critère principal légitime.
     reference_standard_needed: bool = False
+    # Ajouté le 2026-07-29 : est-ce qu'une référence indépendante est
+    # RÉELLEMENT décrite dans la claim (biopsie, histologie...), pas juste
+    # requise en théorie. C'est CE champ, pas reference_standard_needed, qui
+    # doit conditionner le déblocage de sensibilité/spécificité.
+    reference_standard_confirmed: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -419,6 +424,7 @@ class IdentificationRequirements:
             "mediator_measurement_needed": self.mediator_measurement_needed,
             "minimum_design_strength": self.minimum_design_strength,
             "reference_standard_needed": self.reference_standard_needed,
+            "reference_standard_confirmed": self.reference_standard_confirmed,
         }
 
 

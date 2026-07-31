@@ -163,6 +163,19 @@ _DIAGNOSTIC_ACCURACY_KW = [
     "aide au diagnostic", "seconde lecture", "dépistage",
 ]
 
+# Ajouté le 2026-07-29 (correction : la première version débloquait
+# sensibilité/spécificité dès qu'une claim PARLAIT de diagnostic, sans
+# vérifier qu'une référence indépendante était réellement DÉCRITE — donc une
+# claim "sensibilité de 95%" sans biopsie ni histologie débloquait quand même
+# le critère. Cette liste sert à vérifier la présence réelle, pas juste le
+# besoin.
+_REFERENCE_STANDARD_KW = [
+    "biopsy", "histology", "histopathology", "gold standard", "reference standard",
+    "confirmed by follow-up", "ground truth",
+    "biopsie", "histologie", "histopathologie", "anatomopathologique", "anatomopathologie",
+    "étalon de référence", "confirmé par suivi", "suivi clinique confirmé", "vérité terrain",
+]
+
 
 def assess_identification(
     claim: ClinicalClaim,
@@ -203,6 +216,7 @@ def assess_identification(
     external = has_circular or has_detection or is_device_measurement
     mediator_meas = has_mediation or has_mechanism
     is_diagnostic_claim = any(kw in text for kw in _DIAGNOSTIC_ACCURACY_KW)
+    has_reference_standard = any(kw in text for kw in _REFERENCE_STANDARD_KW)
 
     if structure == CausalStructure.CIRCULAR or (is_device_measurement and not endpoint_analyses):
         strength = 0.9
@@ -221,6 +235,7 @@ def assess_identification(
         mediator_measurement_needed=mediator_meas,
         minimum_design_strength=strength,
         reference_standard_needed=is_diagnostic_claim,
+        reference_standard_confirmed=is_diagnostic_claim and has_reference_standard,
     )
 
 
