@@ -50,12 +50,26 @@ def persist_diagnosis(case_label, claim, output, comparison, source_script="live
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             case_label TEXT NOT NULL,
             intervention TEXT,
+            domain TEXT,
+            primary_endpoint TEXT,
             source_script TEXT,
             overall_risk TEXT,
             n_gaps INTEGER,
             UNIQUE(case_label, source_script)
         )"""
     )
+    # Corrigé le 2026-07-29 : le docstring de ce fichier prétendait "réutilise
+    # le même schéma que retrofill.py" — c'était faux, deux CREATE TABLE
+    # indépendants avaient divergé (domain/primary_endpoint absents ici).
+    # Si la table a déjà été créée par CE script avant ce correctif (probable
+    # en production depuis l'activation d'EVIDENCEABLE_PERSIST_LEARNING), ses
+    # colonnes n'existent pas encore — migration sûre, sans écraser les
+    # lignes déjà présentes.
+    existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(engine_diagnostics)")}
+    if "domain" not in existing_cols:
+        conn.execute("ALTER TABLE engine_diagnostics ADD COLUMN domain TEXT")
+    if "primary_endpoint" not in existing_cols:
+        conn.execute("ALTER TABLE engine_diagnostics ADD COLUMN primary_endpoint TEXT")
     conn.execute(
         """CREATE TABLE IF NOT EXISTS engine_bias_flags (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,14 +88,20 @@ def persist_diagnosis(case_label, claim, output, comparison, source_script="live
     )
 
     intervention = claim.intervention if claim else None
+    domain = claim.domain if claim else None
+    primary_endpoint = None
+    if claim:
+        primary = next((e for e in claim.endpoints if e.is_primary), None)
+        if primary:
+            primary_endpoint = primary.name
     overall_risk = str(comparison.overall_risk).split(".")[-1] if comparison else None
     n_gaps = len(comparison.gaps) if comparison else None
 
     cur = conn.execute(
         """INSERT OR IGNORE INTO engine_diagnostics
-           (case_label, intervention, source_script, overall_risk, n_gaps)
-           VALUES (?, ?, ?, ?, ?)""",
-        (case_label, intervention, source_script, overall_risk, n_gaps),
+           (case_label, intervention, domain, primary_endpoint, source_script, overall_risk, n_gaps)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (case_label, intervention, domain, primary_endpoint, source_script, overall_risk, n_gaps),
     )
     is_new = cur.lastrowid != 0
     if is_new:
