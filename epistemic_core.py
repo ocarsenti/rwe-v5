@@ -688,6 +688,32 @@ def generate_design_space(
     # (0,3) — assez pour qu'un design difficile à réaliser puisse être doublé
     # par un design légèrement moins "idéal" sur le papier mais réalisable.
     candidates.sort(key=lambda c: 0.7 * c.has_acceptability + 0.3 * c.feasibility, reverse=True)
+
+    # Ajouté le 2026-07-29 (retour d'Olivier, critique méthodologiste) : le
+    # classement était affiché sans dire POURQUOI un design vient après un
+    # autre — juste des scores nus. Génère une phrase de compromis explicite
+    # par rapport au design en tête, sur les deux seuls axes qui pèsent dans
+    # le tri (acceptabilité HAS, faisabilité) — jamais sur la force causale
+    # seule, qui n'entre pas dans le score de classement.
+    if candidates:
+        best = candidates[0]
+        for c in candidates[1:]:
+            d_feas = c.feasibility - best.feasibility
+            d_accept = c.has_acceptability - best.has_acceptability
+            clauses = []
+            if d_feas > 0.02:
+                clauses.append(f"gagne en faisabilité (+{d_feas:.2f})")
+            elif d_feas < -0.02:
+                clauses.append(f"perd en faisabilité ({d_feas:.2f})")
+            if d_accept < -0.02:
+                clauses.append(f"perd en acceptabilité HAS ({d_accept:.2f})")
+            elif d_accept > 0.02:
+                clauses.append(f"gagne en acceptabilité HAS (+{d_accept:.2f})")
+            if clauses:
+                c.tradeoff_note = (
+                    f"Par rapport à « {best.design_name} » : {', '.join(clauses)}."
+                )
+
     return DesignSpace(candidates=candidates)
 
 

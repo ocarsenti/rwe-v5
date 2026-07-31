@@ -423,6 +423,7 @@ class DesignCandidate:
     endpoint_compatibility: list[str]
     feasibility: float
     has_acceptability: float
+    tradeoff_note: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -433,6 +434,7 @@ class DesignCandidate:
             "endpoint_compatibility": self.endpoint_compatibility,
             "feasibility": self.feasibility,
             "has_acceptability": self.has_acceptability,
+            "tradeoff_note": self.tradeoff_note,
         }
 
 

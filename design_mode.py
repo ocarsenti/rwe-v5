@@ -65,6 +65,18 @@ _UNBLINDABLE_PRESENCE_KW = [
 ]
 
 
+def _score_label(score: float) -> str:
+    """Catégorise un score continu — évite une fausse précision en décimales
+    non justifiable (retour d'Olivier, critique méthodologiste 2026-07-29)."""
+    if score >= 0.85:
+        return "Très élevée"
+    if score >= 0.65:
+        return "Élevée"
+    if score >= 0.45:
+        return "Modérée"
+    return "Faible"
+
+
 def _build_regulatory_strategy(output: DesignModeOutput) -> str:
     best = output.regulatory_manifold.best_point()
     dag = output.target_dag
@@ -72,12 +84,18 @@ def _build_regulatory_strategy(output: DesignModeOutput) -> str:
     text = f"{output.claim_text} {output.intervention}".lower()
     is_unblindable_presence = any(kw in text for kw in _UNBLINDABLE_PRESENCE_KW)
 
+    # Reformulé le 2026-07-29 (retour d'Olivier) : "Design recommandé" sonne
+    # prescriptif, comme si le moteur imposait une étude. Un méthodologiste
+    # parlerait de défendabilité au regard des contraintes identifiées, pas
+    # d'une prescription. Scores affichés en catégories (avec la valeur brute
+    # entre parenthèses pour qui veut la retrouver), pas en décimales nues.
     parts = [
-        f"Stratégie réglementaire recommandée pour : \"{output.claim_text}\".",
+        f"Design le plus défendable, au regard de la claim et des contraintes "
+        f"identifiées, pour : \"{output.claim_text}\".",
         f"",
-        f"Design optimal : {best.design.design_name} "
-        f"(acceptabilité HAS = {best.regulatory_acceptability:.2f}, "
-        f"risque biais = {best.bias_risk:.2f}).",
+        f"{best.design.design_name} — acceptabilité HAS {_score_label(best.regulatory_acceptability)} "
+        f"({best.regulatory_acceptability:.2f}), risque de biais {_score_label(best.bias_risk)} "
+        f"(indice {best.bias_risk:.2f}).",
     ]
 
     if ident.blinding_needed and is_unblindable_presence:
@@ -102,10 +120,26 @@ def _build_regulatory_strategy(output: DesignModeOutput) -> str:
     if dag.prohibited_outcomes:
         parts.append(f"CRITÈRES INTERDITS : {', '.join(dag.prohibited_outcomes[:3])}.")
 
+    # Reformulé le 2026-07-29 (retour d'Olivier) : afficher plusieurs critères
+    # comme également PRIMARY reproduit exactement le gap "endpoint_multiplicity"
+    # que le mode REVIEW du même moteur sanctionne côté dossiers déposés (cf.
+    # avis CNEDiMTS ENTERRA II 7254, ASA rétrogradée pour ce motif précis) —
+    # incohérence entre les deux modes, pas un simple choix de formulation.
+    # Un seul critère principal ; les autres deviennent des alternatives
+    # validées, avec la condition de hiérarchisation explicite s'ils sont
+    # conservés ensemble.
     primary_families = [f for f in output.endpoint_families if f.regulatory_weight == "PRIMARY"]
-    if primary_families:
-        top_eps = primary_families[0].endpoints[:2]
-        parts.append(f"CRITÈRES PRIMAIRES RECOMMANDÉS : {', '.join(top_eps)}.")
+    all_primary_eps = [e for f in primary_families for e in f.endpoints]
+    if all_primary_eps:
+        principal, *compatible = all_primary_eps
+        parts.append(f"CRITÈRE PRINCIPAL RECOMMANDÉ : {principal}.")
+        if compatible:
+            parts.append(
+                f"CRITÈRES VALIDÉS COMPATIBLES (alternatives au principal, pas des "
+                f"co-principaux) : {', '.join(compatible[:2])}. S'ils sont conservés "
+                f"ensemble comme co-principaux, une hiérarchisation statistique "
+                f"pré-spécifiée est requise pour contrôler le risque alpha global."
+            )
 
     return "\n".join(parts)
 

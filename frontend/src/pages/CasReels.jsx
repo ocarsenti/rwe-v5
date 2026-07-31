@@ -30,6 +30,13 @@ function StatusMark({ status }) {
   )
 }
 
+function scoreLabel(score) {
+  if (score >= 0.85) return 'Très élevée'
+  if (score >= 0.65) return 'Élevée'
+  if (score >= 0.45) return 'Modérée'
+  return 'Faible'
+}
+
 function SignalLevelTag({ level }) {
   const colors = {
     HIGH: 'bg-red-100 text-red-700',
@@ -266,9 +273,27 @@ function ConseilDesignCard({ cas }) {
             </div>
           </div>
 
+          {/* Critère principal vs compatibles */}
+          <div>
+            <p className="text-[11px] font-bold text-accent tracking-wide mb-3">CRITÈRE DE JUGEMENT</p>
+            <div className="bg-white border border-emerald-200 rounded-xl p-4 mb-2">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">PRINCIPAL</span>
+              <p className="text-sm text-gray-700 mt-2">{cas.principalEndpoint}</p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-xl p-4 mb-2">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">VALIDÉS COMPATIBLES — pas des co-principaux</span>
+              <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside mt-2">
+                {cas.compatibleEndpoints.map((e, j) => <li key={j}>{e}</li>)}
+              </ul>
+            </div>
+            {cas.multiplicityNote && (
+              <p className="text-xs text-gray-400 italic leading-relaxed">{cas.multiplicityNote}</p>
+            )}
+          </div>
+
           {/* Familles d'endpoints */}
           <div>
-            <p className="text-[11px] font-bold text-accent tracking-wide mb-3">CRITÈRES DE JUGEMENT — PAR FAMILLE</p>
+            <p className="text-[11px] font-bold text-accent tracking-wide mb-3">AUTRES CRITÈRES — PAR FAMILLE</p>
             <div className="space-y-3">
               {cas.endpointFamilies.map((f, i) => (
                 <div key={i} className="bg-white border border-gray-100 rounded-xl p-4">
@@ -277,7 +302,7 @@ function ConseilDesignCard({ cas }) {
                       {f.weight}
                     </span>
                     <span className="text-xs font-mono text-gray-400">{f.name}</span>
-                    <span className="text-xs text-gray-400">indépendance au dispositif : {f.independence}</span>
+                    <span className="text-xs text-gray-400">indépendance au dispositif : {scoreLabel(f.independence)} ({f.independence})</span>
                   </div>
                   <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
                     {f.endpoints.map((e, j) => <li key={j}>{e}</li>)}
@@ -299,27 +324,26 @@ function ConseilDesignCard({ cas }) {
 
           {/* Espace des designs */}
           <div>
-            <p className="text-[11px] font-bold text-accent tracking-wide mb-3">ESPACE DES DESIGNS — CLASSÉS PAR FORCE CAUSALE</p>
+            <p className="text-[11px] font-bold text-accent tracking-wide mb-3">ESPACE DES DESIGNS — CLASSÉS PAR ACCEPTABILITÉ + FAISABILITÉ</p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="text-left text-[10px] font-bold text-gray-400 tracking-wide">
                     <th className="pb-2 pr-4">Design</th>
-                    <th className="pb-2 pr-4">Force causale</th>
                     <th className="pb-2 pr-4">Faisabilité</th>
                     <th className="pb-2 pr-4">Acceptabilité HAS</th>
                   </tr>
                 </thead>
                 <tbody>
                   {cas.designSpace.map((d, i) => (
-                    <tr key={i} className={`border-t border-gray-100 ${d.name === cas.recommended ? 'bg-emerald-50/60' : ''}`}>
+                    <tr key={i} className={`border-t border-gray-100 align-top ${d.name === cas.recommended ? 'bg-emerald-50/60' : ''}`}>
                       <td className="py-2 pr-4 text-gray-700">
                         {d.name === cas.recommended && <span className="text-emerald-600 font-bold mr-1">★</span>}
                         {d.name}
+                        {d.tradeoff && <p className="text-xs text-gray-400 italic mt-0.5">{d.tradeoff}</p>}
                       </td>
-                      <td className="py-2 pr-4 text-gray-600">{d.strength.toFixed(2)}</td>
-                      <td className="py-2 pr-4 text-gray-600">{d.feasibility.toFixed(2)}</td>
-                      <td className="py-2 pr-4 text-gray-600">{d.acceptability.toFixed(2)}</td>
+                      <td className="py-2 pr-4 text-gray-600 whitespace-nowrap">{scoreLabel(d.feasibility)} ({d.feasibility.toFixed(2)})</td>
+                      <td className="py-2 pr-4 text-gray-600 whitespace-nowrap">{scoreLabel(d.acceptability)} ({d.acceptability.toFixed(2)})</td>
                     </tr>
                   ))}
                 </tbody>
@@ -329,7 +353,7 @@ function ConseilDesignCard({ cas }) {
 
           {/* Conditions du design recommandé */}
           <div>
-            <p className="text-[11px] font-bold text-accent tracking-wide mb-2">CONDITIONS DU DESIGN RECOMMANDÉ</p>
+            <p className="text-[11px] font-bold text-accent tracking-wide mb-2">CONDITIONS DU DESIGN LE PLUS DÉFENDABLE</p>
             <ul className="text-sm text-gray-600 space-y-1.5 list-disc list-inside">
               {cas.conditions.map((c, i) => <li key={i}>{c}</li>)}
             </ul>
