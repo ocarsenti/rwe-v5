@@ -141,7 +141,23 @@ def _build_regulatory_strategy(output: DesignModeOutput) -> str:
     # Un seul critère principal ; les autres deviennent des alternatives
     # validées, avec la condition de hiérarchisation explicite s'ils sont
     # conservés ensemble.
-    primary_families = [f for f in output.endpoint_families if f.regulatory_weight == "PRIMARY"]
+    #
+    # Trié par independence_from_device le 2026-07-29 (cas cryoablation rénale,
+    # oncologie) : sans ce tri, le principal était pris dans l'ordre
+    # d'APPARITION des familles dans compute_endpoint_families (HARD_CLINICAL,
+    # UTILIZATION, BIOMARKER, SURVIVAL...) — un pur accident d'ordre
+    # d'écriture du code, pas un choix. Sur une claim de contrôle tumoral,
+    # "unplanned hospitalization rate" (UTILIZATION, indépendance 0.90)
+    # sortait comme critère principal AVANT "overall survival" (SURVIVAL,
+    # indépendance 1.0 — le score le plus haut de toutes les familles),
+    # alors que la survie est l'endpoint clef attendu, l'hospitalisation un
+    # signal de sécurité secondaire. Chaque famille porte déjà ce score ; il
+    # suffisait de trier dessus au lieu de l'ignorer.
+    primary_families = sorted(
+        [f for f in output.endpoint_families if f.regulatory_weight == "PRIMARY"],
+        key=lambda f: f.independence_from_device,
+        reverse=True,
+    )
     all_primary_eps = [e for f in primary_families for e in f.endpoints]
     if all_primary_eps:
         principal, *compatible = all_primary_eps
