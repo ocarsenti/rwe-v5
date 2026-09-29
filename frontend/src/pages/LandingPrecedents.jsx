@@ -40,13 +40,13 @@ const APPORTS = [
 ]
 
 const ETAPES = [
-  { n: '1', titre: 'Connecter', texte: 'Le connecteur « Précédents HAS » s’ajoute à Claude (claude.ai) en quelques minutes, avec une clé propre à votre équipe.' },
-  { n: '2', titre: 'Demander', texte: 'Vous posez vos questions comme à un collègue : « Quelles objections la Commission a-t-elle faites sur cette classe ? »' },
-  { n: '3', titre: 'Lire', texte: 'Claude lit le débat complet, les votes et les motifs des avis, puis répond en citant ses sources.' },
+  { n: '1', titre: 'Connecter', texte: 'Le connecteur « Précédents HAS » s’ajoute en quelques minutes à votre assistant d’IA : Claude, ou tout outil compatible avec les connecteurs MCP, le standard ouvert. Une clé propre à votre équipe.' },
+  { n: '2', titre: 'Demander', texte: 'Vous continuez à travailler dans votre outil, sur vos propres documents, et vous posez vos questions comme à un collègue : « Quelles objections la Commission a-t-elle faites sur cette classe ? »' },
+  { n: '3', titre: 'Lire', texte: 'Votre assistant lit le débat complet, les votes et les motifs des avis, puis répond en citant ses sources.' },
 ]
 
 const CONFIDENTIALITE = [
-  'Mode fermé par défaut : Claude n’envoie au serveur que des termes publics (une classe, une aire, un produit déjà évalué). Jamais votre dossier.',
+  'Mode fermé par défaut : votre assistant n’envoie au serveur que des termes publics (une classe, une aire, un produit déjà évalué). Jamais votre dossier.',
   'Aucune IA côté serveur : de simples lectures dans une base de documents publics.',
   'Vos questions ne sont ni enregistrées ni journalisées.',
   'Intervenants anonymisés : seul leur rôle est donné.',
@@ -96,13 +96,14 @@ export default function LandingPrecedents() {
       <section className="bg-primary px-4 pb-20 pt-16 text-white sm:px-6 sm:pt-24">
         <div className="mx-auto grid max-w-5xl items-center gap-12 md:grid-cols-[1fr_auto]">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-accent-light">Précédents HAS · connecteur pour Claude</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-accent-light">Précédents HAS · un connecteur pour votre outil d’IA</p>
             <h1 className="mt-4 text-3xl font-bold leading-tight sm:text-5xl">
               Ce que la Commission de la Transparence a dit, voté et retenu.
             </h1>
             <p className="mt-6 max-w-2xl text-lg text-white/80">
-              Les avis publiés, les débats de séance et les votes, réunis dans une base que votre Claude interroge directement.
-              Pour préparer un dossier à partir de ce que la Commission a réellement objecté, et non d&apos;impressions.
+              Les avis publiés, les débats de séance et les votes, réunis dans une base que vous interrogez sans quitter votre outil d&apos;IA :
+              un connecteur la branche directement sur votre assistant. Pour préparer un dossier à partir de ce que la Commission a réellement
+              objecté, et non d&apos;impressions.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <BoutonDemo />
@@ -163,12 +164,12 @@ export default function LandingPrecedents() {
             </p>
           </div>
           <div className="border-t border-gray-200 bg-accent/5 px-5 py-4 text-sm text-gray-700 sm:px-6">
-            Test interne à l&apos;aveugle : 9,5 éléments sur 10 d&apos;une grille de faits vérifiés dans les transcriptions, aucune erreur factuelle.
+            <strong>Testé à l&apos;aveugle</strong> sur des questions ouvertes de client : chaque réponse est notée sur une grille de faits vérifiés dans les transcriptions. Sur cette question, 9,5 éléments sur 10 retrouvés, aucune erreur factuelle.
           </div>
         </div>
       </Section>
 
-      <Section surtitre="Comment ça marche" titre="Dans l'outil que votre équipe utilise déjà">
+      <Section surtitre="Comment ça marche" titre="Sans changer d'outil : la base vient à votre IA">
         <ol className="grid gap-6 md:grid-cols-3">
           {ETAPES.map(e => (
             <li key={e.n} className="flex gap-4">
