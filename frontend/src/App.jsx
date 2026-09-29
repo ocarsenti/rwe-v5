@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { Routes, Route, Link, useLocation, Outlet } from 'react-router-dom'
 import { LangProvider, useLang } from './LangContext'
 import { GuestProvider } from './guest/GuestContext'
@@ -15,30 +15,6 @@ import GoldPage from './pages/GoldPage'
 import RepairPage from './pages/RepairPage'
 import AdminPage from './pages/AdminPage'
 import evidenceableWordmark from './assets/evidenceable-wordmark-compact.png'
-import evidenceableIcon from './assets/gelule.png'
-
-function IntroSplash({ onEnter }) {
-  return (
-    <div
-      onClick={onEnter}
-      className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center gap-6 cursor-pointer"
-    >
-      <img
-        src={evidenceableIcon}
-        alt=""
-        className="w-16 h-16 opacity-0 animate-[intro-fade-scale_0.6s_ease-out_forwards]"
-      />
-      <img
-        src={evidenceableWordmark}
-        alt="EvidenceAble"
-        className="w-64 opacity-0 animate-[intro-fade_0.6s_ease-out_0.35s_forwards]"
-      />
-      <p className="text-sm text-gray-400 opacity-0 animate-[intro-fade_0.6s_ease-out_0.9s_forwards]">
-        Cliquez pour continuer
-      </p>
-    </div>
-  )
-}
 
 function Navbar() {
   const { pathname } = useLocation()
@@ -135,16 +111,6 @@ function VisitTracker() {
 }
 
 export default function App() {
-  const [entered, setEntered] = useState(false)
-
-  if (!entered) {
-    return (
-      <IntroSplash
-        onEnter={() => setEntered(true)}
-      />
-    )
-  }
-
   return (
     <LangProvider>
       <div className="min-h-screen bg-surface">
