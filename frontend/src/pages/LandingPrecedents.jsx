@@ -1,5 +1,5 @@
 import gelule from '../assets/gelule.png'
-import evidenceableWordmark from '../assets/evidenceable-wordmark-compact.png'
+import Wordmark from '../components/Wordmark'
 
 // Page d'accueil d'evidenceable.com depuis le 2026-09-29 : base de précédents de la Commission de la Transparence (connecteur « Précédents HAS »).
 // Pas de chiffres de volume affichés tant que la base est petite (décision du 2026-09-29).
@@ -82,7 +82,7 @@ export default function LandingPrecedents() {
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <a href="/" className="flex min-w-0 items-center gap-2">
             <img src={gelule} alt="" className="h-8 w-8 flex-shrink-0" />
-            <img src={evidenceableWordmark} alt="EvidenceAble" className="h-6 w-auto max-w-[9rem] sm:h-7 sm:max-w-none" />
+            <Wordmark className="text-xl sm:text-2xl" />
           </a>
           <a
             href={MAILTO}

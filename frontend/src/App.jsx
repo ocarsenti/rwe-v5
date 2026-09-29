@@ -14,7 +14,7 @@ import DesignPage from './pages/DesignPage'
 import GoldPage from './pages/GoldPage'
 import RepairPage from './pages/RepairPage'
 import AdminPage from './pages/AdminPage'
-import evidenceableWordmark from './assets/evidenceable-wordmark-compact.png'
+import Wordmark from './components/Wordmark'
 
 function Navbar() {
   const { pathname } = useLocation()
@@ -29,7 +29,7 @@ function Navbar() {
     <nav className="bg-primary text-white shadow-lg sticky top-0 z-50 print:hidden">
       <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
         <Link to="/" className="flex-shrink-0 bg-white rounded-md px-2.5 py-1.5 flex items-center">
-          <img src={evidenceableWordmark} alt="EvidenceAble" className="h-7 w-auto" />
+          <Wordmark className="text-xl" />
         </Link>
         <div className="flex items-center gap-2">
           <div className="flex gap-1">
