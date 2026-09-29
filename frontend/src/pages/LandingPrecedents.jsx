@@ -1,4 +1,5 @@
 import gelule from '../assets/gelule.png'
+import captureConnecteur from '../assets/connecteur-claude.webp'
 import Wordmark from '../components/Wordmark'
 
 // Page d'accueil d'evidenceable.com depuis le 2026-09-29 : base de précédents de la Commission de la Transparence (connecteur « Précédents HAS »).
@@ -94,15 +95,15 @@ export default function LandingPrecedents() {
       </header>
 
       <section className="bg-primary px-4 pb-20 pt-16 text-white sm:px-6 sm:pt-24">
-        <div className="mx-auto grid max-w-5xl items-center gap-12 md:grid-cols-[1fr_auto]">
+        <div className="mx-auto grid max-w-5xl items-center gap-10 lg:grid-cols-[1fr_minmax(0,420px)]">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-accent-light">Précédents HAS · un connecteur pour votre outil d’IA</p>
             <h1 className="mt-4 text-3xl font-bold leading-tight sm:text-5xl">
               Ce que la Commission de la Transparence a dit, voté et retenu.
             </h1>
             <p className="mt-6 max-w-2xl text-lg text-white/80">
-              Les avis publiés, les débats de séance et les votes, réunis dans une base que vous interrogez sans quitter votre outil d&apos;IA :
-              un connecteur la branche directement sur votre assistant. Pour préparer un dossier à partir de ce que la Commission a réellement
+              Les avis publiés, les débats de séance et les votes, réunis dans une base que vous interrogez depuis vos outils d&apos;IA préférés,
+              sans en changer : un connecteur la branche directement sur votre assistant. Pour préparer un dossier à partir de ce que la Commission a réellement
               objecté, et non d&apos;impressions.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -115,7 +116,17 @@ export default function LandingPrecedents() {
               </a>
             </div>
           </div>
-          <img src={gelule} alt="" className="mx-auto hidden w-48 drop-shadow-2xl md:block" />
+          <figure className="mx-auto w-full max-w-[420px]">
+            <img
+              src={captureConnecteur}
+              alt="Dans Claude, le connecteur « Précédents HAS » activé dans le menu Connecteurs, et une réponse qui l'utilise."
+              className="w-full rounded-xl border border-white/20 shadow-2xl"
+              loading="eager"
+            />
+            <figcaption className="mt-3 text-center text-sm text-white/70">
+              Le connecteur « Précédents HAS », activé dans Claude en un clic.
+            </figcaption>
+          </figure>
         </div>
       </section>
 
