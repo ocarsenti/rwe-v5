@@ -41,7 +41,7 @@ const APPORTS = [
 ]
 
 const ETAPES = [
-  { n: '1', titre: 'Connecter', texte: 'Le connecteur « Précédents HAS » s’ajoute en quelques minutes à votre assistant d’IA : Claude, ou tout outil compatible avec les connecteurs MCP, le standard ouvert. Une clé propre à votre équipe.' },
+  { n: '1', titre: 'Connecter', texte: 'Le connecteur « Précédents HAS » s’ajoute en quelques minutes à votre assistant d’IA : Claude aujourd’hui ; ChatGPT et Copilot sur demande. Une clé propre à votre équipe.' },
   { n: '2', titre: 'Demander', texte: 'Vous continuez à travailler dans votre outil, sur vos propres documents, et vous posez vos questions comme à un collègue : « Quelles objections la Commission a-t-elle faites sur cette classe ? »' },
   { n: '3', titre: 'Lire', texte: 'Votre assistant lit le débat complet, les votes et les motifs des avis, puis répond en citant ses sources.' },
 ]
