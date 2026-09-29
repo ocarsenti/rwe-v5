@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #14294f;
-  --color-primary-light: #556480;
-  --color-accent: #14a17e;
-  --color-accent-light: #55bba2;
+  --color-primary: #003d73;          /* couleurs de la gélule (2026-09-29) : bleu foncé */
+  --color-primary-light: #0068a8;    /* bleu de la gélule */
+  --color-accent: #1a7f43;           /* vert foncé de la gélule (texte blanc lisible) */
+  --color-accent-light: #80c040;     /* vert clair de la gélule */
   --color-success: #27ae60;
   --color-danger: #e74c3c;
   --color-warning: #f1c40f;

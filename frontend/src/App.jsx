@@ -3,7 +3,7 @@ import { Routes, Route, Link, useLocation, Outlet } from 'react-router-dom'
 import { LangProvider, useLang } from './LangContext'
 import { GuestProvider } from './guest/GuestContext'
 import GuestBanner from './guest/GuestBanner'
-import Landing from './pages/Landing'
+import LandingPrecedents from './pages/LandingPrecedents'
 import CasReels from './pages/CasReels'
 import LandingOdysight from './pages/LandingOdysight'
 import OdysightLayout from './pages/OdysightLayout'
@@ -15,7 +15,7 @@ import GoldPage from './pages/GoldPage'
 import RepairPage from './pages/RepairPage'
 import AdminPage from './pages/AdminPage'
 import evidenceableWordmark from './assets/evidenceable-wordmark-compact.png'
-import evidenceableIcon from './assets/evidenceable-icon.png'
+import evidenceableIcon from './assets/gelule.png'
 
 function IntroSplash({ onEnter }) {
   return (
@@ -150,8 +150,8 @@ export default function App() {
       <div className="min-h-screen bg-surface">
         <VisitTracker />
         <Routes>
+          <Route path="/" element={<LandingPrecedents />} />
           <Route element={<MainLayout />}>
-            <Route path="/" element={<Landing />} />
             <Route path="/cas-reels" element={<CasReels />} />
             <Route path="/review" element={<ReviewPage />} />
             <Route path="/repair" element={<GuestProvider><GuestBanner /><RepairPage /></GuestProvider>} />
